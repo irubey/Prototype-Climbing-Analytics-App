@@ -103,7 +103,6 @@ binned_code_data = {
             805: "AI4"
             }
 
-
 def create_tables():
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
