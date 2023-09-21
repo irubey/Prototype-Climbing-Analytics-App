@@ -52,3 +52,14 @@ target/
 .gradle/
 .next/
 .dockerignore
+
+#Unneeded files
+working_code.ipynb
+optomized_data_calculations.py
+base_df.ipynb
+app(old_uses_mysql).py
+overhang_icon.jpg
+roof_icon.jpg
+slab_icon.jpg
+vertical_icon.jpg
+jstar_calcs.ipynb
