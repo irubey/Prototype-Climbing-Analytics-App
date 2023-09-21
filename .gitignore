@@ -1,4 +1,54 @@
-.env
-*.log
+# Dependency Folders
 node_modules/
-tmp/
+venv/
+vendor/
+
+# Build Output
+dist/
+build/
+*.o
+*.exe
+
+# System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE and Editor Configurations
+.vscode/
+.idea/
+*.sublime-*
+
+# Log and Temporary Files
+*.log
+*.tmp
+*.temp
+
+# Database Files
+*.sqlite
+*.db
+
+# User-specific Configurations
+.env
+config.js
+config.json
+
+# Cache and Metadata Folders
+.cache/
+__pycache__/
+*.pyc
+
+# Operating System Generated Files
+.Trashes
+ehthumbs.db
+
+# Backup Files
+*~
+*.bak
+
+# Other Language/Framework Specific Files and Folders
+*.class
+target/
+.gradle/
+.next/
+.dockerignore
