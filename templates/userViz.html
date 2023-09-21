@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Visualizations</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <a href="mailto:climbing.analytics@gmail.com"> This is a prototype application, please provide feedback here</a>
+    <section>
+        <h1>Experience Base - {{ username }}</h1>
+        <a href="{{ url_for('base_volume', username=username) }}"><h2>Base Volume</h2></a>
+        <p>Climber's base volume of outdoor climbing. Includes work capasity, consistency, and volume of outdoor rock climbs</p>
+        
+        <a href="{{ url_for('progression', username=username) }}"><h2>Progression</h2></a>
+        <p>Climber's progression over their career along a number of categories</p>
+        
+        <a href="{{ url_for('when_where', username=username) }}"><h2>When and Where</h2></a>
+        <p>Overview of climber's preferred areas and seasonality</p>
+    </section>
+
+    <section>
+        <h1>Performance Visualizations - {{ username }}</h1>
+        
+        <a href="{{ url_for('performance_pyramid', username=username) }}"><h2>Performance Pyramid</h2></a>
+        <p>Climber's top outdoor performances</p>
+        
+        <a href="{{ url_for('performance_characteristics', username=username) }}"><h2>Performance Characteristics</h2></a>
+        <p>Characteristics of the climber's top outdoor performances </p>
+    </section>
+</body>
+</html>

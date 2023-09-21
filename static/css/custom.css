@@ -1,0 +1,47 @@
+/* custom.css */
+
+body {
+    background-image: url("../images/index_background.jpg");
+    background-size: cover;
+    margin: 0;
+    padding: 0;
+}
+
+
+.container {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.input-container {
+    display: flex;
+    align-items: center;
+}
+
+.input-container input[type="text"] {
+    margin-right: 10px;
+}
+
+footer {
+    background-color: #00000000;
+    padding: 20px;
+    text-align: right;
+}
+
+footer nav ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+footer nav ul li {
+    display: inline;
+    margin-right: 10px;
+}
+
+footer nav ul li a {
+    text-decoration: none;
+    color: #0e0a0a;
+}

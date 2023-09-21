@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pyramid Inputs</title>
+    <!-- CSS only -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <!-- JS with Popper.js (needed for some Bootstrap components) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.9.3/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/5.0.0-beta3/js/bootstrap.min.js"></script>
+
+</head>
+<body>
+
+    <a href="{{ url_for('userviz', username=username) }}">Home</a>
+    <br>
+    <a href="mailto:climbing.analytics@gmail.com"> This is a prototype application, please provide feedback here</a>
+    
+    <h1>Pyramid Inputs</h1>
+    <b>Enter route information here to get more accurate performance visualizations.</b><br>
+    <b>Submit form at bottom of page.</b><br>
+    <b>Route names are linked to their respective pages if you need to remember the particulars of a route.</b><br>
+    <b>Number of attempts defaults to total logged pitches before a clean ascent.</b>
+
+    <form method="POST" action="{{ url_for('pyramid_input') }}">
+
+        <!-- Sport Performance -->
+        <h2>Sport Performance</h2>
+        <table class="performance-table">
+            <tr>
+                <th>Route Name</th>
+                <th>Tick Date</th>
+                <th>Route Grade</th>
+                <th>Number of Attempts</th>
+                <th>Route Characteristic</th>
+                <th>Route Style</th>
+            </tr>
+          
+            {% for row in sport_pyramid %}
+
+            <tr>
+                <td><a href="{{ row.route_url }}" target="_blank">{{ row.route_name }}</a></td>
+                <td>{{ row.tick_date }}</td>
+                <td class="text-center align-middle">{{ row.route_grade }}</td>
+                <td><input type="text" name="sport_num_attempts_{{ row.id }}" value="{{ row.num_attempts }}"></td>
+                
+                <!-- Radio buttons for Route Characteristic -->
+                <td>
+                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Unknown" {% if not row.route_characteristic or row.route_characteristic == 'Unknown' %}checked{% endif %}>Unknown</label>
+                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Power" {% if row.route_characteristic == 'Power' %}checked{% endif %}>Power</label>
+                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Power Endurance" {% if row.route_characteristic == 'Power Endurance' %}checked{% endif %}>Power Endurance</label>
+                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Endurance" {% if row.route_characteristic == 'Endurance' %}checked{% endif %}>Endurance</label>
+                </td>
+
+                <!-- Radio buttons for Route Style -->
+                <td>
+                    <label><input type="radio" name="sport_route_style_{{ row.id }}" value="Unknown" {% if not row.route_style or row.route_style == 'Unknown' %}checked{% endif %}>Unknown</label>
+                    <label>
+                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Slab" {% if row.route_style == 'Slab' %}checked{% endif %}>
+                        <!-- <img src="{{ url_for('static', filename='images/slab_icon.png') }}" alt="Slab"> --> Unknown
+                    </label>                    
+                    <label>
+                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Vertical" {% if row.route_style == 'Vertical' %}checked{% endif %}>
+                        <!-- <img src="{{ url_for('static', filename='images/vertical_icon.png') }}" alt="Vertical"> --> Vertical
+                    </label>
+                    <label>
+                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Overhang" {% if row.route_style == 'Overhang' %}checked{% endif %}>
+                        <!-- <img src="{{ url_for('static', filename='images/overhang_icon.png') }}" alt="Overhang"> --> Overhang
+                    </label>
+                    <label>
+                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Roof" {% if row.route_style == 'Roof' %}checked{% endif %}>
+                        <!-- <img src="{{ url_for('static', filename='images/roof_icon.png') }}" alt="Roof"> --> Roof
+                    </label>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <!-- Trad Performance -->
+        <h2>Trad Performance</h2>
+        <table class="performance-table">
+            <tr>
+                <th>Route Name</th>
+                <th>Tick Date</th>
+                <th>Route Grade</th>
+                <th>Number of Attempts</th>
+                <th>Route Characteristic</th>
+                <th>Route Style</th>
+            </tr>
+            {% for row in trad_pyramid %}
+            <tr>
+                <td><a href="{{ row.route_url }}" target="_blank">{{ row.route_name }}</a></td>
+                <td>{{ row.tick_date }}</td>
+                <td class="text-center align-middle">{{ row.route_grade }}</td>
+                <td><input type="text" name="trad_num_attempts_{{ row.id }}" value="{{ row.num_attempts }}"></td>
+                
+                <!-- Radio buttons for Route Characteristic -->
+                <td>
+                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Unknown" {% if not row.route_characteristic or row.route_characteristic == 'Unknown' %}checked{% endif %}>Unknown</label>
+                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Power" {% if row.route_characteristic == 'Power' %}checked{% endif %}>Power</label>
+                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Power Endurance" {% if row.route_characteristic == 'Power Endurance' %}checked{% endif %}>Power Endurance</label>
+                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Endurance" {% if row.route_characteristic == 'Endurance' %}checked{% endif %}>Endurance</label>
+                </td>
+
+                <!-- Radio buttons for Route Style -->
+                <td>
+                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Unknown" {% if not row.route_style or row.route_style == 'Unknown' %}checked{% endif %}>Unknown</label>
+                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Slab" {% if row.route_style == 'Slab' %}checked{% endif %}>Slab</label>
+                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Vertical" {% if row.route_style == 'Vertical' %}checked{% endif %}>Vertical</label>
+                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Overhang" {% if row.route_style == 'Overhang' %}checked{% endif %}>Overhang</label>
+                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Roof" {% if row.route_style == 'Roof' %}checked{% endif %}>Roof</label>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <!-- Boulder Performance -->
+        <h2>Boulder Performance</h2>
+        <table class="performance-table">
+            <tr>
+                <th>Route Name</th>
+                <th>Tick Date</th>
+                <th>Route Grade</th>
+                <th>Number of Attempts</th>
+                <th>Route Characteristic</th>
+                <th>Route Style</th>
+            </tr>
+            {% for row in boulder_pyramid %}
+            <tr>
+                <td><a href="{{ row.route_url }}" target="_blank">{{ row.route_name }}</a></td>
+                <td>{{ row.tick_date }}</td>
+                <td class="text-center align-middle">{{ row.route_grade }}</td>
+                <td><input type="text" name="boulder_num_attempts_{{ row.id }}" value="{{ row.num_attempts }}"></td>
+                
+                <!-- Radio buttons for Route Characteristic -->
+                <td>
+                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Unknown" {% if not row.route_characteristic or row.route_characteristic == 'Unknown' %}checked{% endif %}>Unknown</label>
+                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Power" {% if row.route_characteristic == 'Power' %}checked{% endif %}>Power</label>
+                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Power Endurance" {% if row.route_characteristic == 'Power Endurance' %}checked{% endif %}>Power Endurance</label>
+                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Endurance" {% if row.route_characteristic == 'Endurance' %}checked{% endif %}>Endurance</label>
+                </td>
+
+                <!-- Radio buttons for Route Style -->
+                <td>
+                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Unknown" {% if not row.route_style or row.route_style == 'Unknown' %}checked{% endif %}>Unknown</label>
+                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Slab" {% if row.route_style == 'Slab' %}checked{% endif %}>Slab</label>
+                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Vertical" {% if row.route_style == 'Vertical' %}checked{% endif %}>Vertical</label>
+                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Overhang" {% if row.route_style == 'Overhang' %}checked{% endif %}>Overhang</label>
+                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Roof" {% if row.route_style == 'Roof' %}checked{% endif %}>Roof</label>
+                </td>
+                
+            </tr>
+            {% endfor %}
+        </table>
+        <input type="hidden"  name="username" value = "{{ username }}">
+        <input type="submit" value="Submit">
+
+    </form>
+</body>
+</html>

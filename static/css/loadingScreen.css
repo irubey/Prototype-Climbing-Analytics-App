@@ -1,0 +1,27 @@
+#loadingScreen {
+    position: fixed; /* Fixed position */
+    top: 0;
+    left: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    background-size: cover;
+    z-index: 9999; /* Ensure it appears on top */
+    animation: cycleImages 35s infinite;
+}
+
+@keyframes cycleImages {
+    0% { background-image: url('../images/loading1.jpg'); }
+    25% { background-image: url('../images/loading2.jpg'); }
+    50% { background-image: url('../images/loading3.jpg'); }
+    75% { background-image: url('../images/loading4.jpg'); }
+    100% { background-image: url('../images/loading5.jpg'); }
+}
+
+
+#loadingText {
+    position: absolute;
+    font-size: 24px;
+    color: white;
+}
+    
+
