@@ -57,7 +57,7 @@
                     <label><input type="radio" name="sport_route_style_{{ row.id }}" value="Unknown" {% if not row.route_style or row.route_style == 'Unknown' %}checked{% endif %}>Unknown</label>
                     <label>
                         <input type="radio" name="sport_route_style_{{ row.id }}" value="Slab" {% if row.route_style == 'Slab' %}checked{% endif %}>
-                        <!-- <img src="{{ url_for('static', filename='images/slab_icon.png') }}" alt="Slab"> --> Unknown
+                        <!-- <img src="{{ url_for('static', filename='images/slab_icon.png') }}" alt="Slab"> --> Slab
                     </label>                    
                     <label>
                         <input type="radio" name="sport_route_style_{{ row.id }}" value="Vertical" {% if row.route_style == 'Vertical' %}checked{% endif %}>
