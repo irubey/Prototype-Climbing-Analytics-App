@@ -1,5 +1,5 @@
 function locationRaceChart(userTicksData,targetId){
-  const MARGIN = { top: 20, right: 20, bottom: 20, left: 150 };
+  const MARGIN = { top: 20, right: 20, bottom: 20, left: 20};
   const topCount = 20;
 
 
