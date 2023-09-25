@@ -145,7 +145,17 @@ def perform_calculations(first_input):
 
         #Concat user_ticks with user_df to create final user_ticks object
         user_ticks = pd.concat([user_df, user_ticks], axis = 0, ignore_index = True)
-        
+
+        #Drop invalid date rows
+        user_ticks['tick_date'] = pd.to_datetime(user_ticks['tick_date'], errors='coerce')
+        user_ticks.dropna(subset=['tick_date'], inplace = True)
+
+        if user_ticks['tick_date'].isnull().sum() == 0:
+            print("All dates are valid.")
+        else:
+            print("There are invalid dates.")
+
+
         #Populate binned_grades
         user_ticks['binned_grade'] = user_ticks['binned_code'].map(lambda code: binned_code_dict.get(code, [''])[0] if code in binned_code_dict else '').tolist()
 
@@ -265,7 +275,17 @@ def perform_calculations(first_input):
 
 
         # Populate season category
-        user_ticks['tick_date'] = pd.to_datetime(user_ticks['tick_date'])
+        #Drop invalid date rows
+        user_ticks['tick_date'] = pd.to_datetime(user_ticks['tick_date'], errors='coerce')
+        user_ticks.dropna(subset=['tick_date'], inplace = True)
+
+        if user_ticks['tick_date'].isna().sum() == 0:
+            print("All dates are valid.")
+        else:
+            print("There are invalid dates.")
+
+
+        
 
         # Extract month and year from tick_date
         user_ticks['tick_month'] = user_ticks['tick_date'].dt.month
@@ -455,144 +475,5 @@ def perform_calculations(first_input):
     
 
     sport_pyramid, trad_pyramid, boulder_pyramid = pyramid1(pyramid_df)
-    print(boulder_pyramid,sport_pyramid,trad_pyramid)
-    return sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username
-
-
-# def perform_additional_calculations(second_input, sport_pyramid, trad_pyramid, boulder_pyramid):
-#     length = len(second_input)
-
-#     # First third
-#     num_attempts = second_input[:length // 3]
-
-#     # Second third
-#     route_characteristic = second_input[length // 3: 2 * length // 3]
-
-#     # Last third
-#     route_style = second_input[2 * length // 3:]
-
-
-#     # Get route_names and tick_dates from retrieved data
-#     sport_route_names = [item['route_name'] for item in sport_pyramid]
-#     sport_tick_dates = [item['tick_date'] for item in sport_pyramid]
-#     trad_route_names = [item['route_name'] for item in trad_pyramid]
-#     trad_tick_dates = [item['tick_date'] for item in trad_pyramid]
-#     boulder_route_names = [item['route_name'] for item in boulder_pyramid]
-#     boulder_tick_dates = [item['tick_date'] for item in boulder_pyramid]
-
-#     sport_characteristic = route_characteristic[:len(sport_pyramid)]
-#     trad_characteristic = route_characteristic[len(sport_pyramid):len(sport_pyramid) + len(trad_pyramid)]
-#     boulder_characteristic = route_characteristic[len(sport_pyramid) + len(trad_pyramid):]
-
-#     sport_attempts = num_attempts[:len(sport_pyramid)]
-#     trad_attempts = num_attempts[len(sport_pyramid):len(sport_pyramid) + len(trad_pyramid)]
-#     boulder_attempts = num_attempts[len(sport_pyramid) + len(trad_pyramid):]
-
-#     sport_style = route_style[:len(sport_pyramid)]
-#     trad_style = route_style[len(sport_pyramid):len(sport_pyramid) + len(trad_pyramid)]
-#     boulder_style = route_style[len(sport_pyramid) + len(trad_pyramid):]
-
-
-#     # Convert tick_dates to 'YYYY-MM-DD' format
-#     sport_tick_dates = [date.strftime('%Y-%m-%d') for date in sport_tick_dates]
-#     trad_tick_dates = [date.strftime('%Y-%m-%d') for date in trad_tick_dates]
-#     boulder_tick_dates = [date.strftime('%Y-%m-%d') for date in boulder_tick_dates]
-
-
-#     sport_df = pd.DataFrame({'route_name': sport_route_names,
-#                              'tick_date': sport_tick_dates,
-#                              'route_characteristic': sport_characteristic})
-
-#     trad_df = pd.DataFrame({'route_name': trad_route_names,
-#                             'tick_date': trad_tick_dates,
-#                             'route_characteristic': trad_characteristic})
-
-#     boulder_df = pd.DataFrame({'route_name': boulder_route_names,
-#                                'tick_date': boulder_tick_dates,
-#                                'route_characteristic': boulder_characteristic})
-
-#     sport_attempts_df = pd.DataFrame({'route_name': sport_route_names,
-#                                       'tick_date': sport_tick_dates,
-#                                       'num_attempts': sport_attempts})
-
-#     trad_attempts_df = pd.DataFrame({'route_name': trad_route_names,
-#                                      'tick_date': trad_tick_dates,
-#                                      'num_attempts': trad_attempts})
-
-#     boulder_attempts_df = pd.DataFrame({'route_name': boulder_route_names,
-#                                         'tick_date': boulder_tick_dates,
-#                                         'num_attempts': boulder_attempts})
     
-#     sport_style_df = pd.DataFrame({'route_name':sport_route_names,
-#                                    'tick_date': sport_tick_dates,
-#                                    'route_style': sport_style})
-#     trad_style_df = pd.DataFrame({'route_name':trad_route_names,
-#                                 'tick_date': trad_tick_dates,
-#                                 'route_style': trad_style})
-#     boulder_style_df = pd.DataFrame({'route_name':boulder_route_names,
-#                                 'tick_date': boulder_tick_dates,
-#                                 'route_style': boulder_style})
-
-#     return sport_df, trad_df, boulder_df, sport_attempts_df, trad_attempts_df, boulder_attempts_df,sport_style_df,trad_style_df,boulder_style_df
-
-# def perform_additional_calculations(second_input, sport_pyramid, trad_pyramid, boulder_pyramid):
-    length = len(second_input)
-    print(second_input)
-    # First third
-    num_attempts = second_input[:length // 3]
-
-    # Second third
-    route_characteristic = second_input[length // 3: 2 * length // 3]
-
-    # Last third
-    route_style = second_input[2 * length // 3:]
-
-    # Extracting IDs
-    sport_ids = [item['id'] for item in sport_pyramid]
-    trad_ids = [item['id'] for item in trad_pyramid]
-    boulder_ids = [item['id'] for item in boulder_pyramid]
-
-    sport_characteristic = route_characteristic[:len(sport_ids)]
-    trad_characteristic = route_characteristic[len(sport_ids):len(sport_ids) + len(trad_ids)]
-    boulder_characteristic = route_characteristic[len(sport_ids) + len(trad_ids):]
-
-    sport_attempts = num_attempts[:len(sport_ids)]
-    trad_attempts = num_attempts[len(sport_ids):len(sport_ids) + len(trad_ids)]
-    boulder_attempts = num_attempts[len(sport_ids) + len(trad_ids):]
-
-    sport_style = route_style[:len(sport_ids)]
-    trad_style = route_style[len(sport_ids):len(sport_ids) + len(trad_ids)]
-    boulder_style = route_style[len(sport_ids) + len(trad_ids):]
-
-    # print(len(sport_route_names))
-    # print(len(sport_tick_dates))
-    # print(len(sport_characteristic))
-    # Creating DataFrames using IDs
-    sport_df = pd.DataFrame({'id': sport_ids,
-                             'route_characteristic': sport_characteristic})
-
-    trad_df = pd.DataFrame({'id': trad_ids,
-                            'route_characteristic': trad_characteristic})
-
-    boulder_df = pd.DataFrame({'id': boulder_ids,
-                               'route_characteristic': boulder_characteristic})
-
-    sport_attempts_df = pd.DataFrame({'id': sport_ids,
-                                      'num_attempts': sport_attempts})
-
-    trad_attempts_df = pd.DataFrame({'id': trad_ids,
-                                     'num_attempts': trad_attempts})
-
-    boulder_attempts_df = pd.DataFrame({'id': boulder_ids,
-                                        'num_attempts': boulder_attempts})
-
-    sport_style_df = pd.DataFrame({'id': sport_ids,
-                                   'route_style': sport_style})
-
-    trad_style_df = pd.DataFrame({'id': trad_ids,
-                                  'route_style': trad_style})
-
-    boulder_style_df = pd.DataFrame({'id': boulder_ids,
-                                    'route_style': boulder_style})
-
-    return sport_df, trad_df, boulder_df, sport_attempts_df, trad_attempts_df, boulder_attempts_df, sport_style_df, trad_style_df, boulder_style_df
+    return sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username
