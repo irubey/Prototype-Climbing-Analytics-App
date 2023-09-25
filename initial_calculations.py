@@ -189,6 +189,7 @@ def perform_calculations(first_input):
         user_ticks['length_category'] = pd.cut(user_ticks['length'], bins=length_bins, labels=length_labels, right=False)
 
         #Add Truncated Locations
+        user_ticks['location'] = user_ticks['location'].astype(str)
         user_ticks['location'] = user_ticks['location'].apply(lambda x: x.split('>')).apply(lambda x: x[:3])
         user_ticks['location'] = user_ticks['location'].apply(lambda x: f"{x[-1]}, {x[0]}")
 
@@ -324,7 +325,7 @@ def perform_calculations(first_input):
         user_ticks['route_name'] = user_ticks['route_name'].astype(str)
         user_ticks['route_grade'] = user_ticks['route_grade'].astype(str)
         user_ticks['pitches'] = user_ticks['pitches'].astype(int)
-        user_ticks['location'] = user_ticks['location'].astype(str)
+        
         user_ticks['lead_style'] = user_ticks['lead_style'].astype('category')
         user_ticks['length'] = user_ticks['length'].astype('Int64')
         user_ticks['binned_code'] = user_ticks['binned_code'].astype(int)
