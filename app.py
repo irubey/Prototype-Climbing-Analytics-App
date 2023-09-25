@@ -23,8 +23,15 @@ if os.environ.get("FLASK_ENV") == "production":
     app.config["DEBUG"] = False
 else:
     app.config["DEBUG"] = True
-#Database setup
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+
+#Database Setup
+# Get the DATABASE_URL environment variable provided by Heroku
+database_url = os.getenv("DATABASE_URL")
+#Replace postgres:// with postgresql:// in the URL
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
