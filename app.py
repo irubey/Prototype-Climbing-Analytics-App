@@ -278,6 +278,10 @@ def index():
 
     return render_template('index.html')
 
+@app.route("/terms-privacy")
+def terms_and_privacy():
+    return render_template('termsAndPrivacy.html')
+
 @app.route("/userviz")
 def userviz():
     # Retrieve the username from the query parameters
