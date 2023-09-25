@@ -244,6 +244,17 @@ def convert_data_to_json(username):
 
     return sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, binned_code_dict
 
+
+    # Define the tables to clear
+    tables_to_clear = [UserTicks, SportPyramid, TradPyramid, BoulderPyramid]
+    
+    # Iterate through the tables and delete all rows
+    for table in tables_to_clear:
+        # Use the delete() method to delete all rows from the table
+        db.session.query(table).delete()
+    
+    # Commit the changes to the database
+    db.session.commit()
 #ROUTES
 @app.route("/", methods=['GET', 'POST'])
 def index():
