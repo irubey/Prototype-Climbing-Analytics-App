@@ -55,12 +55,12 @@ target/
 
 #Unneeded files
 working_code.ipynb
-optomized_data_calculations.py
+optimized_data_calculations.py
 base_df.ipynb
 app(old_uses_mysql).py
-overhang_icon.jpg
-roof_icon.jpg
-slab_icon.jpg
-vertical_icon.jpg
+overhang_icon.png
+roof_icon.png
+slab_icon.png
+vertical_icon.png
 jstar_calcs.ipynb
 requirements_backup.txt
