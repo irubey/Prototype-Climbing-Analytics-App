@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", function() {
   function workCapacityChart(targetId, userTicksData){
     // Utilities
-    console.log(userTicksData)
     const parseDate = d3.timeParse('%Y-%m-%d');
     const formatDate = d3.timeFormat('%Y-%m-%d');
 

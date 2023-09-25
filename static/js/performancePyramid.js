@@ -112,8 +112,7 @@ document.addEventListener("DOMContentLoaded", function() {
             const svg = createSVGChartContainer(targetId, margin, width, height);
             const x = createLinearScale([0, width]);
             const y = createBandScale([height, 0],0);
-            
-            console.log(binnedCodeDict)
+        
             // Convert the binnedCodeDict to an object for easier lookup
             var binnedCodeObj = convertDictToObj(binnedCodeDict);
 

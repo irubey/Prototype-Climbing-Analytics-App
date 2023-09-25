@@ -2,7 +2,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function progressionLengthChart(userTicksData, targetId) {
     // Custom date parsing function
-    console.log(userTicksData);
     const parseDate = d3.timeParse('%Y-%m-%d');
 
     function getColor(category, type) {
@@ -136,7 +135,6 @@ document.addEventListener("DOMContentLoaded", function() {
       filteredData,
       (d) => ({ date: parseDate(d.tick_date), category: d.length_category, pitches: d.pitches || 0 }),
     );
-    console.log('filtered Data:',filteredData);
     createChart(filteredData, 'category', 'length', (cat) => getColor(cat, 'length'), (d) => true, '#length-cat');
   }
   
