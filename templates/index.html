@@ -1,11 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Climbing Analytics</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/loadingScreen.css') }}">
-    
+    <style>
+        #example {
+            position: absolute;
+            top: 20%;
+            left: 20%;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -14,9 +21,12 @@
                 <input type="text" name="first_input" placeholder="mountain project user profile link">
                 <button type="submit">Submit</button>
             </div>
-            <b>Example profile link:</b> <br>
-            <b>https://www.mountainproject.com/user/200169262/isaac-rubey</b>
         </form>
+    </div>
+
+    <div id="example">
+        <b>Example profile link:</b> <br>
+        <b>https://www.mountainproject.com/user/200169262/isaac-rubey</b>
     </div>
 
     <footer>
