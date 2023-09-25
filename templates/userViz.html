@@ -21,6 +21,7 @@
     <section>
         <h1>Performance Visualizations - {{ username }}</h1>
         <b>These are the top 4 grades that have been recorded as sent clean on lead.</b>
+        <a href="{{ url_for('pyramid_inputs', username=username)}}">For more detailed analysis input route info here.</a>
         
         <a href="{{ url_for('performance_pyramid', username=username) }}"><h2>Performance Pyramid</h2></a>
         <p>Climber's top outdoor performances</p>
