@@ -1,6 +1,6 @@
 # Dependency Folders
 node_modules/
-venv/
+.venv/
 vendor/
 
 # Build Output
