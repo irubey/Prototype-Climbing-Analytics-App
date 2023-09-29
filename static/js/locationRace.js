@@ -64,7 +64,7 @@ function locationRaceChart(userTicksData,targetId){
     const maxTotalPitches = d3.max(frames, d => d3.max(d.locationsData, locationData => locationData.totalPitches));
 
     // Calculate the effective height based on the topCount and other margins
-    const effectiveHeight = topCount * 40;
+    const effectiveHeight = topCount * 30;
 
     // Calculate the width based on the container's client width
     const containerWidth = container.clientWidth;
