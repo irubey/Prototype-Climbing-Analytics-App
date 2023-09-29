@@ -183,7 +183,7 @@ def perform_calculations(first_input):
         user_ticks['length'] = user_ticks['length'].replace(0, np.nan)
 
         #populate length_category
-        length_bins = [0, 50, 80, 130, 50000]
+        length_bins = [0, 60, 85, 130, 50000]
         length_labels = ['short', 'medium', 'long', 'multipitch']
 
         user_ticks['length_category'] = pd.cut(user_ticks['length'], bins=length_bins, labels=length_labels, right=False)

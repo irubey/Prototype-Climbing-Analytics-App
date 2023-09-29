@@ -20,7 +20,9 @@ document.addEventListener("DOMContentLoaded", function() {
             const g = svg.append("g")
                 .attr("transform", `translate(${margin.left},${margin.top})`);
         
-            const color = d3.scaleOrdinal().range(d3.schemeSet2);
+
+            const color = d3.scaleOrdinal().range(["#0078D4", "#F25022", "#7CBB00", "#FFB900"]);
+
             const x = d3.scaleBand().rangeRound([0, width]).paddingInner(0.05).align(0.1);
             const y = d3.scaleLinear().rangeRound([height, 0]);
             const z = color;

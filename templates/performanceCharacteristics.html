@@ -40,17 +40,24 @@
         </div>
 
 
-        <h1>Top Performances Characteristics</h1>
+        <h1>Route Characteristics - Top 4 grades</h1>
+        <a href="{{ url_for('pyramid_input', username=username) }}"><h2>Input route info here</h2></a>
+
         <div id="performance-characteristics"></div>
         
-        <a href="{{ url_for('pyramid_input', username=username) }}"><h2>Input Route Characteristics</h2></a>
-
-        <h2>Top Performances Length Categories</h2>
+        
+        <h2>Route Length - Top 4 Grades Sent</h2>
+        <b>Short: Under 60ft.</b><br>
+        <b>Medium: 60 - 85ft.</b><br>
+        <b>Long: 86 - 130ft.</b><br>
+        <b>Multipitch: Over 130ft.</b>
         <div id="performance-length"></div>
+        
 
-        <h2>Top Performances Style</h2>
+        <h2>Route Style - Top 4 Grades Sent</h2>
+        <a href="{{ url_for('pyramid_input', username=username) }}"><h2>Input route info here</h2></a>
         <div id="performance-style"></div>
-        <a href="{{ url_for('pyramid_input', username=username) }}"><h2>Input Route Styles</h2></a>
+        
     </section>
     
     <!-- Include the second JavaScript file -->
