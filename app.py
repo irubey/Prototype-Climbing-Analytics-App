@@ -25,7 +25,6 @@ else:
     app.config["DEBUG"] = True
 
 #Database Setup
-# Get the DATABASE_URL environment variable provided by Heroku
 database_url = os.getenv("DATABASE_URL")
 #Replace postgres:// with postgresql:// in the URL
 if database_url.startswith("postgres://"):
@@ -182,28 +181,19 @@ def update_calculated_data(calculated_data):
         if not model_class:
             raise ValueError(f"No model found for table name: {table_name}")
 
-        # Insert new rows from the DataFrame
         for _, row in df.iterrows():
-            # Replace NaN values with None
             data_dict = row.where(pd.notnull(row), None).to_dict()
-            new_entry = model_class(**data_dict)
-            db.session.add(new_entry)
 
-        db.session.commit()
+            # Check if a row with the given username, route_name, and tick_date already exists
+            exists = db.session.query(model_class).filter_by(
+                username=data_dict['username'],
+                route_name=data_dict['route_name'], 
+                tick_date=data_dict['tick_date']
+            ).first()
 
-        # Remove duplicates based on route_name and tick_date
-        subquery = (db.session.query(model_class.route_name, model_class.tick_date,
-                                     func.max(model_class.id).label('max_id'))
-                    .group_by(model_class.route_name, model_class.tick_date)
-                    .subquery())
-
-        duplicates = (db.session.query(model_class)
-                      .join(subquery, and_(model_class.route_name == subquery.c.route_name,
-                                           model_class.tick_date == subquery.c.tick_date,
-                                           model_class.id != subquery.c.max_id)))
-
-        for duplicate in duplicates:
-            db.session.delete(duplicate)
+            if not exists:  # If row doesn't exist, then insert it
+                new_entry = model_class(**data_dict)
+                db.session.add(new_entry)
 
         db.session.commit()
 
@@ -255,6 +245,7 @@ def convert_data_to_json(username):
     
     # Commit the changes to the database
     db.session.commit()
+
 #ROUTES
 @app.route("/", methods=['GET', 'POST'])
 def index():
