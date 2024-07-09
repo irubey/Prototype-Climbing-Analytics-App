@@ -371,27 +371,57 @@ def perform_calculations(first_input):
 
         # Filter to pyramids
         filtered_df = pyramid_df[pyramid_df['send_bool']]
-        
+
+        # Filter for 'sport' discipline
         sport_df = filtered_df[filtered_df['discipline'] == 'sport']
+
         if not sport_df.empty:
+            # Remove duplicates based on 'route_name' and 'location' and keep the oldest 'tick_date'
+            sport_df = sport_df.sort_values('tick_date')
+            sport_df = sport_df.drop_duplicates(subset=['route_name', 'location'], keep='first')
+
+            # Get the top 4 binned codes
             top_sport_binned_code = sport_df['binned_code'].max()
             top4_sport_binned_codes = list(range(top_sport_binned_code, top_sport_binned_code - 4, -1))
+            # Filter for rows with the top 4 binned codes
             sport_df = sport_df[sport_df['binned_code'].isin(top4_sport_binned_codes)]
-            sport_df = sport_df.sort_values('binned_code', ascending=False)
 
+        # Sort by 'binned_code' in descending order
+        sport_df = sport_df.sort_values('binned_code', ascending=False)
+
+        # Filter for 'trad' discipline
         trad_df = filtered_df[filtered_df['discipline'] == 'trad']
-        if not trad_df.empty:
-            top_trad_binned_code = trad_df['binned_code'].max()
-            top4_trad_binned_codes = list(range(top_trad_binned_code, top_trad_binned_code - 4, -1))
-            trad_df = trad_df[trad_df['binned_code'].isin(top4_trad_binned_codes)]
-            trad_df = trad_df.sort_values('binned_code', ascending=False)
 
+        if not trad_df.empty:
+            # Remove duplicates based on 'route_name' and 'location' and keep the oldest 'tick_date'
+            trad_df = trad_df.sort_values('tick_date')
+            trad_df = trad_df.drop_duplicates(subset=['route_name', 'location'], keep='first')
+
+            # Get the top 4 binned codes
+            top_trad_binned_codes = trad_df['binned_code'].nlargest(4).tolist()
+
+            # Filter for rows with the top 4 binned codes
+            trad_df = trad_df[trad_df['binned_code'].isin(top_trad_binned_codes)]
+
+        # Sort by 'binned_code' in descending order
+        trad_df = trad_df.sort_values('binned_code', ascending=False)
+
+        # Filter for 'boulder' discipline
         boulder_df = filtered_df[filtered_df['discipline'] == 'boulder']
+
         if not boulder_df.empty:
-            top_boulder_binned_code = boulder_df['binned_code'].max()
-            top4_boulder_binned_codes = list(range(top_boulder_binned_code, top_boulder_binned_code - 4, -1))
-            boulder_df = boulder_df[boulder_df['binned_code'].isin(top4_boulder_binned_codes)]
-            boulder_df = boulder_df.sort_values('binned_code', ascending=False)
+            # Remove duplicates based on 'route_name' and 'location' and keep the oldest 'tick_date'
+            boulder_df = boulder_df.sort_values('tick_date')
+            boulder_df = boulder_df.drop_duplicates(subset=['route_name', 'location'], keep='first')
+
+            # Get the top 4 binned codes
+            top_boulder_binned_codes = boulder_df['binned_code'].nlargest(4).tolist()
+
+            # Filter for rows with the top 4 binned codes
+            boulder_df = boulder_df[boulder_df['binned_code'].isin(top_boulder_binned_codes)]
+
+        # Sort by 'binned_code' in descending order
+        boulder_df = boulder_df.sort_values('binned_code', ascending=False)
 
         pyramid_calc = pyramid_df.copy()
 
