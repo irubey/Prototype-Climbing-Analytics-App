@@ -1,111 +1,511 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
+    ></script>
     <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
 
-    gtag('config', 'G-QLKC35PVJB');
+      gtag("config", "G-QLKC35PVJB");
     </script>
     <title>Base Volume</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script>
-    var sportPyramidData = {{ sport_pyramid|safe }};
-    var tradPyramidData = {{ trad_pyramid|safe }};
-    var boulderPyramidData = {{ boulder_pyramid|safe }};
-    var userTicksData = {{ user_ticks|safe }};
-    var binnedCodeDict = {{ binned_code_dict|safe }};
-    </script>
-</head>
-<body>
-
-    <a href="{{ url_for('userviz', username=username) }}">Home</a>
-    <br>
-    <a href="mailto:climbing.analytics@gmail.com"> This is a prototype application, please provide feedback here</a>
-
-    <section>
-        <h1>Base Volume</h1>
-        
-
-        <!-- Total Vert -->
-        <h2>Total Vertical Feet Climbed</h2>
-        
-        <div id="total-vert-filters">
-            <h3>Discipline Filter</h3>
-            <input type="radio" id="filter-vert-all" name="total-vert-discipline-filter" value="all" checked>
-            <label for="filter-vert-all">All</label>
-            <input type="radio" id="filter-vert-sport" name="total-vert-discipline-filter" value="sport">
-            <label for="filter-vert-sport">Sport</label>
-            <input type="radio" id="filter-vert-trad" name="total-vert-discipline-filter" value="trad">
-            <label for="filter-vert-trad">Trad</label>
-            <input type="radio" id="filter-vert-boulder" name="total-vert-discipline-filter" value="boulder">
-            <label for="filter-vert-boulder">Boulder</label>
-
-            <h3>Time Filter</h3>
-            <input type="radio" id="filter-vert-time-allTime" name="total-vert-time-filter" value="allTime" checked>
-            <label for="filter-vert-time-allTime">All Time</label>
-            <input type="radio" id="filter-vert-time-lastYear" name="total-vert-time-filter" value="lastYear">
-            <label for="filter-vert-time-lastYear">Past Year</label>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/visualizations.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <div class="header-content">
+        <div class="header-wrapper">
+          <a
+            href="{{ url_for('userviz', username=username) }}"
+            class="home-icon"
+            title="Back to Dashboard"
+          >
+            <i class="fas fa-home"></i>
+          </a>
+          <h1>Base Volume Analysis</h1>
         </div>
-        <div id="total-vert"></div>
+      </div>
+    </header>
 
-        <!-- Work Capacity -->
-        <h2>Work Capacity</h2>
-        <div id="work-capacity-filters">
-            <h3>Discipline Filter</h3>
-            <input type="radio" id="filter-capacity-sport" name="work-capacity-discipline-filter" value="sport" checked>
-            <label for="filter-capacity-sport">Sport</label>
-            <input type="radio" id="filter-capacity-trad" name="work-capacity-discipline-filter" value="trad">
-            <label for="filter-capacity-trad">Trad</label>
-            <input type="radio" id="filter-capacity-boulder" name="work-capacity-discipline-filter" value="boulder">
-            <label for="filter-capacity-boulder">Boulder</label>
+    <main>
+      <div class="nav-links">
+        <a href="{{ url_for('userviz', username=username) }}" class="button"
+          >Back to Dashboard</a
+        >
+        <a href="mailto:climbing.analytics@gmail.com" class="secondary-link">
+          This is a prototype application, please provide feedback here
+        </a>
+      </div>
 
-            <h3>Time Filter</h3>
-            <input type="radio" id="filter-capacity-time-allTime" name="work-capacity-time-filter" value="allTime" checked>
-            <label for="filter-capacity-time-allTime">All Time</label>
-            <input type="radio" id="filter-capacity-time-lastYear" name="work-capacity-time-filter" value="lastYear">
-            <label for="filter-capacity-time-lastYear">Past Year</label>
+      <!-- Data initialization -->
+      <script>
+        const userTicksData = {{ user_ticks|safe }};
+        const binnedCodeDict = {{ binned_code_dict|safe }};
+      </script>
+
+      <section class="dashboard-section">
+        <div class="viz-header">
+          <div class="viz-title">
+            <h2>
+              Total Vertical Feet Climbed
+              <button class="info-button" onclick="openDataInfoModal()">
+                <i class="fas fa-info-circle"></i>
+              </button>
+            </h2>
+          </div>
+          <div class="viz-filters">
+            <div class="viz-filter-section">
+              <h3>Discipline</h3>
+              <div class="viz-radio-group">
+                <input
+                  type="radio"
+                  id="filter-vert-all"
+                  name="total-vert-discipline-filter"
+                  value="all"
+                  checked
+                />
+                <label for="filter-vert-all">All</label>
+                <input
+                  type="radio"
+                  id="filter-vert-sport"
+                  name="total-vert-discipline-filter"
+                  value="sport"
+                />
+                <label for="filter-vert-sport">Sport</label>
+                <input
+                  type="radio"
+                  id="filter-vert-trad"
+                  name="total-vert-discipline-filter"
+                  value="trad"
+                />
+                <label for="filter-vert-trad">Trad</label>
+                <input
+                  type="radio"
+                  id="filter-vert-boulder"
+                  name="total-vert-discipline-filter"
+                  value="boulder"
+                />
+                <label for="filter-vert-boulder">Boulder</label>
+              </div>
+            </div>
+            <div class="viz-filter-section">
+              <h3>Time Range</h3>
+              <div class="viz-radio-group">
+                <input
+                  type="radio"
+                  id="filter-vert-time-allTime"
+                  name="total-vert-time-filter"
+                  value="allTime"
+                  checked
+                />
+                <label for="filter-vert-time-allTime">All Time</label>
+                <input
+                  type="radio"
+                  id="filter-vert-time-lastYear"
+                  name="total-vert-time-filter"
+                  value="lastYear"
+                />
+                <label for="filter-vert-time-lastYear">Past Year</label>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="work-capacity"></div>
 
-        <b>This chart shows the height climbed each day at the crag, averaged over each season. </b> <br>
-        <b>Colored bars indicate in which seasons a new highest grade was achieved.</b><br>
-        <b>When a vertical value was missing, the average length of the day's pitches was taken and substituted for the missing vertical value.</b>
+        <div class="viz-container" id="total-vert"></div>
 
-        <!-- Rest Days -->
-        <h2>Days Outside Per Week</h2>
-        
-        <div id="rest-days-filters">
-            <h3>Discipline Filter</h3>
-            <input type="radio" id="filter-rest-all" name="rest-days-discipline-filter" value="all" checked>
-            <label for="filter-rest-all">All</label>
-            <input type="radio" id="filter-rest-sport" name="rest-days-discipline-filter" value="sport">
-            <label for="filter-rest-sport">Sport</label>
-            <input type="radio" id="filter-rest-trad" name="rest-days-discipline-filter" value="trad">
-            <label for="filter-rest-trad">Trad</label>
-            <input type="radio" id="filter-rest-boulder" name="rest-days-discipline-filter" value="boulder">
-            <label for="filter-rest-boulder">Boulder</label>
-
-            <h3>Time Filter</h3>
-            <input type="radio" id="filter-rest-time-allTime" name="rest-days-time-filter" value="allTime" checked>
-            <label for="filter-rest-time-allTime">All Time</label>
-            <input type="radio" id="filter-rest-time-lastYear" name="rest-days-time-filter" value="lastYear">
-            <label for="filter-rest-time-lastYear">Past Year</label>
-            <input type="radio" id="filter-rest-time-lastSixMonths" name="rest-days-time-filter" value="lastSixMonths">
-            <label for="filter-rest-time-lastSixMonthsr">Last 6mo.</label>
+        <!-- Data Info Modal -->
+        <div id="dataInfoModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeDataInfoModal()">&times;</span>
+            <h3>About the Data Calculations</h3>
+            <div class="modal-section">
+              <h4>Missing Length Data</h4>
+              <p>
+                When a single pitch climb's length is not available, we first
+                try to calculate an average length based on other climbs from
+                the same day. If there are no other climbs that day, we use a
+                default length of 60 feet per pitch.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Multiple Pitch Climbs</h4>
+              <p>
+                For multi-pitch routes, we use the total route length regardless
+                of the number of pitches. This better represents the actual
+                vertical gain of the climb.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Single Pitch Climbs</h4>
+              <p>
+                For single pitch routes, the total vertical is calculated by
+                multiplying the route length by the number of pitches climbed.
+                This accounts for multiple ascents of the same route in a day.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Data Accuracy</h4>
+              <p>
+                While we strive for accuracy, some route lengths may be
+                estimates. The data represents your best approximation of total
+                vertical feet climbed based on available information from
+                Mountain Project.
+              </p>
+            </div>
+          </div>
         </div>
-        <div id="rest-days"></div>
-        <b>Weekly days outdoors, categorized by month.</b>
-    </section>
 
+        <!-- Add Modal Scripts -->
+        <script>
+          function openDataInfoModal() {
+            document.getElementById("dataInfoModal").style.display = "block";
+          }
+
+          function closeDataInfoModal() {
+            document.getElementById("dataInfoModal").style.display = "none";
+          }
+
+          // Close modal when clicking outside
+          window.onclick = function (event) {
+            const modal = document.getElementById("dataInfoModal");
+            if (event.target == modal) {
+              modal.style.display = "none";
+            }
+          };
+        </script>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="viz-header">
+          <div class="viz-title">
+            <h2>
+              Work Capacity
+              <button class="info-button" onclick="openWorkCapacityModal()">
+                <i class="fas fa-info-circle"></i>
+              </button>
+            </h2>
+          </div>
+          <div class="viz-filters">
+            <div class="viz-filter-section">
+              <h3>Discipline</h3>
+              <div class="viz-radio-group">
+                <input
+                  type="radio"
+                  id="filter-capacity-routes"
+                  name="work-capacity-discipline-filter"
+                  value="routes"
+                  checked
+                />
+                <label for="filter-capacity-routes">Routes</label>
+                <input
+                  type="radio"
+                  id="filter-capacity-boulder"
+                  name="work-capacity-discipline-filter"
+                  value="boulder"
+                />
+                <label for="filter-capacity-boulder">Boulder</label>
+              </div>
+            </div>
+            <div class="viz-filter-section">
+              <h3>Time Range</h3>
+              <div class="viz-radio-group">
+                <input
+                  type="radio"
+                  id="filter-capacity-time-allTime"
+                  name="work-capacity-time-filter"
+                  value="allTime"
+                  checked
+                />
+                <label for="filter-capacity-time-allTime">All Time</label>
+                <input
+                  type="radio"
+                  id="filter-capacity-time-lastYear"
+                  name="work-capacity-time-filter"
+                  value="lastYear"
+                />
+                <label for="filter-capacity-time-lastYear">Past Year</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="viz-container" id="work-capacity"></div>
+
+        <!-- Work Capacity Info Modal -->
+        <div id="workCapacityModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeWorkCapacityModal()"
+              >&times;</span
+            >
+            <h3>About the Data Calculations</h3>
+            <div class="modal-section">
+              <h4>Daily Volume</h4>
+              <p>
+                This chart shows the average daily vertical feet climbed for
+                each season. For routes with multiple ascents in a day, the
+                total vertical is multiplied by the number of pitches climbed.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Route Types</h4>
+              <p>Routes are calculated differently based on their type:</p>
+              <ul>
+                <li>
+                  Multipitch routes: Total route length is used when available.
+                  If length is missing, estimated as 80ft per pitch.
+                </li>
+                <li>Sport routes: 80ft per pitch if length is missing</li>
+                <li>Trad routes: 100ft per pitch if length is missing</li>
+                <li>Boulder problems: 10ft per ascent if height is missing</li>
+              </ul>
+            </div>
+            <div class="modal-section">
+              <h4>Missing Length Data</h4>
+              <p>
+                When a route's length is not available, we first try to
+                calculate an average based on other routes climbed that day. If
+                no other routes were climbed that day, we use the default
+                lengths listed above.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Filtering</h4>
+              <p>Routes can be filtered by:</p>
+              <ul>
+                <li>Routes (combines both sport and trad climbs)</li>
+                <li>Boulder problems</li>
+              </ul>
+              <p>Time ranges can be filtered by all time or the past year.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="viz-header">
+          <div class="viz-title">
+            <h2>
+              Days Outside Per Week
+              <button class="info-button" onclick="openDaysOutsideModal()">
+                <i class="fas fa-info-circle"></i>
+              </button>
+            </h2>
+          </div>
+          <div class="viz-filters">
+            <div class="viz-filter-section">
+              <h3>Discipline</h3>
+              <div class="viz-radio-group">
+                <input
+                  type="radio"
+                  id="filter-rest-all"
+                  name="rest-days-discipline-filter"
+                  value="all"
+                  checked
+                />
+                <label for="filter-rest-all">All</label>
+                <input
+                  type="radio"
+                  id="filter-rest-sport"
+                  name="rest-days-discipline-filter"
+                  value="sport"
+                />
+                <label for="filter-rest-sport">Sport</label>
+                <input
+                  type="radio"
+                  id="filter-rest-trad"
+                  name="rest-days-discipline-filter"
+                  value="trad"
+                />
+                <label for="filter-rest-trad">Trad</label>
+                <input
+                  type="radio"
+                  id="filter-rest-boulder"
+                  name="rest-days-discipline-filter"
+                  value="boulder"
+                />
+                <label for="filter-rest-boulder">Boulder</label>
+              </div>
+            </div>
+            <div class="viz-filter-section">
+              <h3>Time Range</h3>
+              <div class="viz-radio-group">
+                <input
+                  type="radio"
+                  id="filter-rest-time-allTime"
+                  name="rest-days-time-filter"
+                  value="allTime"
+                  checked
+                />
+                <label for="filter-rest-time-allTime">All Time</label>
+                <input
+                  type="radio"
+                  id="filter-rest-time-lastYear"
+                  name="rest-days-time-filter"
+                  value="lastYear"
+                />
+                <label for="filter-rest-time-lastYear">Past Year</label>
+                <input
+                  type="radio"
+                  id="filter-rest-time-lastSixMonths"
+                  name="rest-days-time-filter"
+                  value="lastSixMonths"
+                />
+                <label for="filter-rest-time-lastSixMonths">Last 6mo.</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="viz-container" id="rest-days"></div>
+
+        <!-- Days Outside Info Modal -->
+        <div id="daysOutsideModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeDaysOutsideModal()">&times;</span>
+            <h3>About the Data Calculations</h3>
+            <div class="modal-section">
+              <h4>Weekly Average Calculation</h4>
+              <p>
+                This chart shows your average days of outdoor climbing per week, broken down by month.
+                For each month, we count your unique climbing days and divide by the number of weeks in that month.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Seasonal Colors</h4>
+              <p>
+                The bars are colored by season to show patterns in your climbing:
+                <ul>
+                  <li>Spring (Light Green): March - May</li>
+                  <li>Summer (Dark Green): June - August</li>
+                  <li>Fall (Orange-Brown): September - November</li>
+                  <li>Winter (Blue-Gray): December - February</li>
+                </ul>
+                The gray portion represents the remaining days of the week.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Statistics</h4>
+              <p>
+                The chart includes two key statistics:
+                <ul>
+                  <li>Average Days/Week: Your mean climbing frequency across the entire period</li>
+                  <li>Total Days: The total number of unique days you climbed outdoors</li>
+                </ul>
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Filtering</h4>
+              <p>
+                You can filter the data by:
+                <ul>
+                  <li>Discipline: All climbing, Sport only, Trad only, or Boulder only</li>
+                  <li>Time Range: All time, Past year, or Last 6 months</li>
+                </ul>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Modal Scripts -->
+        <script>
+          function openWorkCapacityModal() {
+            document.getElementById("workCapacityModal").style.display =
+              "block";
+          }
+
+          function closeWorkCapacityModal() {
+            document.getElementById("workCapacityModal").style.display = "none";
+          }
+
+          function openDaysOutsideModal() {
+            document.getElementById("daysOutsideModal").style.display = "block";
+          }
+
+          function closeDaysOutsideModal() {
+            document.getElementById("daysOutsideModal").style.display = "none";
+          }
+
+          // Close modals when clicking outside
+          window.onclick = function (event) {
+            const workCapacityModal =
+              document.getElementById("workCapacityModal");
+            const daysOutsideModal =
+              document.getElementById("daysOutsideModal");
+            const dataInfoModal = document.getElementById("dataInfoModal");
+
+            if (event.target == workCapacityModal) {
+              workCapacityModal.style.display = "none";
+            }
+            if (event.target == daysOutsideModal) {
+              daysOutsideModal.style.display = "none";
+            }
+            if (event.target == dataInfoModal) {
+              dataInfoModal.style.display = "none";
+            }
+          };
+        </script>
+      </section>
+    </main>
+
+    <footer>
+      <nav>
+        <ul>
+          <li>
+            <a href="{{ url_for('userviz', username=username) }}"
+              >Back to Dashboard</a
+            >
+          </li>
+          <li><a href="mailto:climbing.analytics@gmail.com">Feedback</a></li>
+        </ul>
+      </nav>
+    </footer>
+
+    <!-- Load visualization scripts -->
     <script src="{{ url_for('static', filename='js/commonFilters.js') }}"></script>
     <script src="{{ url_for('static', filename='js/restDays.js') }}"></script>
     <script src="{{ url_for('static', filename='js/totalVert.js') }}"></script>
     <script src="{{ url_for('static', filename='js/workCapacity.js') }}"></script>
 
-</body>
-
+    <!-- Initialize visualizations -->
+    <script>
+      window.addEventListener("load", function () {
+        if (
+          typeof restDaysChart === "function" &&
+          typeof totalVertChart === "function" &&
+          typeof workCapacityChart === "function" &&
+          userTicksData &&
+          binnedCodeDict
+        ) {
+          restDaysChart("#rest-days", userTicksData);
+          totalVertChart("#total-vert", userTicksData);
+          workCapacityChart("#work-capacity", userTicksData, binnedCodeDict);
+        } else {
+          console.error("Some required functions or data are not loaded");
+        }
+      });
+    </script>
+  </body>
 </html>

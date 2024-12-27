@@ -1,171 +1,967 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
+    ></script>
     <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
 
-    gtag('config', 'G-QLKC35PVJB');
+      gtag("config", "G-QLKC35PVJB");
     </script>
     <title>Pyramid Inputs</title>
-    <!-- CSS only -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-
-    <!-- JS with Popper.js (needed for some Bootstrap components) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.9.3/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/5.0.0-beta3/js/bootstrap.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/visualizations.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/pyramidInputs.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <div class="header-content">
+        <div class="header-wrapper">
+          <a
+            href="{{ url_for('userviz', username=username) }}"
+            class="home-icon"
+            title="Back to Dashboard"
+          >
+            <i class="fas fa-home"></i>
+          </a>
+      <h1>Route Information Input</h1>
+        </div>
+      </div>
+    </header>
 
-</head>
-<body>
+    <main>
+      <div class="nav-links">
+        <a href="{{ url_for('userviz', username=username) }}" class="button"
+          >Back to Dashboard</a
+        >
+        <a href="mailto:climbing.analytics@gmail.com" class="secondary-link">
+          This is a prototype application, please provide feedback here
+        </a>
+      </div>
 
-    <a href="{{ url_for('userviz', username=username) }}">Home</a>
-    <br>
-    <a href="mailto:climbing.analytics@gmail.com"> This is a prototype application, please provide feedback here</a>
-    
-    <h1>Pyramid Inputs</h1>
-    <b>-Enter route information here to get more accurate performance visualizations.</b><br><br>
-    <b>-Submit form at bottom of page.</b><br><br>
-    <b>-Route names are linked to their respective pages if you need to remember the particulars of a route.</b><br><br>
-    <b>-Number of attempts defaults to total logged pitches before a clean ascent.</b>
+      <!-- Add flash messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %} {% endwith %}
 
-    <form method="POST" action="{{ url_for('pyramid_input') }}">
+      <section class="dashboard-section">
+        <div class="info-box">
+          <p><strong>Instructions:</strong></p>
+          <ul>
+            <li>
+              Enter route information here to get more accurate performance
+              visualizations
+            </li>
+            <li>Submit form at bottom of page</li>
+            <li>
+              Route names are linked to their respective pages if you need to
+              remember the particulars of a route
+            </li>
+            <li>
+              Attempts Before Clean Send defaults to total logged pitches before
+              a clean ascent
+            </li>
+          </ul>
+        </div>
 
-        <!-- Sport Performance -->
-        <h2>Sport Performance</h2>
-        <table class="performance-table">
-            <tr>
-                <th>Route Name</th>
-                <th>Tick Date</th>
-                <th>Route Grade</th>
-                <th>Number of Attempts</th>
-                <th>Route Characteristic</th>
-                <th>Route Style</th>
-            </tr>
-          
-            {% for row in sport_pyramid %}
+        <div class="discipline-selector">
+          <button
+            type="button"
+            class="discipline-btn active"
+            data-discipline="sport"
+          >
+            Sport
+          </button>
+          <button type="button" class="discipline-btn" data-discipline="trad">
+            Trad
+          </button>
+          <button
+            type="button"
+            class="discipline-btn"
+            data-discipline="boulder"
+          >
+            Boulder
+          </button>
+        </div>
 
-            <tr>
-                <td><a href="{{ row.route_url }}" target="_blank">{{ row.route_name }}</a></td>
-                <td>{{ row.tick_date }}</td>
-                <td class="text-center align-middle">{{ row.route_grade }}</td>
-                <td><input type="text" name="sport_num_attempts_{{ row.id }}" value="{{ row.num_attempts }}"></td>
-                
-                <!-- Radio buttons for Route Characteristic -->
-                <td>
-                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Unknown" {% if not row.route_characteristic or row.route_characteristic == 'Unknown' %}checked{% endif %}>Unknown</label>
-                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Power" {% if row.route_characteristic == 'Power' %}checked{% endif %}>Power</label>
-                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Power Endurance" {% if row.route_characteristic == 'Power Endurance' %}checked{% endif %}>Power Endurance</label>
-                    <label><input type="radio" name="sport_route_characteristic_{{ row.id }}" value="Endurance" {% if row.route_characteristic == 'Endurance' %}checked{% endif %}>Endurance</label>
-                </td>
+        <form method="POST" action="{{ url_for('pyramid_input', username=username) }}">
+          <section class="discipline-section active" id="sport-section">
+            <h2>Sport Performance</h2>
+            <div class="chart-container">
+              <table class="performance-table">
+                <thead>
+                  <tr>
+                    <th class="number-column header">#</th>
+                    <th class="route-name-column">Route Name</th>
+                    <th class="date-column">Tick Date</th>
+                    <th class="grade-column">Route Grade</th>
+                    <th class="attempts-column">Attempts</th>
+                    <th class="characteristic-column">Crux Energy System</th>
+                    <th class="style-column">Crux Angle</th>
+                    <th class="actions-column">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in sport_pyramid %}
+                <tr data-tick-id="{{ row.tick_id }}">
+                    <td class="number-column">{{ loop.index }}</td>
+                    <td class="route-name-column">
+                    <a
+                      href="{{ row.route_url }}"
+                      target="_blank"
+                      class="route-link"
+                      >{{ row.route_name }}</a
+                    >
+                  </td>
+                    <td class="date-column">
+                      {{ row.tick_date.strftime('%-d %b %Y') }}
+                  </td>
+                    <td class="grade-column">
+                      <select class="grade-select" name="sport_route_grade_{{ row.tick_id }}" required>
+                        {% for grade in routes_grade_list %}
+                          <option value="{{ grade }}" {% if grade == row.route_grade %}selected{% endif %}>
+                            {{ grade }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td class="attempts-column">
+                      <div class="attempts-input-group">
+                        <button
+                          type="button"
+                          class="attempts-btn minus-btn"
+                          aria-label="Decrease attempts"
+                        >
+                          <i class="fas fa-minus"></i>
+                        </button>
+                    <input
+                          type="number"
+                      name="sport_num_attempts_{{ row.tick_id }}"
+                      value="{{ row.num_attempts }}"
+                          class="attempts-input"
+                          min="1"
+                        />
+                        <button
+                          type="button"
+                          class="attempts-btn plus-btn"
+                          aria-label="Increase attempts"
+                        >
+                          <i class="fas fa-plus"></i>
+                        </button>
+                      </div>
+                      <div class="attempts-visual">
+                        {% if row.num_attempts == 1 %}
+                        <i class="fas fa-check success"></i>
+                        {% elif row.num_attempts <= 4 %} {% for i in
+                        range(row.num_attempts - 1) %}
+                        <i class="fas fa-times failure"></i>
+                        {% endfor %}
+                        <i class="fas fa-check success"></i>
+                        {% else %}
+                        <span class="attempts-count"
+                          >{{ row.num_attempts - 1 }}</span
+                        >
+                        <i class="fas fa-times failure"></i>
+                        <i class="fas fa-check success"></i>
+                        {% endif %}
+                      </div>
+                  </td>
+                    <td class="characteristic-column">
+                    <div class="table-radio-group">
+                      <label>
+                          <input type="radio"
+                          name="sport_route_characteristic_{{ row.tick_id }}"
+                          value="Power" {% if row.route_characteristic ==
+                          'Power' %}checked{% endif %}>
+                          <span>Power</span>
+                      </label>
+                      <label>
+                          <input type="radio"
+                          name="sport_route_characteristic_{{ row.tick_id }}"
+                          value="Power Endurance" {% if row.route_characteristic
+                          == 'Power Endurance' %}checked{% endif %}>
+                          <span>Power Endurance</span>
+                      </label>
+                      <label>
+                          <input type="radio"
+                          name="sport_route_characteristic_{{ row.tick_id }}"
+                          value="Endurance" {% if row.route_characteristic ==
+                          'Endurance' %}checked{% endif %}>
+                          <span>Endurance</span>
+                      </label>
+                    </div>
+                  </td>
+                    <td class="style-column">
+                    <div class="table-radio-group">
+                      <label>
+                        <input type="radio" name="sport_route_style_{{ row.tick_id
+                        }}" value="Slab" {% if row.route_style == 'Slab'
+                          %}checked{% endif %}>
+                          <span>Slab</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="sport_route_style_{{ row.tick_id
+                          }}" value="Vertical" {% if row.route_style ==
+                          'Vertical' %}checked{% endif %}>
+                          <span>Vertical</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="sport_route_style_{{ row.tick_id
+                          }}" value="Overhang" {% if row.route_style ==
+                          'Overhang' %}checked{% endif %}>
+                          <span>Overhang</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="sport_route_style_{{ row.tick_id
+                        }}" value="Roof" {% if row.route_style == 'Roof'
+                          %}checked{% endif %}>
+                          <span>Roof</span>
+                      </label>
+                    </div>
+                  </td>
+                    <td class="actions-column">
+                    <button
+                      type="button"
+                        class="remove-btn"
+                        aria-label="Remove route"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+              <div class="add-route-row">
+                <button type="button" class="add-route-btn">
+                  <i class="fas fa-plus"></i>
+                  Add Route
+                </button>
+              </div>
+            </div>
+          </section>
 
-                <!-- Radio buttons for Route Style -->
-                <td>
-                    <label><input type="radio" name="sport_route_style_{{ row.id }}" value="Unknown" {% if not row.route_style or row.route_style == 'Unknown' %}checked{% endif %}>Unknown</label>
-                    <label>
-                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Slab" {% if row.route_style == 'Slab' %}checked{% endif %}>
-                        <!-- <img src="{{ url_for('static', filename='images/slab_icon.png') }}" alt="Slab"> --> Slab
-                    </label>                    
-                    <label>
-                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Vertical" {% if row.route_style == 'Vertical' %}checked{% endif %}>
-                        <!-- <img src="{{ url_for('static', filename='images/vertical_icon.png') }}" alt="Vertical"> --> Vertical
-                    </label>
-                    <label>
-                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Overhang" {% if row.route_style == 'Overhang' %}checked{% endif %}>
-                        <!-- <img src="{{ url_for('static', filename='images/overhang_icon.png') }}" alt="Overhang"> --> Overhang
-                    </label>
-                    <label>
-                        <input type="radio" name="sport_route_style_{{ row.id }}" value="Roof" {% if row.route_style == 'Roof' %}checked{% endif %}>
-                        <!-- <img src="{{ url_for('static', filename='images/roof_icon.png') }}" alt="Roof"> --> Roof
-                    </label>
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
-        <input type="submit" value="Submit">
+          <section class="discipline-section" id="trad-section">
+            <h2>Trad Performance</h2>
+            <div class="chart-container">
+              <table class="performance-table">
+                <thead>
+                  <tr>
+                    <th class="number-column header">#</th>
+                    <th class="route-name-column">Route Name</th>
+                    <th class="date-column">Tick Date</th>
+                    <th class="grade-column">Route Grade</th>
+                    <th class="attempts-column">Attempts</th>
+                    <th class="characteristic-column">Crux Energy System</th>
+                    <th class="style-column">Crux Angle</th>
+                    <th class="actions-column">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in trad_pyramid %}
+                <tr data-tick-id="{{ row.tick_id }}">
+                    <td class="number-column">{{ loop.index }}</td>
+                    <td class="route-name-column">
+                    <a
+                      href="{{ row.route_url }}"
+                      target="_blank"
+                      class="route-link"
+                      >{{ row.route_name }}</a
+                    >
+                  </td>
+                    <td class="date-column">
+                      {{ row.tick_date.strftime('%-d %b %Y') }}
+                  </td>
+                    <td class="grade-column">
+                      <select class="grade-select" name="trad_route_grade_{{ row.id }}" required>
+                        {% for grade in routes_grade_list %}
+                          <option value="{{ grade }}" {% if grade == row.route_grade %}selected{% endif %}>
+                            {{ grade }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td class="attempts-column">
+                      <div class="attempts-input-group">
+                        <button
+                          type="button"
+                          class="attempts-btn minus-btn"
+                          aria-label="Decrease attempts"
+                        >
+                          <i class="fas fa-minus"></i>
+                        </button>
+                    <input
+                          type="number"
+                      name="trad_num_attempts_{{ row.id }}"
+                      value="{{ row.num_attempts }}"
+                          class="attempts-input"
+                          min="1"
+                        />
+                        <button
+                          type="button"
+                          class="attempts-btn plus-btn"
+                          aria-label="Increase attempts"
+                        >
+                          <i class="fas fa-plus"></i>
+                        </button>
+                      </div>
+                      <div class="attempts-visual">
+                        {% if row.num_attempts == 1 %}
+                        <i class="fas fa-check success"></i>
+                        {% elif row.num_attempts <= 4 %} {% for i in
+                        range(row.num_attempts - 1) %}
+                        <i class="fas fa-times failure"></i>
+                        {% endfor %}
+                        <i class="fas fa-check success"></i>
+                        {% else %}
+                        <span class="attempts-count"
+                          >{{ row.num_attempts - 1 }}</span
+                        >
+                        <i class="fas fa-times failure"></i>
+                        <i class="fas fa-check success"></i>
+                        {% endif %}
+                      </div>
+                  </td>
+                    <td class="characteristic-column">
+                    <div class="table-radio-group">
+                      <label>
+                        <input type="radio" name="trad_route_characteristic_{{
+                          row.id }}" value="Power" {% if
+                          row.route_characteristic == 'Power' %}checked{% endif
+                          %}>
+                          <span>Power</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="trad_route_characteristic_{{
+                        row.id }}" value="Power Endurance" {% if
+                        row.route_characteristic == 'Power Endurance'
+                          %}checked{% endif %}>
+                          <span>Power Endurance</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="trad_route_characteristic_{{
+                        row.id }}" value="Endurance" {% if
+                        row.route_characteristic == 'Endurance' %}checked{%
+                          endif %}>
+                          <span>Endurance</span>
+                      </label>
+                    </div>
+                  </td>
+                    <td class="style-column">
+                    <div class="table-radio-group">
+                      <label>
+                          <input type="radio" name="trad_route_style_{{ row.id
+                          }}" value="Slab" {% if row.route_style == 'Slab'
+                          %}checked{% endif %}>
+                          <span>Slab</span>
+                      </label>
+                      <label>
+                          <input type="radio" name="trad_route_style_{{ row.id
+                          }}" value="Vertical" {% if row.route_style ==
+                          'Vertical' %}checked{% endif %}>
+                          <span>Vertical</span>
+                      </label>
+                      <label>
+                          <input type="radio" name="trad_route_style_{{ row.id
+                          }}" value="Overhang" {% if row.route_style ==
+                          'Overhang' %}checked{% endif %}>
+                          <span>Overhang</span>
+                      </label>
+                      <label>
+                          <input type="radio" name="trad_route_style_{{ row.id
+                          }}" value="Roof" {% if row.route_style == 'Roof'
+                          %}checked{% endif %}>
+                          <span>Roof</span>
+                      </label>
+                    </div>
+                  </td>
+                    <td class="actions-column">
+                    <button
+                      type="button"
+                        class="remove-btn"
+                        aria-label="Remove route"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+              <div class="add-route-row">
+                <button type="button" class="add-route-btn">
+                  <i class="fas fa-plus"></i>
+                  Add Route
+                </button>
+              </div>
+            </div>
+          </section>
 
-        <!-- Trad Performance -->
-        <h2>Trad Performance</h2>
-        <table class="performance-table">
-            <tr>
-                <th>Route Name</th>
-                <th>Tick Date</th>
-                <th>Route Grade</th>
-                <th>Number of Attempts</th>
-                <th>Route Characteristic</th>
-                <th>Route Style</th>
-            </tr>
-            {% for row in trad_pyramid %}
-            <tr>
-                <td><a href="{{ row.route_url }}" target="_blank">{{ row.route_name }}</a></td>
-                <td>{{ row.tick_date }}</td>
-                <td class="text-center align-middle">{{ row.route_grade }}</td>
-                <td><input type="text" name="trad_num_attempts_{{ row.id }}" value="{{ row.num_attempts }}"></td>
-                
-                <!-- Radio buttons for Route Characteristic -->
-                <td>
-                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Unknown" {% if not row.route_characteristic or row.route_characteristic == 'Unknown' %}checked{% endif %}>Unknown</label>
-                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Power" {% if row.route_characteristic == 'Power' %}checked{% endif %}>Power</label>
-                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Power Endurance" {% if row.route_characteristic == 'Power Endurance' %}checked{% endif %}>Power Endurance</label>
-                    <label><input type="radio" name="trad_route_characteristic_{{ row.id }}" value="Endurance" {% if row.route_characteristic == 'Endurance' %}checked{% endif %}>Endurance</label>
-                </td>
+          <section class="discipline-section" id="boulder-section">
+            <h2>Boulder Performance</h2>
+            <div class="chart-container">
+              <table class="performance-table">
+                <thead>
+                  <tr>
+                    <th class="number-column header">#</th>
+                    <th class="route-name-column">Route Name</th>
+                    <th class="date-column">Tick Date</th>
+                    <th class="grade-column">Route Grade</th>
+                    <th class="attempts-column">Attempts</th>
+                    <th class="characteristic-column">Crux Energy System</th>
+                    <th class="style-column">Crux Angle</th>
+                    <th class="actions-column">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in boulder_pyramid %}
+                <tr data-tick-id="{{ row.tick_id }}">
+                    <td class="number-column">{{ loop.index }}</td>
+                    <td class="route-name-column">
+                    <a
+                      href="{{ row.route_url }}"
+                      target="_blank"
+                      class="route-link"
+                      >{{ row.route_name }}</a
+                    >
+                  </td>
+                    <td class="date-column">
+                      {{ row.tick_date.strftime('%-d %b %Y') }}
+                  </td>
+                    <td class="grade-column">
+                      <select class="grade-select" name="boulder_route_grade_{{ row.id }}" required>
+                        {% for grade in boulders_grade_list %}
+                          <option value="{{ grade }}" {% if grade == row.route_grade %}selected{% endif %}>
+                            {{ grade }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td class="attempts-column">
+                      <div class="attempts-input-group">
+                        <button
+                          type="button"
+                          class="attempts-btn minus-btn"
+                          aria-label="Decrease attempts"
+                        >
+                          <i class="fas fa-minus"></i>
+                        </button>
+                    <input
+                          type="number"
+                      name="boulder_num_attempts_{{ row.id }}"
+                      value="{{ row.num_attempts }}"
+                          class="attempts-input"
+                          min="1"
+                        />
+                        <button
+                          type="button"
+                          class="attempts-btn plus-btn"
+                          aria-label="Increase attempts"
+                        >
+                          <i class="fas fa-plus"></i>
+                        </button>
+                      </div>
+                      <div class="attempts-visual">
+                        {% if row.num_attempts == 1 %}
+                        <i class="fas fa-check success"></i>
+                        {% elif row.num_attempts <= 4 %} {% for i in
+                        range(row.num_attempts - 1) %}
+                        <i class="fas fa-times failure"></i>
+                        {% endfor %}
+                        <i class="fas fa-check success"></i>
+                        {% else %}
+                        <span class="attempts-count"
+                          >{{ row.num_attempts - 1 }}</span
+                        >
+                        <i class="fas fa-times failure"></i>
+                        <i class="fas fa-check success"></i>
+                        {% endif %}
+                      </div>
+                  </td>
+                    <td class="characteristic-column">
+                    <div class="table-radio-group">
+                      <label>
+                        <input type="radio"
+                        name="boulder_route_characteristic_{{ row.id }}"
+                          value="Power" {% if row.route_characteristic ==
+                          'Power' %}checked{% endif %}>
+                          <span>Power</span>
+                      </label>
+                      <label>
+                        <input type="radio"
+                        name="boulder_route_characteristic_{{ row.id }}"
+                        value="Power Endurance" {% if row.route_characteristic
+                          == 'Power Endurance' %}checked{% endif %}>
+                          <span>Power Endurance</span>
+                      </label>
+                      <label>
+                        <input type="radio"
+                        name="boulder_route_characteristic_{{ row.id }}"
+                        value="Endurance" {% if row.route_characteristic ==
+                          'Endurance' %}checked{% endif %}>
+                          <span>Endurance</span>
+                      </label>
+                    </div>
+                  </td>
+                    <td class="style-column">
+                    <div class="table-radio-group">
+                      <label>
+                          <input type="radio" name="boulder_route_style_{{
+                          row.id }}" value="Slab" {% if row.route_style ==
+                          'Slab' %}checked{% endif %}>
+                          <span>Slab</span>
+                      </label>
+                      <label>
+                          <input type="radio" name="boulder_route_style_{{
+                          row.id }}" value="Vertical" {% if row.route_style ==
+                          'Vertical' %}checked{% endif %}>
+                          <span>Vertical</span>
+                      </label>
+                      <label>
+                          <input type="radio" name="boulder_route_style_{{
+                          row.id }}" value="Overhang" {% if row.route_style ==
+                          'Overhang' %}checked{% endif %}>
+                          <span>Overhang</span>
+                      </label>
+                      <label>
+                          <input type="radio" name="boulder_route_style_{{
+                          row.id }}" value="Roof" {% if row.route_style ==
+                          'Roof' %}checked{% endif %}>
+                          <span>Roof</span>
+                      </label>
+                    </div>
+                  </td>
+                    <td class="actions-column">
+                    <button
+                      type="button"
+                        class="remove-btn"
+                        aria-label="Remove route"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+              <div class="add-route-row">
+                <button type="button" class="add-route-btn">
+                  <i class="fas fa-plus"></i>
+                  Add Route
+                </button>
+              </div>
+            </div>
+          </section>
 
-                <!-- Radio buttons for Route Style -->
-                <td>
-                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Unknown" {% if not row.route_style or row.route_style == 'Unknown' %}checked{% endif %}>Unknown</label>
-                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Slab" {% if row.route_style == 'Slab' %}checked{% endif %}>Slab</label>
-                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Vertical" {% if row.route_style == 'Vertical' %}checked{% endif %}>Vertical</label>
-                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Overhang" {% if row.route_style == 'Overhang' %}checked{% endif %}>Overhang</label>
-                    <label><input type="radio" name="trad_route_style_{{ row.id }}" value="Roof" {% if row.route_style == 'Roof' %}checked{% endif %}>Roof</label>
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
-        <input type="submit" value="Submit">
+          <div class="text-center">
+            <input type="submit" value="Submit Changes" class="submit-btn" />
+          </div>
+        </form>
+      </section>
+    </main>
 
-        <!-- Boulder Performance -->
-        <h2>Boulder Performance</h2>
-        <table class="performance-table">
-            <tr>
-                <th>Route Name</th>
-                <th>Tick Date</th>
-                <th>Route Grade</th>
-                <th>Number of Attempts</th>
-                <th>Route Characteristic</th>
-                <th>Route Style</th>
-            </tr>
-            {% for row in boulder_pyramid %}
-            <tr>
-                <td><a href="{{ row.route_url }}" target="_blank">{{ row.route_name }}</a></td>
-                <td>{{ row.tick_date }}</td>
-                <td class="text-center align-middle">{{ row.route_grade }}</td>
-                <td><input type="text" name="boulder_num_attempts_{{ row.id }}" value="{{ row.num_attempts }}"></td>
-                
-                <!-- Radio buttons for Route Characteristic -->
-                <td>
-                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Unknown" {% if not row.route_characteristic or row.route_characteristic == 'Unknown' %}checked{% endif %}>Unknown</label>
-                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Power" {% if row.route_characteristic == 'Power' %}checked{% endif %}>Power</label>
-                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Power Endurance" {% if row.route_characteristic == 'Power Endurance' %}checked{% endif %}>Power Endurance</label>
-                    <label><input type="radio" name="boulder_route_characteristic_{{ row.id }}" value="Endurance" {% if row.route_characteristic == 'Endurance' %}checked{% endif %}>Endurance</label>
-                </td>
+    <footer>
+      <nav>
+        <ul>
+          <li>
+            <a href="{{ url_for('userviz', username=username) }}"
+              >Back to Dashboard</a
+            >
+          </li>
+          <li><a href="mailto:climbing.analytics@gmail.com">Feedback</a></li>
+        </ul>
+      </nav>
+    </footer>
 
-                <!-- Radio buttons for Route Style -->
-                <td>
-                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Unknown" {% if not row.route_style or row.route_style == 'Unknown' %}checked{% endif %}>Unknown</label>
-                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Slab" {% if row.route_style == 'Slab' %}checked{% endif %}>Slab</label>
-                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Vertical" {% if row.route_style == 'Vertical' %}checked{% endif %}>Vertical</label>
-                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Overhang" {% if row.route_style == 'Overhang' %}checked{% endif %}>Overhang</label>
-                    <label><input type="radio" name="boulder_route_style_{{ row.id }}" value="Roof" {% if row.route_style == 'Roof' %}checked{% endif %}>Roof</label>
-                </td>
-                
-            </tr>
-            {% endfor %}
-        </table>
-        <input type="hidden"  name="username" value = "{{ username }}">
-        <input type="submit" value="Submit">
+    <!-- Add JavaScript for functionality -->
+    <script>
+      let hasUnsavedChanges = false;
+      const submitData = {
+          sport: { removed: new Set(), updated: {} },
+          trad: { removed: new Set(), updated: {} },
+          boulder: { removed: new Set(), updated: {} }
+      };
 
-    </form>
-</body>
+      document.addEventListener('DOMContentLoaded', function() {
+          // Initialize default active discipline
+          const defaultDiscipline = 'sport';
+          const defaultBtn = document.querySelector(`.discipline-btn[data-discipline="${defaultDiscipline}"]`);
+          const defaultSection = document.getElementById(defaultDiscipline + '-section');
+          if (defaultBtn && defaultSection) {
+              defaultBtn.classList.add('active');
+              defaultSection.classList.add('active');
+          }
+
+          // Add discipline toggle functionality
+          const disciplineButtons = document.querySelectorAll('.discipline-btn');
+          disciplineButtons.forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                  // Remove active class from all buttons
+                  disciplineButtons.forEach(function(b) {
+                      b.classList.remove('active');
+                  });
+                  // Add active class to clicked button
+                  this.classList.add('active');
+                  
+                  // Hide all sections
+                  const sections = document.querySelectorAll('.discipline-section');
+                  sections.forEach(function(section) {
+                      section.classList.remove('active');
+                  });
+                  
+                  // Show selected section
+                  const discipline = this.getAttribute('data-discipline');
+                  const selectedSection = document.getElementById(discipline + '-section');
+                  if (selectedSection) {
+                      selectedSection.classList.add('active');
+                  }
+              });
+          });
+
+          // Function to update attempts visual
+          function updateAttemptsVisual(input) {
+              const attemptsValue = parseInt(input.value) || 1;
+              const visualContainer = input.closest('.attempts-column').querySelector('.attempts-visual');
+              
+              let visualHTML = '';
+              if (attemptsValue === 1) {
+                  visualHTML = '<i class="fas fa-check success"></i>';
+              } else if (attemptsValue <= 4) {
+                  visualHTML = Array(attemptsValue - 1)
+                      .fill('<i class="fas fa-times failure"></i>')
+                      .join('') + '<i class="fas fa-check success"></i>';
+              } else {
+                  visualHTML = `<span class="attempts-count">${attemptsValue - 1}</span>` +
+                      '<i class="fas fa-times failure"></i>' +
+                      '<i class="fas fa-check success"></i>';
+              }
+              
+              visualContainer.innerHTML = visualHTML;
+          }
+
+          // Setup attempts controls
+          function setupAttemptsControls(minusBtn, plusBtn, input) {
+              function updateButtons() {
+                  const value = parseInt(input.value) || 1;
+                  minusBtn.disabled = value <= 1;
+                  updateAttemptsVisual(input);
+              }
+
+              input.addEventListener('input', () => {
+                  let value = parseInt(input.value) || 1;
+                  if (value < 1) value = 1;
+                  input.value = value;
+                  updateButtons();
+                  hasUnsavedChanges = true;
+                  updateNavigationState();
+              });
+
+              minusBtn.addEventListener('click', () => {
+                  let value = parseInt(input.value) || 1;
+                  if (value > 1) {
+                      input.value = value - 1;
+                      updateButtons();
+                      hasUnsavedChanges = true;
+                      updateNavigationState();
+                  }
+              });
+
+              plusBtn.addEventListener('click', () => {
+                  let value = parseInt(input.value) || 1;
+                  input.value = value + 1;
+                  updateButtons();
+                  hasUnsavedChanges = true;
+                  updateNavigationState();
+              });
+
+              updateButtons();
+          }
+
+          // Setup remove button handlers
+          function setupRemoveButton(btn) {
+              btn.addEventListener('click', function() {
+                  const row = this.closest('tr');
+                  const tickId = row.dataset.tickId;
+                  // Find the discipline from the section ID
+                  const section = row.closest('section[id$="-section"]');
+                  const discipline = section ? section.id.replace('-section', '') : null;
+                  
+                  if (tickId && discipline && discipline in submitData) {
+                      // Add to removed set
+                      submitData[discipline].removed.add(tickId);
+                      // Remove from updated if it was there
+                      if (submitData[discipline].updated[tickId]) {
+                          delete submitData[discipline].updated[tickId];
+                      }
+                      console.log(`Removing ${discipline} route ${tickId}`);
+                      
+                      row.remove();
+                      hasUnsavedChanges = true;
+                      updateNavigationState();
+                  } else {
+                      console.warn(`Could not remove route: tickId=${tickId}, discipline=${discipline}`);
+                  }
+              });
+          }
+
+          // Navigation warning setup
+          function handleNavigation(e) {
+              const link = e.target.closest('a');
+              if (!link || link.hasAttribute('target') || link.href.includes('mailto:')) {
+                  return;
+              }
+              
+              if (hasUnsavedChanges) {
+                  e.preventDefault();
+                  if (confirm('You have unsaved changes. Do you want to save them before leaving?')) {
+                      document.querySelector('form').submit();
+                  } else if (confirm('Are you sure you want to leave? All unsaved changes will be lost.')) {
+                      hasUnsavedChanges = false;
+                      updateNavigationState();
+                      window.location.href = link.href;
+                  }
+              }
+          }
+
+          function updateNavigationState() {
+              const navLinks = document.querySelectorAll('a:not([target]):not([href*="mailto"])');
+              navLinks.forEach(link => {
+                  if (hasUnsavedChanges) {
+                      link.addEventListener('click', handleNavigation);
+                      link.style.opacity = '0.5';
+                      link.title = 'Please save your changes before leaving';
+                  } else {
+                      link.removeEventListener('click', handleNavigation);
+                      link.style.opacity = '';
+                      link.title = '';
+                  }
+              });
+          }
+
+          // Setup row controls
+          function setupRowControls(row) {
+              const attemptsGroup = row.querySelector('.attempts-input-group');
+              if (attemptsGroup) {
+                  const input = attemptsGroup.querySelector('.attempts-input');
+                  const minusBtn = attemptsGroup.querySelector('.minus-btn');
+                  const plusBtn = attemptsGroup.querySelector('.plus-btn');
+                  setupAttemptsControls(minusBtn, plusBtn, input);
+              }
+
+              // Setup remove button
+              const removeBtn = row.querySelector('.remove-btn');
+              if (removeBtn) {
+                  setupRemoveButton(removeBtn);
+              }
+
+              // Setup change tracking
+              row.querySelectorAll('input, select').forEach(input => {
+                  input.addEventListener('change', () => {
+                      hasUnsavedChanges = true;
+                      updateNavigationState();
+                  });
+              });
+          }
+
+          // Initialize controls for existing rows
+          document.querySelectorAll('tr[data-tick-id]').forEach(row => {
+              setupRowControls(row);
+          });
+
+          // Make grade lists available globally
+          window.routes_grade_list = {{ routes_grade_list|tojson|safe }};
+          window.boulders_grade_list = {{ boulders_grade_list|tojson|safe }};
+
+          // Function to add a new row
+          function addNewRow(discipline) {
+              // Generate a smaller ID using timestamp modulo and counter
+              const timestamp = Date.now() % 10000;  // 4 digits
+              const counter = document.querySelectorAll('tr[data-tick-id]').length % 1000;  // 3 digits
+              const newId = `8${timestamp}${String(counter).padStart(3, '0')}`;  // Format: 8TTTTNNN
+              const tbody = document.querySelector(`#${discipline}-section tbody`);
+              const rowCount = tbody.children.length + 1;
+              
+              const row = document.createElement('tr');
+              row.dataset.tickId = newId;
+              
+              // Create row HTML
+              row.innerHTML = `
+                  <td class="number-column">${rowCount}</td>
+                  <td class="route-name-column">
+                      <input type="text" name="${discipline}_route_name_${newId}" required placeholder="Enter route name">
+                  </td>
+                  <td class="date-column">
+                      <input type="date" name="${discipline}_tick_date_${newId}" value="${new Date().toISOString().split('T')[0]}" required>
+                  </td>
+                  <td class="grade-column">
+                      <select class="grade-select" name="${discipline}_route_grade_${newId}" required>
+                          <option value="" disabled selected>Select Grade</option>
+                          ${discipline === 'boulder' ? 
+                              window.boulders_grade_list.map(grade => `<option value="${grade}">${grade}</option>`).join('') :
+                              window.routes_grade_list.map(grade => `<option value="${grade}">${grade}</option>`).join('')
+                          }
+                      </select>
+                  </td>
+                  <td class="attempts-column">
+                      <div class="attempts-input-group">
+                          <button type="button" class="attempts-btn minus-btn" aria-label="Decrease attempts">
+                              <i class="fas fa-minus"></i>
+                          </button>
+                          <input type="number" name="${discipline}_num_attempts_${newId}" value="1" class="attempts-input" min="1">
+                          <button type="button" class="attempts-btn plus-btn" aria-label="Increase attempts">
+                              <i class="fas fa-plus"></i>
+                          </button>
+                      </div>
+                      <div class="attempts-visual">
+                          <i class="fas fa-check success"></i>
+                      </div>
+                  </td>
+                  <td class="characteristic-column">
+                      <div class="table-radio-group">
+                          <label>
+                              <input type="radio" name="${discipline}_route_characteristic_${newId}" value="Power" checked>
+                              <span>Power</span>
+                          </label>
+                          <label>
+                              <input type="radio" name="${discipline}_route_characteristic_${newId}" value="Power Endurance">
+                              <span>Power Endurance</span>
+                          </label>
+                          <label>
+                              <input type="radio" name="${discipline}_route_characteristic_${newId}" value="Endurance">
+                              <span>Endurance</span>
+                          </label>
+                      </div>
+                  </td>
+                  <td class="style-column">
+                      <div class="table-radio-group">
+                          <label>
+                              <input type="radio" name="${discipline}_route_style_${newId}" value="Slab" checked>
+                              <span>Slab</span>
+                          </label>
+                          <label>
+                              <input type="radio" name="${discipline}_route_style_${newId}" value="Vertical">
+                              <span>Vertical</span>
+                          </label>
+                          <label>
+                              <input type="radio" name="${discipline}_route_style_${newId}" value="Overhang">
+                              <span>Overhang</span>
+                          </label>
+                          <label>
+                              <input type="radio" name="${discipline}_route_style_${newId}" value="Roof">
+                              <span>Roof</span>
+                          </label>
+                      </div>
+                  </td>
+                  <td class="actions-column">
+                      <button type="button" class="remove-btn" aria-label="Remove route">
+                          <i class="fas fa-times"></i>
+                      </button>
+                  </td>
+              `;
+              
+              tbody.appendChild(row);
+              
+              // Setup controls for the new row
+              setupRowControls(row);
+              
+              // Mark changes as unsaved
+              hasUnsavedChanges = true;
+              updateNavigationState();
+          }
+
+          // Add route button handlers
+          document.querySelectorAll('.add-route-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const discipline = this.closest('section').id.split('-')[0];
+                  addNewRow(discipline);
+              });
+          });
+
+          // Form submission
+          document.querySelector("form").addEventListener("submit", function (e) {
+              e.preventDefault();
+
+              // Collect all form data
+              const formData = new FormData(this);
+
+              // Convert form data to object
+              for (const [key, value] of formData.entries()) {
+                  // Parse the field name: discipline_fieldtype_tickid (e.g. sport_route_grade_12345)
+                  const parts = key.split('_');
+                  if (parts.length >= 3) {
+                      const discipline = parts[0];
+                      const tick_id = parts[parts.length - 1];  // Last part is always tick_id
+                      const field = parts.slice(1, -1).join('_');  // Everything in between is the field name
+                      
+                      if (tick_id && discipline in submitData) {
+                          if (!submitData[discipline].updated[tick_id]) {
+                              submitData[discipline].updated[tick_id] = {};
+                          }
+                          submitData[discipline].updated[tick_id][field] = value;
+                          console.log(`Updating ${discipline} route ${tick_id} field ${field} to ${value}`);
+                      }
+                  }
+              }
+
+              // Convert Sets to arrays for JSON
+              const submitDataCopy = {
+                  sport: { 
+                      removed: Array.from(submitData.sport.removed),
+                      updated: submitData.sport.updated
+                  },
+                  trad: {
+                      removed: Array.from(submitData.trad.removed),
+                      updated: submitData.trad.updated
+                  },
+                  boulder: {
+                      removed: Array.from(submitData.boulder.removed),
+                      updated: submitData.boulder.updated
+                  }
+              };
+
+              // Add hidden input with JSON data
+              const dataInput = document.createElement("input");
+              dataInput.type = "hidden";
+              dataInput.name = "changes_data";
+              dataInput.value = JSON.stringify(submitDataCopy);
+              console.log("Submitting changes:", submitDataCopy);
+              this.appendChild(dataInput);
+
+              // Submit the form
+              this.submit();
+          });
+      });
+    </script>
+  </body>
 </html>

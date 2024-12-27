@@ -1,55 +1,361 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
+    ></script>
     <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
 
-    gtag('config', 'G-QLKC35PVJB');
+      gtag("config", "G-QLKC35PVJB");
     </script>
     <title>When and Where</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script>
-    var sportPyramidData = {{ sport_pyramid|safe }};
-    var tradPyramidData = {{ trad_pyramid|safe }};
-    var boulderPyramidData = {{ boulder_pyramid|safe }};
-    var userTicksData = {{ user_ticks|safe }};
-    var binnedCodeDict = {{ binned_code_dict|safe }};
-    </script>
-</head>
-<body>
-
-    <section>
-
-        <a href="{{ url_for('userviz', username=username) }}">Home</a>
-        <br>
-        <a href="mailto:climbing.analytics@gmail.com"> This is a prototype application, please provide feedback here</a>
-
-        <h2>Location</h2>
-        <div id="location-race"></div>
-
-        <!-- Days Outside per Season -->
-        <h2>Days Outside per Season</h2>
-        <div id="days-outside-filters">
-            <h3>Time Filter</h3>
-            <input type="radio" id="filter-outside-time-allTime" name="days-outside-time-filter" value="allTime" checked>
-            <label for="filter-outside-time-allTime">All Time</label>
-            <input type="radio" id="filter-outside-time-lastYear" name="days-outside-time-filter" value="lastYear">
-            <label for="filter-outside-time-lastYear">Past Year</label>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/visualizations.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <div class="header-content">
+        <div class="header-wrapper">
+          <a
+            href="{{ url_for('userviz', username=username) }}"
+            class="home-icon"
+            title="Back to Dashboard"
+          >
+            <i class="fas fa-home"></i>
+          </a>
+          <h1>Climbing Location Analysis</h1>
         </div>
-        <div id="days-outside"></div>
+      </div>
+    </header>
 
-    </section>
-    
-    <!-- Include the second JavaScript file -->
-    <script src="{{ url_for('static', filename='js/commonFilters.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/locationRace.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/daysOutside.js') }}"></script>
-    <script>
-        locationRaceChart(userTicksData, "#location-race");
-    </script>
-</body>
+    <main>
+      <div class="nav-links">
+        <a href="{{ url_for('userviz', username=username) }}" class="button"
+          >Back to Dashboard</a
+        >
+        <a href="mailto:climbing.analytics@gmail.com" class="secondary-link">
+          This is a prototype application, please provide feedback here
+        </a>
+      </div>
+
+      <!-- Data initialization -->
+      <script>
+        const userTicksData = {{ user_ticks|safe }};
+      </script>
+
+      <section class="dashboard-section">
+        <div class="viz-header">
+          <div class="viz-title">
+            <h2>
+              Location Distribution
+              <button class="info-button" onclick="openLocationModal()">
+                <i class="fas fa-info-circle"></i>
+              </button>
+            </h2>
+          </div>
+        </div>
+
+        <div class="viz-container" id="location-race"></div>
+
+        <!-- Location Distribution Info Modal -->
+        <div id="locationModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeLocationModal()">&times;</span>
+            <h3>About the Data Calculations</h3>
+            <div class="modal-section">
+              <h4>Location Tracking</h4>
+              <p>
+                This visualization shows the distribution of your climbing areas
+                over time, tracking how many days you've spent at each location.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Area Grouping</h4>
+              <p>
+                Locations are grouped by their primary climbing area and
+                state/region to show your most frequently visited climbing
+                destinations.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Time Analysis</h4>
+              <p>
+                The progression shows how your climbing locations have evolved,
+                highlighting when you started climbing at new areas.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="viz-header">
+          <div class="viz-title">
+            <h2>
+              Location Tree
+              <button class="info-button" onclick="openTreeModal()">
+                <i class="fas fa-info-circle"></i>
+              </button>
+            </h2>
+          </div>
+        </div>
+
+        <div class="viz-container" id="location-tree"></div>
+
+        <!-- Location Tree Info Modal -->
+        <div id="treeModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeTreeModal()">&times;</span>
+            <h3>About the Location Tree</h3>
+            <div class="modal-section">
+              <h4>Hierarchical View</h4>
+              <p>
+                This radial tree visualization displays your climbing locations
+                in a hierarchical structure, with the root node "All Locations"
+                at the center. Branches spread outward to show states/regions,
+                areas, and specific climbing locations.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Visual Elements</h4>
+              <p>
+                Node sizes decrease with depth - root and state-level nodes are
+                larger than more specific locations. Colors indicate different
+                states/regions, and branches are arranged counterclockwise with
+                higher percentage locations appearing first.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Interaction</h4>
+              <p>
+                Hover over any node or legend item to highlight that branch and
+                its connections. The tooltip shows location details, including
+                the number of pitches climbed and the percentage of climbing
+                done relative to its parent location.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="viz-header">
+          <div class="viz-title">
+            <h2>
+              Seasonal Climbing Patterns
+              <button class="info-button" onclick="openHeatmapModal()">
+                <i class="fas fa-info-circle"></i>
+              </button>
+            </h2>
+          </div>
+        </div>
+
+        <div class="viz-container" id="seasonal-heatmap"></div>
+        <div id="heatmap-tooltip" class="tooltip"></div>
+
+        <!-- Heatmap Info Modal -->
+        <div id="heatmapModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeHeatmapModal()">&times;</span>
+            <h3>About the Seasonal Heatmap</h3>
+            <div class="modal-section">
+              <h4>Visualization Overview</h4>
+              <p>
+                This heatmap shows your climbing intensity across months and
+                years. Darker colors indicate more pitches climbed.
+              </p>
+            </div>
+            <div class="modal-section">
+              <h4>Reading the Data</h4>
+              <p>
+                Each cell represents a month, with color intensity showing the
+                number of pitches climbed. Hover over cells to see detailed
+                information.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Modal Scripts -->
+      <script>
+        // Modal open/close functions
+        function openLocationModal() {
+          document.getElementById("locationModal").style.display = "block";
+        }
+
+        function closeLocationModal() {
+          document.getElementById("locationModal").style.display = "none";
+        }
+
+        function openHeatmapModal() {
+          document.getElementById("heatmapModal").style.display = "block";
+        }
+
+        function closeHeatmapModal() {
+          document.getElementById("heatmapModal").style.display = "none";
+        }
+
+        function openTreeModal() {
+          document.getElementById("treeModal").style.display = "block";
+        }
+
+        function closeTreeModal() {
+          document.getElementById("treeModal").style.display = "none";
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function (event) {
+          const modals = ["locationModal", "heatmapModal", "treeModal"];
+
+          modals.forEach((modalId) => {
+            const modal = document.getElementById(modalId);
+            if (event.target === modal) {
+              modal.style.display = "none";
+            }
+          });
+        };
+      </script>
+
+      <!-- Load visualization scripts -->
+      <script src="{{ url_for('static', filename='js/commonFilters.js') }}"></script>
+      <script src="{{ url_for('static', filename='js/locationRace.js') }}"></script>
+      <script src="{{ url_for('static', filename='js/locationTree.js') }}"></script>
+      <script src="{{ url_for('static', filename='js/seasonalHeatmap.js') }}"></script>
+
+      <!-- Initialize visualizations -->
+      <script>
+        window.addEventListener("load", function () {
+          if (!userTicksData) {
+            console.error("No user data available");
+            return;
+          }
+
+          console.log(
+            "Initializing visualizations with",
+            userTicksData.length,
+            "records"
+          );
+
+          // Initialize visualizations
+          try {
+            // Location race chart
+            locationRaceChart(userTicksData, "#location-race");
+
+            // Location tree
+            locationTreeChart(userTicksData, "#location-tree");
+
+            // Seasonal heatmap
+            seasonalHeatmap(userTicksData, "#seasonal-heatmap");
+          } catch (error) {
+            console.error("Error initializing visualizations:", error);
+            console.error(error.stack); // Log the full stack trace
+          }
+        });
+      </script>
+
+      <style>
+        .tooltip {
+          position: absolute;
+          padding: 10px;
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          pointer-events: none;
+          opacity: 0;
+          font-size: 12px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          z-index: 1000;
+        }
+
+        .viz-container {
+          width: 100%;
+          min-height: 500px;
+          margin: 20px 0;
+          position: relative;
+          background: white;
+          border-radius: 8px;
+          box-shadow: var(--shadow);
+          overflow: hidden;
+        }
+
+        #seasonal-heatmap {
+          width: 100%;
+          height: 100%;
+          min-height: 500px;
+        }
+
+        .modal {
+          display: none;
+          position: fixed;
+          z-index: 1001;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+          background-color: #fefefe;
+          margin: 15% auto;
+          padding: 20px;
+          border: 1px solid #888;
+          width: 80%;
+          max-width: 600px;
+          border-radius: 8px;
+        }
+
+        .close {
+          color: #aaa;
+          float: right;
+          font-size: 28px;
+          font-weight: bold;
+          cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+          color: black;
+          text-decoration: none;
+          cursor: pointer;
+        }
+      </style>
+    </main>
+
+    <footer>
+      <nav>
+        <ul>
+          <li>
+            <a href="{{ url_for('userviz', username=username) }}"
+              >Back to Dashboard</a
+            >
+          </li>
+          <li><a href="mailto:climbing.analytics@gmail.com">Feedback</a></li>
+        </ul>
+      </nav>
+    </footer>
+  </body>
 </html>

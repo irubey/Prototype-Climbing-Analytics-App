@@ -1,45 +1,266 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
+    ></script>
     <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
 
-    gtag('config', 'G-QLKC35PVJB');
+      gtag("config", "G-QLKC35PVJB");
     </script>
     <title>User Visualizations</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-</head>
-<body>
-    <a href="mailto:climbing.analytics@gmail.com"> This is a prototype application, please provide feedback here</a>
-    <section>
-        <h1>Experience Base - {{ username }}</h1>
-        <a href="{{ url_for('base_volume', username=username) }}"><h2>Base Volume</h2></a>
-        <p>Climber's base volume of outdoor climbing. Includes work capasity, consistency, and volume of outdoor rock climbs</p>
-        
-        <a href="{{ url_for('progression', username=username) }}"><h2>Progression</h2></a>
-        <p>Climber's progression over their career along a number of categories</p>
-        
-        <a href="{{ url_for('when_where', username=username) }}"><h2>When and Where</h2></a>
-        <p>Overview of climber's preferred areas and seasonality</p>
-    </section>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <header>
+      <h1>{{ username }}'s Analytics Dashboard</h1>
+    </header>
 
-    <section>
-        <h1>Performance Visualizations - {{ username }}</h1>
-        <b>These are the top 4 grades that have been recorded as sent clean on lead.</b>
-        <a href="{{ url_for('pyramid_input', username=username)}}">For more detailed analysis input route info here.</a>
-        
-        <a href="{{ url_for('performance_pyramid', username=username) }}"><h2>Performance Pyramid</h2></a>
-        <p>Climber's top outdoor performances</p>
-        
-        <a href="{{ url_for('performance_characteristics', username=username) }}"><h2>Performance Characteristics</h2></a>
-        <p>Characteristics of the climber's top outdoor performances </p>
-    </section>
-    <section>
-        <a href="{{ url_for('index') }}"><h2>Return to Homepage</h2></a>
-    </section>
-</body>
+    <main>
+      <div class="feedback-link">
+        <a href="mailto:climbing.analytics@gmail.com" class="secondary-link">
+          This is a prototype application, please provide feedback here
+        </a>
+      </div>
+
+      <section class="dashboard-section">
+        <div class="section-header">
+          <h2>Experience Base</h2>
+          <i
+            class="fas fa-info-circle info-icon"
+            onclick="showModal('baseVolumeInfo')"
+          ></i>
+        </div>
+        <div class="card-grid">
+          <div class="card">
+            <a
+              href="{{ url_for('base_volume', username=username) }}"
+              class="card-link"
+            >
+              <h3>Base Volume</h3>
+              <p>
+                Climber's base volume of outdoor climbing. Includes work
+                capacity, consistency, and volume of outdoor rock climbs
+              </p>
+            </a>
+          </div>
+
+          <div class="card">
+            <a
+              href="{{ url_for('progression', username=username) }}"
+              class="card-link"
+            >
+              <h3>Progression</h3>
+              <p>
+                Climber's progression over their career along a number of
+                categories
+              </p>
+            </a>
+          </div>
+
+          <div class="card">
+            <a
+              href="{{ url_for('when_where', username=username) }}"
+              class="card-link"
+            >
+              <h3>When and Where</h3>
+              <p>Overview of climber's preferred areas and seasonality</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="section-header">
+          <h2>Performance Analysis</h2>
+          <i
+            class="fas fa-info-circle info-icon"
+            onclick="showModal('performanceInfo')"
+          ></i>
+        </div>
+
+        <div class="warning-banner">
+          <i class="fas fa-exclamation-circle"></i>
+          <div class="warning-content">
+            <h3>Important: Verify Your Performance Data First</h3>
+            <p>
+              For accurate analysis, please verify and edit your climbing data
+              before viewing the visualizations below.
+            </p>
+            <a
+              href="{{ url_for('pyramid_input', username=username)}}"
+              class="accent-button"
+            >
+              <i class="fas fa-edit"></i> Edit Performance Data
+            </a>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <div class="card">
+            <a
+              href="{{ url_for('performance_pyramid', username=username) }}"
+              class="card-link"
+            >
+              <h3>Performance Pyramid</h3>
+              <p>
+                Analysis of your top outdoor performances and attempts
+                distribution
+              </p>
+            </a>
+          </div>
+
+          <div class="card">
+            <a
+              href="{{ url_for('performance_characteristics', username=username) }}"
+              class="card-link"
+            >
+              <h3>Performance Characteristics</h3>
+              <p>
+                Breakdown of style, length, and characteristics of your hardest
+                climbs
+              </p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <div class="home-link">
+        <a href="{{ url_for('index') }}" class="button">Return to Homepage</a>
+      </div>
+    </main>
+
+    <!-- Base Volume Info Modal -->
+    <div id="baseVolumeInfo" class="info-modal">
+      <div class="modal-content">
+        <span class="modal-close" onclick="hideModal('baseVolumeInfo')"
+          >&times;</span
+        >
+        <h3>About Base Volume Data</h3>
+        <div class="modal-section">
+          <h4>Complete History</h4>
+          <p>
+            The Experience Base visualizations are generated using your complete
+            climbing history from Mountain Project. This includes all logged
+            climbs, providing a comprehensive view of your climbing volume,
+            progression, and patterns over time.
+          </p>
+        </div>
+        <div class="modal-section">
+          <h4>Data Analysis</h4>
+          <p>
+            These visualizations help you understand your overall climbing
+            experience and development across all disciplines and grades,
+            including:
+          </p>
+          <ul>
+            <li>Total vertical feet climbed</li>
+            <li>Days spent climbing outdoors</li>
+            <li>Grade progression over time</li>
+            <li>Seasonal patterns and preferences</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Info Modal -->
+    <div id="performanceInfo" class="info-modal">
+      <div class="modal-content">
+        <span class="modal-close" onclick="hideModal('performanceInfo')"
+          >&times;</span
+        >
+        <h3>About Performance Data</h3>
+        <div class="modal-section">
+          <h4>Filtered Analysis</h4>
+          <p>
+            The Performance Analysis focuses on your highest achievements in
+            each discipline, specifically analyzing your hardest sends and clean
+            leads.
+          </p>
+        </div>
+        <div class="modal-section">
+          <h4>Data Requirements</h4>
+          <p>For the most accurate analysis:</p>
+          <ul>
+            <li>Sport & Trad: Clean leads of your hardest routes</li>
+            <li>Boulder: Your hardest sends</li>
+            <li>
+              Details like attempts, style, and characteristics enhance the
+              analysis
+            </li>
+          </ul>
+        </div>
+        <div class="modal-section">
+          <h4>Customization</h4>
+          <p>
+            Adding additional information about your climbs will allow for more
+            detailed and accurate visualizations of your performance patterns
+            and preferences.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <nav>
+        <ul>
+          <li><a href="{{ url_for('index') }}">Home</a></li>
+          <li><a href="mailto:climbing.analytics@gmail.com">Feedback</a></li>
+        </ul>
+      </nav>
+    </footer>
+
+    <!-- Modal JavaScript -->
+    <script>
+      function showModal(modalId) {
+        document.getElementById(modalId).classList.add("active");
+      }
+
+      function hideModal(modalId) {
+        document.getElementById(modalId).classList.remove("active");
+      }
+
+      // Close modal when clicking outside
+      window.onclick = function (event) {
+        if (event.target.classList.contains("info-modal")) {
+          event.target.classList.remove("active");
+        }
+      };
+    </script>
+
+    <!-- Data initialization -->
+    <script>
+      const sportPyramidData = {{ sport_pyramid|tojson|safe }};
+      const tradPyramidData = {{ trad_pyramid|tojson|safe }};
+      const boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
+      const userTicksData = {{ user_ticks|tojson|safe }};
+      const binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+
+      console.log('Sport Pyramid Data:', sportPyramidData);
+      console.log('Sport Pyramid Data Structure:', {
+        numRoutes: sportPyramidData.length,
+        fields: sportPyramidData.length > 0 ? Object.keys(sportPyramidData[0]) : [],
+        sampleRoute: sportPyramidData[0]
+      });
+    </script>
+  </body>
 </html>

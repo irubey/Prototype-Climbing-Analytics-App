@@ -1,76 +1,266 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
+    ></script>
     <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
 
-    gtag('config', 'G-QLKC35PVJB');
+      gtag("config", "G-QLKC35PVJB");
     </script>
     <title>Performance Characteristics</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script>
-    var sportPyramidData = {{ sport_pyramid|safe }};
-    var tradPyramidData = {{ trad_pyramid|safe }};
-    var boulderPyramidData = {{ boulder_pyramid|safe }};
-    var userTicksData = {{ user_ticks|safe }};
-    var binnedCodeDict = {{ binned_code_dict|safe }};
-    </script>
-</head>
-<body>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/visualizations.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <div class="header-content">
+        <div class="header-wrapper">
+          <a
+            href="{{ url_for('userviz', username=username) }}"
+            class="home-icon"
+            title="Back to Dashboard"
+          >
+            <i class="fas fa-home"></i>
+          </a>
+          <h1>Route Characteristics Analysis</h1>
+        </div>
+      </div>
+    </header>
 
-    <!-- Added the link back to pyramid-input -->
-    <a href="{{ url_for('userviz', username=username) }}">Home</a>
-    <br>
-    <a href="mailto:climbing.analytics@gmail.com"> This is a prototype application, please provide feedback here</a>
+    <main>
+      <div class="nav-links">
+        <a href="{{ url_for('userviz', username=username) }}" class="button"
+          >Back to Dashboard</a
+        >
+        <a href="mailto:climbing.analytics@gmail.com" class="secondary-link">
+          This is a prototype application, please provide feedback here
+        </a>
+      </div>
 
-    <section>
-        <div id="characteristics-filters">
-            <h3>Discipline Filter</h3>
-            <input type="radio" id="filter-performance-sport" name="characteristics-discipline-filter" value="sport" checked>
-            <label for="filter-performance-sport">Sport</label>
-            <input type="radio" id="filter-performance-trad" name="characteristics-discipline-filter" value="trad">
-            <label for="filter-performance-trad">Trad</label>
-            <input type="radio" id="filter-performance-boulder" name="characteristics-discipline-filter" value="boulder">
-            <label for="filter-performance-boulder">Boulder</label>
+      <!-- Data initialization -->
+      <script>
+        const sportPyramidData = {{ sport_pyramid|tojson|safe }};
+        const tradPyramidData = {{ trad_pyramid|tojson|safe }};
+        const boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
+        const binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+      </script>
 
-            <h3>Time Filter</h3>
-            <input type="radio" id="filter-performance-time-allTime" name="characteristics-time-filter" value="allTime" checked>
-            <label for="filter-performance-time-allTime">All Time</label>
-            <input type="radio" id="filter-performance-time-lastYear" name="characteristics-time-filter" value="lastYear">
-            <label for="filter-performance-time-lastYear">Past Year</label>
-            <input type="radio" id="filter-performance-time-lastSixMonths" name="characteristics-time-filter" value="lastSixMonths">
-            <label for="filter-performance-time-lastSixMonthsr">Last 6mo.</label>
-            <input type="radio" id="filter-performance-time-lastThreeMonths" name="characteristics-time-filter" value="lastThreeMonths">
-            <label for="filter-performance-time-lastThreeMonthsr">Last 3mo.</label>
+      <section class="dashboard-section">
+        <!-- Filters Row -->
+        <div class="viz-filters" style="margin-bottom: 20px">
+          <div class="viz-filter-section">
+            <h3>DISCIPLINE</h3>
+            <div class="viz-radio-group">
+              <input
+                type="radio"
+                id="filter-performance-sport"
+                name="characteristics-discipline-filter"
+                value="sport"
+                checked
+              />
+              <label for="filter-performance-sport">Sport</label>
+              <input
+                type="radio"
+                id="filter-performance-trad"
+                name="characteristics-discipline-filter"
+                value="trad"
+              />
+              <label for="filter-performance-trad">Trad</label>
+              <input
+                type="radio"
+                id="filter-performance-boulder"
+                name="characteristics-discipline-filter"
+                value="boulder"
+              />
+              <label for="filter-performance-boulder">Boulder</label>
+            </div>
+          </div>
+
+          <div class="viz-filter-section">
+            <h3>TIME RANGE</h3>
+            <div class="viz-radio-group">
+              <input
+                type="radio"
+                id="filter-performance-time-allTime"
+                name="characteristics-time-filter"
+                value="allTime"
+                checked
+              />
+              <label for="filter-performance-time-allTime">All Time</label>
+              <input
+                type="radio"
+                id="filter-performance-time-lastYear"
+                name="characteristics-time-filter"
+                value="lastYear"
+              />
+              <label for="filter-performance-time-lastYear">Past Year</label>
+              <input
+                type="radio"
+                id="filter-performance-time-lastSixMonths"
+                name="characteristics-time-filter"
+                value="lastSixMonths"
+              />
+              <label for="filter-performance-time-lastSixMonths"
+                >Last 6mo.</label
+              >
+              <input
+                type="radio"
+                id="filter-performance-time-lastThreeMonths"
+                name="characteristics-time-filter"
+                value="lastThreeMonths"
+              />
+              <label for="filter-performance-time-lastThreeMonths"
+                >Last 3mo.</label
+              >
+            </div>
+          </div>
         </div>
 
+        <div class="viz-header">
+          <div class="viz-title">
+            <h2>
+              Route Analysis
+              <button class="info-button" onclick="openCharacteristicsModal()">
+                <i class="fas fa-info-circle"></i>
+              </button>
+              <a
+                href="{{ url_for('pyramid_input', username=username) }}"
+                class="edit-button"
+              >
+                <i class="fas fa-edit"></i>
+                Edit Performance Data
+              </a>
+            </h2>
+          </div>
+        </div>
 
-        <h1>Route Characteristics - Top 4 grades</h1>
-        <a href="{{ url_for('pyramid_input', username=username) }}"><h2>Input route info here</h2></a>
+        <div class="viz-container" id="performance-characteristics"></div>
 
-        <div id="performance-characteristics"></div>
-        
-        
-        <h2>Route Length - Top 4 Grades Sent</h2>
-        <b>Short: Under 60ft.</b><br>
-        <b>Medium: 60 - 85ft.</b><br>
-        <b>Long: 86 - 130ft.</b><br>
-        <b>Multipitch: Over 130ft.</b>
-        <div id="performance-length"></div>
-        
+        <!-- Combined Info Modal -->
+        <div id="characteristicsModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeCharacteristicsModal()"
+              >&times;</span
+            >
+            <h3>About the Data Analysis</h3>
+            <div class="modal-section">
+              <h4>Energy System Analysis</h4>
+              <p>
+                Shows the distribution of routes based on their primary energy
+                system demands:
+              </p>
+              <ul>
+                <li><strong>Power:</strong> Short, intense sequences</li>
+                <li>
+                  <strong>Power Endurance:</strong> Sustained difficult climbing
+                </li>
+                <li>
+                  <strong>Endurance:</strong> Long routes with moderate
+                  difficulty
+                </li>
+              </ul>
+            </div>
+            <div class="modal-section">
+              <h4>Length Categories</h4>
+              <p>Routes are categorized into four length categories:</p>
+              <ul>
+                <li><strong>Short:</strong> Under 60ft</li>
+                <li><strong>Medium:</strong> 60 - 85ft</li>
+                <li><strong>Long:</strong> 86 - 130ft</li>
+                <li><strong>Multipitch:</strong> Over 130ft</li>
+              </ul>
+            </div>
+            <div class="modal-section">
+              <h4>Angle Analysis</h4>
+              <p>
+                Shows the distribution of routes based on their predominant
+                angle:
+              </p>
+              <ul>
+                <li><strong>Slab:</strong> Less than vertical</li>
+                <li><strong>Vertical:</strong> 90 degrees</li>
+                <li><strong>Overhung:</strong> Past vertical</li>
+                <li><strong>Roof:</strong> Horizontal or near-horizontal</li>
+              </ul>
+            </div>
+            <div class="modal-section">
+              <h4>Data Updates</h4>
+              <p>
+                Route characteristics are based on user-provided information.
+                You can update this data through the input form.
+              </p>
+              <p>
+                <a
+                  href="{{ url_for('pyramid_input', username=username) }}"
+                  class="accent-link"
+                  >Input route info here</a
+                >
+              </p>
+            </div>
+          </div>
+        </div>
 
-        <h2>Route Style - Top 4 Grades Sent</h2>
-        <a href="{{ url_for('pyramid_input', username=username) }}"><h2>Input route info here</h2></a>
-        <div id="performance-style"></div>
-        
-    </section>
-    
-    <!-- Include the second JavaScript file -->
+        <!-- Modal Scripts -->
+        <script>
+          function openCharacteristicsModal() {
+            document.getElementById("characteristicsModal").style.display =
+              "block";
+          }
+
+          function closeCharacteristicsModal() {
+            document.getElementById("characteristicsModal").style.display =
+              "none";
+          }
+
+          // Close modal when clicking outside
+          window.onclick = function (event) {
+            const modal = document.getElementById("characteristicsModal");
+            if (event.target == modal) {
+              modal.style.display = "none";
+            }
+          };
+        </script>
+      </section>
+    </main>
+
+    <footer>
+      <nav>
+        <ul>
+          <li>
+            <a href="{{ url_for('userviz', username=username) }}"
+              >Back to Dashboard</a
+            >
+          </li>
+          <li><a href="mailto:climbing.analytics@gmail.com">Feedback</a></li>
+        </ul>
+      </nav>
+    </footer>
+
+    <!-- Load visualization scripts -->
     <script src="{{ url_for('static', filename='js/commonFilters.js') }}"></script>
     <script src="{{ url_for('static', filename='js/performanceCharacteristics.js') }}"></script>
-</body>
+  </body>
 </html>
