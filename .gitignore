@@ -2,6 +2,7 @@
 node_modules/
 .venv/
 vendor/
+venv/
 
 # Build Output
 dist/
@@ -53,14 +54,3 @@ target/
 .next/
 .dockerignore
 
-#Unneeded files
-working_code.ipynb
-optimized_data_calculations.py
-base_df.ipynb
-app(old_uses_mysql).py
-overhang_icon.png
-roof_icon.png
-slab_icon.png
-vertical_icon.png
-jstar_calcs.ipynb
-requirements_backup.txt
