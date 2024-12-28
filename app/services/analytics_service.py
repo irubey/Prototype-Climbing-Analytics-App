@@ -6,75 +6,14 @@ from datetime import datetime
 class AnalyticsService:
     def __init__(self, db):
         self.db = db
-
-    def calculate_total_vertical(self, user_ticks):
-        """Calculate total vertical feet using the same logic as totalVert.js."""
-        # 1. Transform data (create new objects to avoid modifying originals)
-        transformed_ticks = []
-        for tick in user_ticks:
-            try:
-                float(tick.pitches)  # This matches JS isNaN behavior
-                has_valid_pitches = True
-            except (TypeError, ValueError):
-                has_valid_pitches = False
-
-            if has_valid_pitches or tick.length_category == "multipitch":
-                transformed_ticks.append({
-                    'date': tick.tick_date,
-                    'length': None if tick.length == 0 else tick.length,
-                    'pitches': 1 if tick.length_category == "multipitch" else tick.pitches,
-                    'length_category': tick.length_category,
-                    'season_category': tick.season_category[:-6] if tick.season_category else ''
-                })
-
-        # 2. Calculate daily averages for all routes with valid length
-        daily_averages = {}
-        for tick in transformed_ticks:
-            if tick['length'] is not None:
-                date_str = tick['date'].strftime('%Y-%m-%d')
-                if date_str not in daily_averages:
-                    daily_averages[date_str] = {"sum": tick['length'], "count": 1}
-                else:
-                    daily_averages[date_str]["sum"] += tick['length']
-                    daily_averages[date_str]["count"] += 1
-
-        # Convert sums to averages
-        for date_str in daily_averages:
-            daily_averages[date_str] = daily_averages[date_str]["sum"] / daily_averages[date_str]["count"]
-
-        # 3. Calculate vertical feet by date
-        vertical_map = {}
-        for tick in transformed_ticks:
-            date_str = tick['date'].strftime('%Y-%m-%d')
-            map_key = f"{date_str}_{tick['season_category']}"
-            
-            if tick['length']:
-                vertical = tick['length'] if tick['length_category'] == "multipitch" else tick['length'] * tick['pitches']
-            else:
-                daily_avg = daily_averages.get(date_str)
-                vertical = (daily_avg if daily_avg is not None else 60) * tick['pitches']
-
-            if map_key not in vertical_map:
-                vertical_map[map_key] = {
-                    'total': vertical or 0,
-                    'season_category': tick['season_category']
-                }
-            else:
-                vertical_map[map_key]['total'] += vertical or 0
-
-        # 4. Sum all verticals and return
-        return sum(v['total'] for v in vertical_map.values())
-
+        
     def get_base_volume_metrics(self, username):
         """Calculate base volume metrics from UserTicks."""
         user_ticks = UserTicks.query.filter_by(username=username).all()
         
         # Calculate total pitches
         total_pitches = sum(tick.pitches or 1 for tick in user_ticks)
-        
-        # Calculate total vertical feet using the new method
-        total_vertical_ft = int(self.calculate_total_vertical(user_ticks))
-        
+
         # Get unique locations
         unique_locations = len(set(tick.location for tick in user_ticks if tick.location))
         
@@ -87,7 +26,6 @@ class AnalyticsService:
         
         return {
             "total_pitches": total_pitches,
-            "total_vertical_ft": total_vertical_ft,
             "unique_locations": unique_locations,
             "favorite_area": favorite_area,
             "days_outside": unique_dates

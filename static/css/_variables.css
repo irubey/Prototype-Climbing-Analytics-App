@@ -7,12 +7,31 @@
      ========================================================================== */
   --primary: #2a4f5f;
   --primary-rgb: 42, 79, 95;
-  --secondary: #2e7d32;
-  --secondary-rgb: 46, 125, 50;
-  --accent: #4caf50;
-  --accent-rgb: 76, 175, 80;
+  --secondary: #7ea88b;
+  --secondary-rgb: 126, 168, 139;
+  --accent: #6cb2eb;
+  --accent-rgb: 108, 178, 235;
   --light: #f6b17a;
   --background: #f7f9fc;
+
+  /* Colors - Accent Palette
+     ========================================================================== */
+  --accent-coral: #ff6b6b;
+  --accent-peach: #ffb4a2;
+  --accent-gold: #ffd93d;
+  --accent-teal: #4ecdc4;
+  --accent-lavender: #6c63ff;
+  --accent-sky: #6cb2eb;
+  --accent-dark-teal: #2a4f5f;
+  --accent-medium-teal: #375f6f;
+
+  /* Colors - Gradients
+     ========================================================================== */
+  --gradient-warm: linear-gradient(135deg, var(--secondary), var(--light));
+  --gradient-cool: linear-gradient(135deg, var(--primary), var(--accent));
+  --gradient-sunset: linear-gradient(135deg, var(--secondary), var(--accent));
+  --gradient-ocean: linear-gradient(135deg, var(--primary), var(--secondary));
+  --gradient-dashboard: linear-gradient(135deg, var(--primary), var(--accent));
 
   /* Colors - Text
      ========================================================================== */

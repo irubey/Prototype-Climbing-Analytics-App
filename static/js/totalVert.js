@@ -164,7 +164,7 @@ function totalVertChart(targetId, userTicksData) {
   function setupChart(targetId) {
     // Calculate dimensions based on container width
     const container = d3.select(targetId).node().getBoundingClientRect();
-    const margin = { top: 20, right: 110, bottom: 60, left: 60 };
+    const margin = { top: 20, right: 150, bottom: 60, left: 60 };
     // Limit max width and make it slightly smaller
     const width = Math.min(container.width - margin.left - margin.right, 700);
     // Reduce height ratio for a more compact look
@@ -195,19 +195,24 @@ function totalVertChart(targetId, userTicksData) {
 
     // Define milestones
     const milestones = [
-      { height: 1454, name: "Empire State Building" },
-      { height: 1776, name: "One World Trade Center" },
+      { height: 1000, name: "The Diamond, Rocky Mountain National Park" },
+      { height: 1454, name: "Empire State Building, New York City" },
+      { height: 1700, name: "Chasm View Wall, Black Canyon " },
+      { height: 2200, name: "Half Dome, Yosemite National Park" },
       { height: 2640, name: "Half Mile" },
-      { height: 2717, name: "Burj Khalifa" },
-      { height: 4737, name: "Half Dome" },
+      { height: 2717, name: "Burj Khalifa, Dubai" },
+      { height: 2950, name: "El Capitan, Yosemite National Park" },
+      { height: 4025, name: "Cerro Torre, Patagonia" },
+      { height: 4396, name: "Great Trango Tower, Pakistan" },
       { height: 5280, name: "One Mile" },
-      { height: 7569, name: "El Capitan" },
+      { height: 8200, name: "Castelvieil Traverse, France" },
+      { height: 9000, name: "The Long Wall, Canada" },
       { height: 10000, name: "10,000 ft" },
-      { height: 14505, name: "Mt. Whitney" },
-      { height: 15781, name: "Mont Blanc" },
-      { height: 20310, name: "Denali" },
+      { height: 14505, name: "Mt. Whitney, California" },
+      { height: 15781, name: "Mont Blanc, France" },
+      { height: 20310, name: "Denali, Alaska" },
       { height: 26400, name: "5 Miles" },
-      { height: 29029, name: "Mt. Everest" },
+      { height: 29029, name: "Mt. Everest, Nepal" },
       { height: 35000, name: "Commercial Aircraft Cruising" },
       { height: 52800, name: "10 Miles" },
       { height: 62000, name: "Edge of Mesosphere" },
@@ -216,6 +221,9 @@ function totalVertChart(targetId, userTicksData) {
       { height: 264000, name: "50 Miles" },
       { height: 328084, name: "ISS Orbit" },
       { height: 500000, name: "500,000 ft" },
+      { height: 1000000, name: "1,000,000 ft" },
+      { height: 1500000, name: "1,500,000 ft" },
+      { height: 2000000, name: "2,000,000 ft" },
     ];
 
     return { svg, g, x, y, z, width, height, margin, milestones };
@@ -331,7 +339,7 @@ function totalVertChart(targetId, userTicksData) {
           .attr("x2", width)
           .attr("y1", y(milestone.height))
           .attr("y2", y(milestone.height))
-          .attr("stroke", milestone.height > maxVertical ? "#4caf50" : "#999")
+          .attr("stroke", milestone.height > maxVertical ? "#6cb2eb" : "#999")
           .attr("stroke-dasharray", "2,2")
           .attr("stroke-width", milestone.height > maxVertical ? 2 : 1)
           .style("opacity", milestone.height > maxVertical ? 0.8 : 0.5);
@@ -354,7 +362,7 @@ function totalVertChart(targetId, userTicksData) {
           .attr("y", y(milestone.height))
           .attr("dy", "0.32em")
           .attr("font-size", "10px")
-          .attr("fill", milestone.height > maxVertical ? "#4caf50" : "#666")
+          .attr("fill", milestone.height > maxVertical ? "#6cb2eb" : "#666")
           .style("opacity", isKeyMilestone ? 1 : 0) // Only show key milestones by default
           .text(`${milestone.name} (${formattedHeight}ft)`);
 

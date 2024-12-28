@@ -55,14 +55,6 @@
 
     <main class="main-content">
       <div class="container">
-        <script>
-          var sportPyramidData = {{ sport_pyramid|tojson|safe }};
-          var tradPyramidData = {{ trad_pyramid|tojson|safe }};
-          var boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
-          var userTicksData = {{ user_ticks|tojson|safe }};
-          var binnedCodeDict = {{ binned_code_dict|tojson|safe }};
-        </script>
-
         <section class="dashboard-section">
           <!-- Filters Row -->
           <div

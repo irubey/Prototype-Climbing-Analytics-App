@@ -137,40 +137,47 @@
                 <i class="fas fa-times"></i>
               </button>
               <div class="modal-header">
-                <h3>About the Data Calculations</h3>
+                <h3>About Total Vertical</h3>
               </div>
               <div class="modal-section">
-                <h4>Missing Length Data</h4>
+                <h4>Calculation Method</h4>
                 <p>
-                  When a single pitch climb's length is not available, we first
-                  try to calculate an average length based on other climbs from
-                  the same day. If there are no other climbs that day, we use a
-                  default length of 60 feet per pitch.
+                  This visualization tracks your cumulative vertical feet
+                  climbed over time. The calculation includes all logged climbs
+                  from your Mountain Project tick list, taking into account both
+                  single-pitch and multi-pitch routes.
                 </p>
               </div>
               <div class="modal-section">
-                <h4>Multiple Pitch Climbs</h4>
-                <p>
-                  For multi-pitch routes, we use the total route length
-                  regardless of the number of pitches. This better represents
-                  the actual vertical gain of the climb.
-                </p>
+                <h4>Route Types</h4>
+                <ul>
+                  <li>
+                    <strong>Single Pitch:</strong> Length × Number of Ascents
+                  </li>
+                  <li>
+                    <strong>Multi-pitch:</strong> Total Route Length (preserving
+                    actual vertical gain)
+                  </li>
+                  <li>
+                    <strong>Boulder:</strong> Standard 15ft height per problem
+                  </li>
+                </ul>
               </div>
               <div class="modal-section">
-                <h4>Single Pitch Climbs</h4>
-                <p>
-                  For single pitch routes, the total vertical is calculated by
-                  multiplying the route length by the number of pitches climbed.
-                  This accounts for multiple ascents of the same route in a day.
-                </p>
+                <h4>Missing Data Handling</h4>
+                <p>When route length is unavailable, we estimate using:</p>
+                <ul>
+                  <li>Average length of other routes climbed that day</li>
+                  <li>If no daily average: 60ft per pitch for routes</li>
+                </ul>
               </div>
               <div class="modal-section">
-                <h4>Data Accuracy</h4>
+                <h4>Milestone Reference Lines</h4>
                 <p>
-                  While we strive for accuracy, some route lengths may be
-                  estimates. The data represents your best approximation of
-                  total vertical feet climbed based on available information
-                  from Mountain Project.
+                  The dashed lines represent notable climbing and height
+                  milestones, from single pitches to famous peaks. Achieved
+                  milestones appear in gray, while upcoming goals are
+                  highlighted in blue.
                 </p>
               </div>
             </div>
