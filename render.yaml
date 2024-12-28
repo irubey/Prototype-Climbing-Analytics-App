@@ -3,14 +3,26 @@ services:
     name: climb-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn "app:create_app()"
+    startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: FLASK_APP
+        value: app
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: climb-db
+          property: connectionString
+      - key: SQLALCHEMY_DATABASE_URI
+        fromDatabase:
+          name: climb-db
+          property: connectionString
 
 databases:
   - name: climb-db
