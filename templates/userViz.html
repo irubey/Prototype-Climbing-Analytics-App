@@ -40,13 +40,24 @@
         <i class="fas fa-home"></i>
       </a>
       <h1>Dashboard - {{ username }}</h1>
-      <a
-        href="https://www.buymeacoffee.com/climbinganalytics"
-        class="buy-coffee-button"
-        target="_blank"
-      >
-        <i class="fas fa-coffee"></i> Did I Bring You a Smile?
-      </a>
+      <div class="header-buttons">
+        <form
+          action="{{ url_for('refresh_data', username=username) }}"
+          method="POST"
+          style="display: inline"
+        >
+          <button type="submit" class="refresh-button" title="Refresh Data">
+            <i class="fas fa-sync-alt"></i> Refresh Data
+          </button>
+        </form>
+        <a
+          href="https://www.buymeacoffee.com/climbinganalytics"
+          class="buy-coffee-button"
+          target="_blank"
+        >
+          <i class="fas fa-coffee"></i> Did I Bring You a Smile?
+        </a>
+      </div>
     </header>
 
     <main class="main-content">

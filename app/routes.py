@@ -50,7 +50,13 @@ def index():
             # Extract username from URL
             username = first_input.split('/')[-1]
 
-            # Always process the profile data
+            # Check if user data exists
+            existing_ticks = UserTicks.query.filter_by(username=username).first()
+            if existing_ticks:
+                app.logger.info(f"Found existing data for user: {username}")
+                return redirect(url_for('userviz', username=username))
+
+            # If no existing data, process the profile
             processor = DataProcessor()
             sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username = processor.process_profile(first_input)
 
@@ -314,4 +320,15 @@ def delete_tick(tick_id):
         return jsonify({
             'success': False,
             'error': 'Server error while deleting tick'
+        }), 500
+
+@app.route("/refresh-data/<username>", methods=['POST'])
+def refresh_data(username):
+    try:
+        DatabaseService.clear_user_data(username)
+        return redirect(url_for('index'))
+    except Exception as e:
+        app.logger.error(f"Error refreshing data for {username}: {str(e)}")
+        return jsonify({
+            'error': 'An error occurred while refreshing your data. Please try again.'
         }), 500
