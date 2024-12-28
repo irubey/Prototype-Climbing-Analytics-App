@@ -2,12 +2,8 @@ services:
   - type: web
     name: climb-app
     env: python
-    buildCommand: |
-      pip install -r requirements.txt
-      python -c "import os; print('Build env DATABASE_URL:', os.environ.get('DATABASE_URL'))"
-    startCommand: |
-      python -c "import os; print('Start env DATABASE_URL:', os.environ.get('DATABASE_URL'))"
-      gunicorn app:app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
@@ -23,22 +19,10 @@ services:
         fromDatabase:
           name: climb-db
           property: connectionString
-      - key: POSTGRES_DB
+      - key: SQLALCHEMY_DATABASE_URI
         fromDatabase:
           name: climb-db
-          property: database
-      - key: POSTGRES_USER
-        fromDatabase:
-          name: climb-db
-          property: user
-      - key: POSTGRES_PASSWORD
-        fromDatabase:
-          name: climb-db
-          property: password
-      - key: POSTGRES_HOST
-        fromDatabase:
-          name: climb-db
-          property: host
+          property: connectionString
     healthCheckPath: /
     autoDeploy: true
     branch: master
@@ -47,6 +31,7 @@ databases:
   - name: climb-db
     databaseName: climbdb
     user: climb_user
-    ipAllowList: [] # only allow internal connections
     plan: free
     region: oregon
+    postDeploy: |
+      psql $DATABASE_URL -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
