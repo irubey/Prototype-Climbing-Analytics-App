@@ -4,6 +4,7 @@ from app import app, db
 from app.models import BinnedCodeDict, BoulderPyramid, SportPyramid, TradPyramid, UserTicks
 from app.services import DataProcessor
 from app.services.database_service import DatabaseService
+from app.services.analytics_service import AnalyticsService
 from datetime import date
 from collections import defaultdict
 import json
@@ -89,6 +90,10 @@ def userviz():
     binned_code_dict = BinnedCodeDict.query.all()
     user_ticks = DatabaseService.get_user_ticks(username)
     
+    # Get analytics metrics
+    analytics_service = AnalyticsService(db)
+    metrics = analytics_service.get_all_metrics(username)
+    
     # Convert to list of dicts and handle date serialization
     sport_pyramid_data = [r.as_dict() for r in pyramids['sport']]
     trad_pyramid_data = [r.as_dict() for r in pyramids['trad']]
@@ -107,7 +112,8 @@ def userviz():
                          trad_pyramid=trad_pyramid_data,
                          boulder_pyramid=boulder_pyramid_data,
                          user_ticks=user_ticks_data,
-                         binned_code_dict=binned_code_dict_data)
+                         binned_code_dict=binned_code_dict_data,
+                         **metrics)  # Unpack metrics into template variables
 
 @app.route("/performance-pyramid")
 def performance_pyramid():
@@ -138,13 +144,25 @@ def performance_pyramid():
 @app.route("/base-volume")
 def base_volume():
     username = request.args.get('username')
+    if not username:
+        return "Username is required", 400
+
     user_ticks = DatabaseService.get_user_ticks(username)
     binned_code_dict = BinnedCodeDict.query.all()
 
+    # Convert to dicts and handle date serialization
+    user_ticks_data = [r.as_dict() for r in user_ticks]
+    binned_code_dict_data = [r.as_dict() for r in binned_code_dict]
+
+    # Convert dates to strings
+    for tick in user_ticks_data:
+        if 'tick_date' in tick:
+            tick['tick_date'] = tick['tick_date'].strftime('%Y-%m-%d')
+
     return render_template('baseVolume.html',
                          username=username,
-                         user_ticks=json.dumps([r.as_dict() for r in user_ticks], cls=CustomJSONEncoder),
-                         binned_code_dict=json.dumps([r.as_dict() for r in binned_code_dict], cls=CustomJSONEncoder))
+                         user_ticks=user_ticks_data,
+                         binned_code_dict=binned_code_dict_data)
 
 @app.route("/progression")
 def progression():

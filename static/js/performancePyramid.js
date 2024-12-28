@@ -213,7 +213,7 @@ document.addEventListener(
         const starDelay = hasExcessBars
           ? excessDelay + duration + 50
           : startDelay + duration + 50;
-        const starDuration = 200;
+        const starDuration = 500;
         const labelDelay = starDelay + starDuration + 50;
 
         // Hide all stats initially
@@ -227,23 +227,23 @@ document.addEventListener(
           if (d.isProjectGrade) {
             // Star animation
             const star = bar.select("image");
-            star
-              .style("opacity", 0)
-              .attr("transform", "scale(0.5)")
-              .transition()
-              .delay(starDelay)
-              .duration(starDuration)
-              .ease(d3.easeBounceOut)
-              .style("opacity", 1)
-              .attr("transform", "scale(1)")
-              .on("start", function () {
-                star
-                  .style("filter", "drop-shadow(0 0 3px gold)")
-                  .transition()
-                  .delay(starDuration)
-                  .duration(100)
-                  .style("filter", "none");
-              });
+            if (star.size()) {
+              star
+                .transition()
+                .delay(starDelay)
+                .duration(starDuration)
+                .ease(d3.easeBounceOut)
+                .style("opacity", 1)
+                .style("transform", "scale(1)")
+                .on("start", function () {
+                  d3.select(this)
+                    .style("filter", "drop-shadow(0 0 5px gold)")
+                    .transition()
+                    .delay(starDuration)
+                    .duration(200)
+                    .style("filter", "drop-shadow(0 1px 2px rgba(0,0,0,0.1))");
+                });
+            }
           } else {
             // Animate progress bars
             const progressBar = bar.select(
@@ -330,9 +330,15 @@ document.addEventListener(
       }
 
       function calculateGradeStats(filteredData, binned_code) {
-        // Filter data for this grade
+        // Get current discipline
+        const currentDiscipline = d3
+          .select("input[name='performance-pyramid-discipline-filter']:checked")
+          .node().value;
+
+        // Filter data for this grade AND discipline
         const gradeData = filteredData.filter(
-          (d) => d.binned_code === binned_code
+          (d) =>
+            d.binned_code === binned_code && d.discipline === currentDiscipline
         );
 
         // Total attempts is sum of pitches for each tick
@@ -442,6 +448,7 @@ document.addEventListener(
             goalSends: goal.goalSends,
             sendRate: stats.sendRate,
             lastSend: stats.lastSend,
+            isProjectGrade: goal === goalPyramid[0], // First item in goalPyramid is always the project grade
           };
         });
 
@@ -507,6 +514,8 @@ document.addEventListener(
               .attr("y", y(d.binned_grade) + (y.bandwidth() - starHeight) / 2)
               .attr("width", starWidth)
               .attr("height", starHeight)
+              .style("opacity", 0)
+              .style("transform", "scale(0.5)")
               .style("filter", "drop-shadow(0 1px 2px rgba(0,0,0,0.1))")
               .style("transition", "all 0.3s ease");
           } else {

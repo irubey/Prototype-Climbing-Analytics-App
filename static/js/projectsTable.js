@@ -197,7 +197,12 @@ window.addEventListener("load", function () {
       const validGrades = pyramidData
         .filter((d) => typeof d.binned_code === "number")
         .map((d) => d.binned_code);
-      minBinnedGrade = validGrades.length > 0 ? Math.min(...validGrades) : 0;
+
+      if (validGrades.length > 0) {
+        minBinnedGrade = Math.min(...validGrades); // Use min from pyramid data
+      } else {
+        minBinnedGrade = 0;
+      }
     } else {
       minBinnedGrade = 0;
     }

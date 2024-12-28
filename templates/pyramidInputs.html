@@ -41,30 +41,23 @@
   </head>
   <body>
     <header>
-      <div class="header-content">
-        <div class="header-wrapper">
           <a
             href="{{ url_for('userviz', username=username) }}"
-            class="home-icon"
+        class="home-link"
             title="Back to Dashboard"
           >
             <i class="fas fa-home"></i>
           </a>
       <h1>Route Information Input</h1>
-        </div>
-      </div>
+      <a
+        href="https://www.buymeacoffee.com/climbinganalytics"
+        class="buy-coffee-button"
+        target="_blank"
+      >
+        <i class="fas fa-coffee"></i> Did I Bring You a Smile?
+      </a>
     </header>
-
-    <main>
-      <div class="nav-links">
-        <a href="{{ url_for('userviz', username=username) }}" class="button"
-          >Back to Dashboard</a
-        >
-        <a href="mailto:climbing.analytics@gmail.com" class="secondary-link">
-          This is a prototype application, please provide feedback here
-        </a>
-      </div>
-
+      <div class="container">
       <!-- Add flash messages -->
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %}
@@ -304,7 +297,7 @@
                       {{ row.tick_date.strftime('%-d %b %Y') }}
                   </td>
                     <td class="grade-column">
-                      <select class="grade-select" name="trad_route_grade_{{ row.id }}" required>
+                      <select class="grade-select" name="trad_route_grade_{{ row.tick_id }}" required>
                         {% for grade in routes_grade_list %}
                           <option value="{{ grade }}" {% if grade == row.route_grade %}selected{% endif %}>
                             {{ grade }}
@@ -323,7 +316,7 @@
                         </button>
                     <input
                           type="number"
-                      name="trad_num_attempts_{{ row.id }}"
+                      name="trad_num_attempts_{{ row.tick_id }}"
                       value="{{ row.num_attempts }}"
                           class="attempts-input"
                           min="1"
@@ -357,21 +350,21 @@
                     <div class="table-radio-group">
                       <label>
                         <input type="radio" name="trad_route_characteristic_{{
-                          row.id }}" value="Power" {% if
+                          row.tick_id }}" value="Power" {% if
                           row.route_characteristic == 'Power' %}checked{% endif
                           %}>
                           <span>Power</span>
                       </label>
                       <label>
                         <input type="radio" name="trad_route_characteristic_{{
-                        row.id }}" value="Power Endurance" {% if
+                        row.tick_id }}" value="Power Endurance" {% if
                         row.route_characteristic == 'Power Endurance'
                           %}checked{% endif %}>
                           <span>Power Endurance</span>
                       </label>
                       <label>
                         <input type="radio" name="trad_route_characteristic_{{
-                        row.id }}" value="Endurance" {% if
+                        row.tick_id }}" value="Endurance" {% if
                         row.route_characteristic == 'Endurance' %}checked{%
                           endif %}>
                           <span>Endurance</span>
@@ -381,27 +374,27 @@
                     <td class="style-column">
                     <div class="table-radio-group">
                       <label>
-                          <input type="radio" name="trad_route_style_{{ row.id
-                          }}" value="Slab" {% if row.route_style == 'Slab'
-                          %}checked{% endif %}>
+                          <input type="radio" name="trad_route_style_{{
+                          row.tick_id }}" value="Slab" {% if row.route_style ==
+                          'Slab' %}checked{% endif %}>
                           <span>Slab</span>
                       </label>
                       <label>
-                          <input type="radio" name="trad_route_style_{{ row.id
-                          }}" value="Vertical" {% if row.route_style ==
+                          <input type="radio" name="trad_route_style_{{
+                          row.tick_id }}" value="Vertical" {% if row.route_style ==
                           'Vertical' %}checked{% endif %}>
                           <span>Vertical</span>
                       </label>
                       <label>
-                          <input type="radio" name="trad_route_style_{{ row.id
-                          }}" value="Overhang" {% if row.route_style ==
+                          <input type="radio" name="trad_route_style_{{
+                          row.tick_id }}" value="Overhang" {% if row.route_style ==
                           'Overhang' %}checked{% endif %}>
                           <span>Overhang</span>
                       </label>
                       <label>
-                          <input type="radio" name="trad_route_style_{{ row.id
-                          }}" value="Roof" {% if row.route_style == 'Roof'
-                          %}checked{% endif %}>
+                          <input type="radio" name="trad_route_style_{{
+                          row.tick_id }}" value="Roof" {% if row.route_style ==
+                          'Roof' %}checked{% endif %}>
                           <span>Roof</span>
                       </label>
                     </div>
@@ -460,7 +453,7 @@
                       {{ row.tick_date.strftime('%-d %b %Y') }}
                   </td>
                     <td class="grade-column">
-                      <select class="grade-select" name="boulder_route_grade_{{ row.id }}" required>
+                      <select class="grade-select" name="boulder_route_grade_{{ row.tick_id }}" required>
                         {% for grade in boulders_grade_list %}
                           <option value="{{ grade }}" {% if grade == row.route_grade %}selected{% endif %}>
                             {{ grade }}
@@ -479,7 +472,7 @@
                         </button>
                     <input
                           type="number"
-                      name="boulder_num_attempts_{{ row.id }}"
+                      name="boulder_num_attempts_{{ row.tick_id }}"
                       value="{{ row.num_attempts }}"
                           class="attempts-input"
                           min="1"
@@ -513,21 +506,21 @@
                     <div class="table-radio-group">
                       <label>
                         <input type="radio"
-                        name="boulder_route_characteristic_{{ row.id }}"
+                        name="boulder_route_characteristic_{{ row.tick_id }}"
                           value="Power" {% if row.route_characteristic ==
                           'Power' %}checked{% endif %}>
                           <span>Power</span>
                       </label>
                       <label>
                         <input type="radio"
-                        name="boulder_route_characteristic_{{ row.id }}"
+                        name="boulder_route_characteristic_{{ row.tick_id }}"
                         value="Power Endurance" {% if row.route_characteristic
                           == 'Power Endurance' %}checked{% endif %}>
                           <span>Power Endurance</span>
                       </label>
                       <label>
                         <input type="radio"
-                        name="boulder_route_characteristic_{{ row.id }}"
+                        name="boulder_route_characteristic_{{ row.tick_id }}"
                         value="Endurance" {% if row.route_characteristic ==
                           'Endurance' %}checked{% endif %}>
                           <span>Endurance</span>
@@ -538,25 +531,25 @@
                     <div class="table-radio-group">
                       <label>
                           <input type="radio" name="boulder_route_style_{{
-                          row.id }}" value="Slab" {% if row.route_style ==
+                          row.tick_id }}" value="Slab" {% if row.route_style ==
                           'Slab' %}checked{% endif %}>
                           <span>Slab</span>
                       </label>
                       <label>
                           <input type="radio" name="boulder_route_style_{{
-                          row.id }}" value="Vertical" {% if row.route_style ==
+                          row.tick_id }}" value="Vertical" {% if row.route_style ==
                           'Vertical' %}checked{% endif %}>
                           <span>Vertical</span>
                       </label>
                       <label>
                           <input type="radio" name="boulder_route_style_{{
-                          row.id }}" value="Overhang" {% if row.route_style ==
+                          row.tick_id }}" value="Overhang" {% if row.route_style ==
                           'Overhang' %}checked{% endif %}>
                           <span>Overhang</span>
                       </label>
                       <label>
                           <input type="radio" name="boulder_route_style_{{
-                          row.id }}" value="Roof" {% if row.route_style ==
+                          row.tick_id }}" value="Roof" {% if row.route_style ==
                           'Roof' %}checked{% endif %}>
                           <span>Roof</span>
                       </label>
@@ -589,18 +582,22 @@
           </div>
         </form>
       </section>
-    </main>
+      </div>
 
     <footer>
-      <nav>
-        <ul>
-          <li>
-            <a href="{{ url_for('userviz', username=username) }}"
-              >Back to Dashboard</a
-            >
-          </li>
-          <li><a href="mailto:climbing.analytics@gmail.com">Feedback</a></li>
-        </ul>
+      <nav class="footer-nav">
+        <a
+          href="{{ url_for('userviz', username=username) }}"
+          class="footer-link"
+        >
+          <i class="fas fa-chart-line"></i> Dashboard
+        </a>
+        <a href="{{ url_for('terms_and_privacy') }}" class="footer-link">
+          <i class="fas fa-shield-alt"></i> Terms & Privacy
+        </a>
+        <a href="mailto:climbing.analytics@gmail.com" class="footer-link">
+          <i class="fas fa-envelope"></i> Feedback
+        </a>
       </nav>
     </footer>
 
@@ -724,7 +721,6 @@
                       if (submitData[discipline].updated[tickId]) {
                           delete submitData[discipline].updated[tickId];
                       }
-                      console.log(`Removing ${discipline} route ${tickId}`);
                       
                       row.remove();
                       hasUnsavedChanges = true;
@@ -744,7 +740,7 @@
               
               if (hasUnsavedChanges) {
                   e.preventDefault();
-                  if (confirm('You have unsaved changes. Do you want to save them before leaving?')) {
+                  if (confirm('You have unsaved changes. If you leave, all changes will be lost. Submit changes at bottom of page.')) {
                       document.querySelector('form').submit();
                   } else if (confirm('Are you sure you want to leave? All unsaved changes will be lost.')) {
                       hasUnsavedChanges = false;
@@ -908,33 +904,33 @@
               });
           });
 
+          // Setup change tracking for form fields
+          document.querySelectorAll('select.grade-select, input.attempts-input, input[type="radio"]').forEach(input => {
+              input.addEventListener('change', function() {
+                  const row = this.closest('tr');
+                  if (row) {
+                      const tickId = row.dataset.tickId;
+                      const discipline = this.name.split('_')[0];
+                      const field = this.name.split('_').slice(1, -1).join('_');
+                      
+                      if (tickId && discipline in submitData) {
+                          if (!submitData[discipline].updated[tickId]) {
+                              submitData[discipline].updated[tickId] = {};
+                          }
+                          submitData[discipline].updated[tickId][field] = this.value;
+                      }
+                      
+                      hasUnsavedChanges = true;
+                      updateNavigationState();
+                  }
+              });
+          });
+
           // Form submission
           document.querySelector("form").addEventListener("submit", function (e) {
               e.preventDefault();
 
-              // Collect all form data
-              const formData = new FormData(this);
-
-              // Convert form data to object
-              for (const [key, value] of formData.entries()) {
-                  // Parse the field name: discipline_fieldtype_tickid (e.g. sport_route_grade_12345)
-                  const parts = key.split('_');
-                  if (parts.length >= 3) {
-                      const discipline = parts[0];
-                      const tick_id = parts[parts.length - 1];  // Last part is always tick_id
-                      const field = parts.slice(1, -1).join('_');  // Everything in between is the field name
-                      
-                      if (tick_id && discipline in submitData) {
-                          if (!submitData[discipline].updated[tick_id]) {
-                              submitData[discipline].updated[tick_id] = {};
-                          }
-                          submitData[discipline].updated[tick_id][field] = value;
-                          console.log(`Updating ${discipline} route ${tick_id} field ${field} to ${value}`);
-                      }
-                  }
-              }
-
-              // Convert Sets to arrays for JSON
+              // Only send the tracked changes rather than all form data
               const submitDataCopy = {
                   sport: { 
                       removed: Array.from(submitData.sport.removed),
@@ -955,7 +951,6 @@
               dataInput.type = "hidden";
               dataInput.name = "changes_data";
               dataInput.value = JSON.stringify(submitDataCopy);
-              console.log("Submitting changes:", submitDataCopy);
               this.appendChild(dataInput);
 
               // Submit the form

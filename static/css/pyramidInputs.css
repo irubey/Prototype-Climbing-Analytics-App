@@ -1,38 +1,30 @@
-/* Main Layout */
-main {
-  padding: 2rem;
-  max-width: 100%;
-  overflow-x: hidden;
-}
+/* ==========================================================================
+   Pyramid Input Styles
+   ========================================================================== */
 
-.dashboard-section {
-  max-width: 1400px; /* Increased from default */
-  margin: 0 auto;
-  width: 95%; /* Use most of the viewport width */
-}
-
-/* Performance Table Styles */
+/* Performance Table Styles
+   ========================================================================== */
 .chart-container {
   position: relative;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
-  background-color: white;
+  background-color: var(--color-white);
   overflow-x: auto;
-  width: 100%; /* Use full container width */
+  width: 100%;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
 }
 
 .performance-table {
-  width: 100%; /* Use full width */
+  width: 100%;
   min-width: 100%;
   margin-bottom: 0;
   border-collapse: separate;
   border-spacing: 0;
-  background-color: white;
+  background-color: var(--color-white);
 }
 
-/* Header Styles */
+/* Table Header */
 .performance-table thead {
   position: sticky;
   top: 0;
@@ -40,96 +32,22 @@ main {
   background-color: var(--primary);
 }
 
-.performance-table thead tr {
-  background-color: var(--primary);
-}
-
 .performance-table thead th {
   background-color: var(--primary);
-  border-bottom: 2px solid #2d3748;
-  padding: 1rem 0.75rem;
+  border-bottom: 2px solid var(--border-light);
+  padding: var(--spacing-sm) var(--spacing-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  position: relative; /* For border positioning */
-}
-
-/* Add shadow to indicate scrollable content */
-.chart-container::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 5px;
-  background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.1));
-  opacity: 0;
-  transition: opacity 0.2s;
-  pointer-events: none;
-}
-
-.chart-container.has-overflow::after {
-  opacity: 1;
-}
-
-/* Ensure the add route button stays at the bottom */
-.add-route-row {
-  position: sticky;
-  left: 0;
-  right: 0;
-  background-color: #f8fafc;
-}
-
-/* Fix for header corners */
-.performance-table thead th:first-child {
-  border-top-left-radius: 12px;
-}
-
-.performance-table thead th:last-child {
-  border-top-right-radius: 12px;
-}
-
-.performance-table th,
-.performance-table td {
-  padding: 0.5rem 0.25rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.performance-table th {
-  color: white;
-  font-weight: 500;
+  color: var(--color-white);
+  font-weight: var(--font-weight-medium);
   text-align: left;
 }
 
-/* Ensure first and last columns have proper borders */
-.performance-table th:first-child,
-.performance-table td:first-child {
-  border-left: none;
-}
-
-.performance-table th:last-child,
-.performance-table td:last-child {
-  border-right: none;
-}
-
-/* Row Styles */
-.performance-table tr:nth-child(even) {
-  background-color: #f8fafc;
-}
-
-.performance-table tr:hover {
-  background-color: #f1f5f9;
-}
-
-/* Column-specific widths - optimized for space */
+/* Table Column Widths */
 .number-column {
   width: 3%;
   min-width: 40px;
-  text-align: center;
-}
-
-.number-column.header {
   text-align: center;
 }
 
@@ -176,10 +94,20 @@ main {
   width: 4%;
   min-width: 50px;
   text-align: center;
-  padding: 0.25rem;
+  padding: var(--spacing-xs);
 }
 
-/* Form Input Styles */
+/* Table Row Styles */
+.performance-table tr:nth-child(even) {
+  background-color: var(--background);
+}
+
+.performance-table tr:hover {
+  background-color: rgba(var(--accent-rgb), 0.05);
+}
+
+/* Attempts Input Group
+   ========================================================================== */
 .attempts-input-group {
   display: flex;
   align-items: center;
@@ -190,11 +118,10 @@ main {
 .attempts-input {
   width: 35px;
   text-align: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
   padding: 0.2rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  -moz-appearance: textfield; /* Remove spinner for Firefox */
+  transition: var(--transition-base);
 }
 
 .attempts-input::-webkit-inner-spin-button,
@@ -209,42 +136,15 @@ main {
   box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
 }
 
-.attempts-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  background-color: white;
-  color: var(--accent);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.attempts-btn:hover {
-  background-color: var(--accent);
-  color: white;
-  border-color: var(--accent);
-}
-
-.attempts-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background-color: #f8fafc;
-  color: #94a3b8;
-  border-color: #e2e8f0;
-}
-
+/* Table Radio Group
+   ========================================================================== */
 .table-radio-group {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 6px;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-md);
 }
 
 .table-radio-group label {
@@ -261,172 +161,33 @@ main {
 
 .table-radio-group input[type="radio"] + span {
   display: inline-block;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.8125rem;
-  color: #4a5568;
-  background-color: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  padding: calc(var(--spacing-xs) * 0.6) var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--text);
+  background-color: var(--background);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-all);
   white-space: nowrap;
 }
 
 .table-radio-group input[type="radio"]:checked + span {
   background-color: var(--accent);
-  color: white;
+  color: var(--color-white);
   border-color: var(--accent);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
-.table-radio-group input[type="radio"] + span:hover {
-  background-color: #e2e8f0;
-  transform: translateY(-1px);
-}
-
-.table-radio-group input[type="radio"]:checked + span:hover {
-  background-color: var(--accent);
-  opacity: 0.9;
-}
-
-/* Button Styles */
-.delete-btn {
-  background-color: transparent;
-  color: #ef4444;
-  padding: 0.5rem 1rem;
-  border: 1px solid #ef4444;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
-}
-
-.delete-btn:hover {
-  background-color: #ef4444;
-  color: white;
-  transform: translateY(-1px);
-}
-
-.submit-btn {
-  background-color: var(--accent);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  margin-top: 2rem;
-}
-
-.submit-btn:hover {
-  background-color: var(--secondary);
-  transform: translateY(-1px);
-}
-
-.remove-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background-color: transparent;
-  color: #ef4444;
-  padding: 0.25rem;
-  border: 1px solid #ef4444;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
-  margin: 0 auto;
-}
-
-.remove-btn:hover {
-  background-color: #ef4444;
-  color: white;
-  transform: translateY(-1px);
-}
-
-.remove-btn i {
-  font-size: 0.8rem;
-}
-
-.add-route-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background-color: #f8fafc;
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.add-route-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background-color: white;
-  color: var(--accent);
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
-}
-
-.add-route-btn:hover {
-  background-color: var(--accent);
-  color: white;
-  transform: translateY(-1px);
-}
-
-.add-route-btn i {
-  font-size: 0.8rem;
-}
-
-/* Link Styles */
-.route-link {
-  color: var(--accent);
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.route-link:hover {
-  color: var(--secondary);
-}
-
-/* Discipline Selector Styles */
+/* Discipline Selector
+   ========================================================================== */
 .discipline-selector {
   display: flex;
   justify-content: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
 }
 
-.discipline-btn {
-  padding: 0.75rem 1.5rem;
-  border: 2px solid var(--accent);
-  border-radius: 8px;
-  background: white;
-  color: var(--accent);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.discipline-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.discipline-btn.active {
-  background: var(--accent);
-  color: white;
-}
-
-/* Section Display States */
 .discipline-section {
   display: none;
 }
@@ -435,53 +196,19 @@ main {
   display: block;
 }
 
-/* Flash Messages */
-.flash-messages {
-  max-width: 800px;
-  margin: 1rem auto;
-  padding: 0 1rem;
-}
-
-.flash-message {
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.flash-message.success {
-  background-color: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
-}
-
-.flash-message.error {
-  background-color: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
-}
-
-.flash-message.warning {
-  background-color: #fef9c3;
-  color: #854d0e;
-  border: 1px solid #fef08a;
-}
-
+/* Attempts Visual
+   ========================================================================== */
 .attempts-visual {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-xs);
 }
 
 .attempts-visual .success {
-  color: #22c55e;
+  color: var(--secondary);
 }
 
 .attempts-visual .failure {
@@ -489,7 +216,7 @@ main {
 }
 
 .attempts-count {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: #ef4444;
   margin-right: 0.1rem;
 }

@@ -233,11 +233,7 @@ function locationTreeChart(userTicksData, targetId) {
         return 0.1 + (percentage / 100) * 0.7;
       })
       .attr("stroke-width", (d) => {
-        // Calculate child's percentage of parent's total
-        const percentage =
-          (d.target.data.totalPitches / d.source.data.totalPitches) * 100;
-        // Base width on percentage, with a minimum to ensure visibility
-        return Math.max(0.5, percentage / 20);
+        return Math.max(0.5, 1 / Math.sqrt(d.target.depth || 1));
       })
       .attr("d", (d) => {
         const sourceAngle = d.source.x;
@@ -328,9 +324,7 @@ function locationTreeChart(userTicksData, targetId) {
       .on("mouseout", function () {
         // Reset to default high-visibility state
         link.style("stroke-opacity", 0.8).style("stroke-width", (d) => {
-          const depthScale = 1 / Math.sqrt(d.target.depth || 1);
-          const valueScale = Math.sqrt((d.target.value || 1) / root.value);
-          return Math.max(0.5, depthScale * (1 + valueScale));
+          return Math.max(0.5, 1 / Math.sqrt(d.target.depth || 1));
         });
 
         node.select("circle").style("fill-opacity", 1);
@@ -418,9 +412,7 @@ function locationTreeChart(userTicksData, targetId) {
       .on("mouseout", function () {
         // Reset link styles
         link.style("stroke-opacity", 0.8).style("stroke-width", (d) => {
-          const depthScale = 1 / Math.sqrt(d.target.depth || 1);
-          const valueScale = Math.sqrt((d.target.value || 1) / root.value);
-          return Math.max(0.5, depthScale * (1 + valueScale));
+          return Math.max(0.5, 1 / Math.sqrt(d.target.depth || 1));
         });
 
         // Reset node styles

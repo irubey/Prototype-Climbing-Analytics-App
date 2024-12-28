@@ -27,7 +27,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/custom.css') }}"
+      href="{{ url_for('static', filename='css/landingPage.css') }}"
     />
     <link
       rel="stylesheet"
@@ -38,7 +38,7 @@
     <div class="container">
       <div class="content-wrapper">
         <div class="main-content">
-          <h1>Your Data Visualized</h1>
+          <h1>Your Climbing Data Visualized</h1>
           <div class="input-container">
             <form
               action="/"
@@ -49,8 +49,8 @@
               <input
                 type="text"
                 name="first_input"
-                placeholder="Your Mountain Project Profile Link"
-                aria-label="Mountain Project Profile Link"
+                placeholder="Paste your Mountain Project Profile URL Here"
+                aria-label="Mountain Project Profile URL"
                 id="profileInput"
               />
               <div class="error-message" id="errorMessage"></div>
@@ -175,9 +175,7 @@
           showLoadingScreen();
 
           // Log form data for debugging
-          console.log("Form data being sent:");
           for (let pair of formData.entries()) {
-            console.log(pair[0] + ": " + pair[1]);
           }
 
           // Stage 1: Fetching data
@@ -190,7 +188,6 @@
 
           if (!response.ok) {
             const data = await response.json();
-            console.log("Error response:", data); // Log error response
             throw new Error(
               data.error || "An error occurred. Please try again."
             );
@@ -252,13 +249,15 @@
         }
 
         if (!value.includes("mountainproject.com/user/")) {
-          showError("Please enter a valid Mountain Project profile URL");
+          showError(
+            "Please enter valid URL: https://www.mountainproject.com/user/#########/your-username"
+          );
           return false;
         }
 
         setLoading(true);
         const formData = new FormData();
-        formData.append("first_input", value); // Explicitly set the form data
+        formData.append("first_input", value);
         await submitForm(formData);
 
         return false;

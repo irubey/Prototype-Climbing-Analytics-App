@@ -13,17 +13,8 @@ class PyramidUpdateService:
 
     @staticmethod
     def process_changes(username: str, changes_data: Dict[str, Any]) -> bool:
-        """
-        Process changes to pyramid data.
-        
-        Args:
-            username: The username of the user making changes
-            changes_data: Dictionary containing changes for each discipline
-        """
+        """Process changes to pyramid data."""
         try:
-            print(f"Processing changes for user {username}")
-            print(f"Changes data: {changes_data}")
-
             for discipline, changes in changes_data.items():
                 model_class = {
                     'sport': SportPyramid,
@@ -32,6 +23,15 @@ class PyramidUpdateService:
                 }.get(discipline)
 
                 if not model_class:
+                    continue
+
+                # Get the valid grade range for this discipline's pyramid
+                existing_entries = model_class.query.filter_by(username=username).all()
+                if existing_entries:
+                    valid_codes = [entry.binned_code for entry in existing_entries]
+                    min_valid_code = min(valid_codes)
+                    max_valid_code = max(valid_codes)
+                else:
                     continue
 
                 # Process removals
@@ -52,15 +52,19 @@ class PyramidUpdateService:
                     # Skip any route_id that's not a valid identifier
                     if not route_id or route_id in ['attempts', 'characteristic', 'style']:
                         continue
+
+                    # Check if the route's grade is within the valid range
+                    if 'route_grade' in updates:
+                        grade_processor = GradeProcessor()
+                        binned_code = grade_processor.convert_grades_to_codes([updates['route_grade']])[0]
+                        if binned_code < min_valid_code or binned_code > max_valid_code:
+                            continue
                         
-                    if str(route_id).startswith('8'):  # Check for 8-prefixed IDs (new routes)
-                        # Handle new route
-                        updates['username'] = username  # Ensure username is set
-                        updates['discipline'] = discipline  # Ensure discipline is set
-                        updates['tick_date'] = updates.get('tick_date', datetime.now().date())  # Ensure date is set
-                        
-                        # Use the ID as is since it's already in the correct format
-                        updates['tick_id'] = int(route_id)  # Convert string ID to integer
+                    if str(route_id).startswith('8'):  # New routes
+                        updates['username'] = username
+                        updates['discipline'] = discipline
+                        updates['tick_date'] = updates.get('tick_date', datetime.now().date())
+                        updates['tick_id'] = int(route_id)
                         
                         PyramidUpdateService._add_new_route(
                             username=username,
@@ -77,21 +81,24 @@ class PyramidUpdateService:
                             ).first()
                             
                             if pyramid_entry:
-                                print(f"Updating route {route_id} with data: {updates}")
                                 # Update basic fields
                                 for field, value in updates.items():
-                                    if hasattr(pyramid_entry, field):
+                                    if hasattr(pyramid_entry, field) and field not in ['binned_grade', 'binned_code']:
                                         setattr(pyramid_entry, field, value)
                                 
                                 # Update binned grade and code if grade is changed
                                 if 'route_grade' in updates:
                                     grade_processor = GradeProcessor()
                                     grade = updates['route_grade']
-                                    # Get binned code
-                                    binned_code = grade_processor.convert_grades_to_codes([grade])[0]
-                                    pyramid_entry.binned_grade = grade
-                                    pyramid_entry.binned_code = binned_code
-                                    print(f"Updated binned grade to {grade} and code to {binned_code}")
+                                    new_binned_code = grade_processor.convert_grades_to_codes([grade])[0]
+                                    
+                                    # Check for suspicious grade changes (more than 3 grades different)
+                                    if abs(new_binned_code - pyramid_entry.binned_code) > 3:
+                                        continue
+                                        
+                                    binned_grade = grade_processor.get_grade_from_code(new_binned_code)
+                                    pyramid_entry.binned_grade = binned_grade
+                                    pyramid_entry.binned_code = new_binned_code
                                 
                                 # Ensure critical fields are set
                                 if not pyramid_entry.username:
@@ -100,22 +107,15 @@ class PyramidUpdateService:
                                     pyramid_entry.discipline = discipline
                                 if not pyramid_entry.tick_date:
                                     pyramid_entry.tick_date = datetime.now().date()
-                                
-                                print(f"Updated pyramid entry: {pyramid_entry.route_name} with tick_id {pyramid_entry.tick_id}")
-                            else:
-                                print(f"No pyramid entry found for tick_id {route_id}")
 
-                        except (ValueError, TypeError) as e:
-                            print(f"Error updating route {route_id}: {str(e)}")
+                        except (ValueError, TypeError):
                             continue
 
             db.session.commit()
-            print("Changes committed successfully")
             return True
 
         except SQLAlchemyError as e:
             db.session.rollback()
-            print(f"Error processing changes: {str(e)}")
             raise e
 
     @staticmethod
@@ -211,14 +211,12 @@ class PyramidUpdateService:
                         ).date()
                     except ValueError:
                         route_data['tick_date'] = datetime.now().date()
-                # If it's already a date object, use it as is
             else:
                 route_data['tick_date'] = datetime.now().date()
 
             # Ensure tick_id is set
             if 'tick_id' not in route_data:
                 route_data['tick_id'] = int(datetime.now().timestamp())
-            print(f"Using tick_id: {route_data['tick_id']}")
 
             # Validate and bin the grade
             try:
@@ -267,8 +265,6 @@ class PyramidUpdateService:
                 user_grade=route_data.get('route_grade', 'Unknown Grade')  # Same as route_grade
             )
 
-            print(f"Adding new route: {new_entry.route_name} with grade {new_entry.route_grade} and tick_id {new_entry.tick_id}")
             db.session.add(new_entry)
         except Exception as e:
-            print(f"Error adding new route: {str(e)}")
-            raise 
+            raise e 

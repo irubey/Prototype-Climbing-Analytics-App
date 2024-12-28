@@ -32,7 +32,20 @@
   </head>
   <body>
     <header>
-      <h1>{{ username }}'s Analytics Dashboard</h1>
+      <h1>Analytics - {{ username }}</h1>
+      <div class="buy-coffee-container">
+        <a
+          href="https://www.buymeacoffee.com/YOUR_USERNAME"
+          target="_blank"
+          class="buy-coffee-button"
+        >
+          <img
+            src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+            alt="Buy Me A Coffee"
+            height="40"
+          />
+        </a>
+      </div>
     </header>
 
     <main>
@@ -42,15 +55,48 @@
         </a>
       </div>
 
+      <!-- Quick Stats Card -->
+      <div class="analytics-row">
+        <div class="analytics-card">
+          <div class="card-content">
+            <h3>Quick Stats</h3>
+            <div class="metrics-grid">
+              <div class="metric">
+                <span class="metric-label">Total Pitches</span>
+                <span class="metric-value">{{ total_pitches }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Total Vertical Ft</span>
+                <span class="metric-value">{{ total_vertical_ft }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Unique Locations</span>
+                <span class="metric-value">{{ unique_locations }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Favorite Area</span>
+                <span class="metric-value">{{ favorite_area }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Days Outside</span>
+                <span class="metric-value">{{ days_outside }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <section class="dashboard-section">
         <div class="section-header">
-          <h2>Experience Base</h2>
+          <h2>Experience Base - Deep Dive</h2>
           <i
             class="fas fa-info-circle info-icon"
             onclick="showModal('baseVolumeInfo')"
           ></i>
         </div>
-        <div class="card-grid">
+
+        <!-- Link Cards Row -->
+        <div class="links-row">
           <div class="card">
             <a
               href="{{ url_for('base_volume', username=username) }}"
@@ -61,6 +107,7 @@
                 Climber's base volume of outdoor climbing. Includes work
                 capacity, consistency, and volume of outdoor rock climbs
               </p>
+              <span class="view-details">View Details →</span>
             </a>
           </div>
 
@@ -74,6 +121,7 @@
                 Climber's progression over their career along a number of
                 categories
               </p>
+              <span class="view-details">View Details →</span>
             </a>
           </div>
 
@@ -84,38 +132,89 @@
             >
               <h3>When and Where</h3>
               <p>Overview of climber's preferred areas and seasonality</p>
+              <span class="view-details">View Details →</span>
             </a>
           </div>
         </div>
       </section>
 
+      <!-- Highest Grades Section -->
+      <div class="performance-analytics-card">
+        <div class="discipline-grades">
+          <span class="metric-label">Highest Grades Sent Clean</span>
+          <div class="grade-list">
+            <div class="grade-item">
+              <span class="discipline">Sport:</span>
+              <span class="grade"
+                >{{ highest_sport_grade|default('-', true) }}</span
+              >
+            </div>
+            <div class="grade-item">
+              <span class="discipline">Trad:</span>
+              <span class="grade"
+                >{{ highest_trad_grade|default('-', true) }}</span
+              >
+            </div>
+            <div class="grade-item">
+              <span class="discipline">Boulder:</span>
+              <span class="grade"
+                >{{ highest_boulder_grade|default('-', true) }}</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Sends Section -->
+      <div class="recent-sends-section">
+        <div class="recent-sends">
+          <span class="metric-label">Recent Hard Sends</span>
+          <div class="sends-list">
+            {% for send in latest_sends %}
+            <div class="send-item">
+              <span class="route-name">{{ send.route_name }}</span>
+              <div class="send-details">
+                <span class="grade">{{ send.binned_grade }}</span>
+                <span class="location">{{ send.location }}</span>
+                <span class="attempts">{{ send.num_attempts }}</span>
+                <span class="discipline">{{ send.discipline }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
       <section class="dashboard-section">
         <div class="section-header">
-          <h2>Performance Analysis</h2>
+          <h2>Performance Climbing - Deep Dive</h2>
           <i
             class="fas fa-info-circle info-icon"
             onclick="showModal('performanceInfo')"
           ></i>
         </div>
 
-        <div class="warning-banner">
-          <i class="fas fa-exclamation-circle"></i>
-          <div class="warning-content">
-            <h3>Important: Verify Your Performance Data First</h3>
-            <p>
-              For accurate analysis, please verify and edit your climbing data
-              before viewing the visualizations below.
-            </p>
-            <a
-              href="{{ url_for('pyramid_input', username=username)}}"
-              class="accent-button"
-            >
-              <i class="fas fa-edit"></i> Edit Performance Data
-            </a>
+        <!-- Link Cards Row -->
+        <div class="links-row">
+          <div class="card warning-card">
+            <div class="warning-content">
+              <h3>
+                <i class="fas fa-exclamation-circle"></i>
+                Important: Verify Your Performance Data First
+              </h3>
+              <p>
+                For accurate analysis, please verify and edit your climbing data
+                before viewing the visualizations below.
+              </p>
+              <a
+                href="{{ url_for('pyramid_input', username=username)}}"
+                class="accent-button"
+              >
+                <i class="fas fa-edit"></i> Edit Performance Data
+              </a>
+            </div>
           </div>
-        </div>
 
-        <div class="card-grid">
           <div class="card">
             <a
               href="{{ url_for('performance_pyramid', username=username) }}"
@@ -126,6 +225,7 @@
                 Analysis of your top outdoor performances and attempts
                 distribution
               </p>
+              <span class="view-details">View Details →</span>
             </a>
           </div>
 
@@ -139,6 +239,7 @@
                 Breakdown of style, length, and characteristics of your hardest
                 climbs
               </p>
+              <span class="view-details">View Details →</span>
             </a>
           </div>
         </div>
@@ -254,13 +355,6 @@
       const boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
       const userTicksData = {{ user_ticks|tojson|safe }};
       const binnedCodeDict = {{ binned_code_dict|tojson|safe }};
-
-      console.log('Sport Pyramid Data:', sportPyramidData);
-      console.log('Sport Pyramid Data Structure:', {
-        numRoutes: sportPyramidData.length,
-        fields: sportPyramidData.length > 0 ? Object.keys(sportPyramidData[0]) : [],
-        sampleRoute: sportPyramidData[0]
-      });
     </script>
   </body>
 </html>

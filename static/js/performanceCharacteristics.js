@@ -33,9 +33,12 @@ document.addEventListener("DOMContentLoaded", function () {
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
       // Use a more distinct color palette
-      const color = d3
-        .scaleOrdinal()
-        .range(["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3"]);
+      const color = d3.scaleOrdinal().range([
+        "#DB784D", // Terracotta (Fall) for highest grade
+        "#F3B562", // Muted Gold (Summer)
+        "#7CB9A8", // Sage Green (Spring)
+        "#5B8BA0", // Dusty Blue (Winter) for lowest grade
+      ]);
 
       const x = d3
         .scaleBand()
@@ -527,7 +530,6 @@ document.addEventListener("DOMContentLoaded", function () {
         data = [];
     }
 
-    console.log("Raw Pyramid Data:", data);
     return data;
   }
 

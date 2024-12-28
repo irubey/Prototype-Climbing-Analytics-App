@@ -1,11 +1,4 @@
 function locationNetwork(userTicksData, targetId) {
-  console.log(
-    "Initializing location network with data:",
-    userTicksData.length,
-    "records"
-  );
-  console.log("Target element:", targetId);
-
   // Set dimensions
   const width = 960;
   const height = 600;
@@ -21,7 +14,7 @@ function locationNetwork(userTicksData, targetId) {
       // Skip entries without location or discipline
       if (!tick.location || !tick.discipline) return;
 
-      const location = tick.location.trim(); // Match locationRace.js processing
+      const location = tick.location.trim();
       const discipline = tick.discipline;
 
       // Add to locations map with count and disciplines
@@ -52,14 +45,6 @@ function locationNetwork(userTicksData, targetId) {
       links.get(linkKey).value++;
     });
 
-    console.log("Processed network data:", {
-      locations: locations.size,
-      disciplines: disciplines.size,
-      links: links.size,
-      disciplinesList: Array.from(disciplines),
-      locationsList: Array.from(locations.keys()),
-    });
-
     return {
       nodes: [
         ...Array.from(locations.values()),
@@ -80,11 +65,6 @@ function locationNetwork(userTicksData, targetId) {
   const container = d3.select(targetId);
   const containerWidth = container.node().getBoundingClientRect().width;
   const containerHeight = Math.min(containerWidth * 0.6, height);
-
-  console.log("Creating SVG with dimensions:", {
-    width: containerWidth,
-    height: containerHeight,
-  });
 
   const svg = container
     .append("svg")
@@ -227,6 +207,4 @@ function locationNetwork(userTicksData, targetId) {
       .on("drag", dragged)
       .on("end", dragended);
   }
-
-  console.log("Network visualization completed");
 }

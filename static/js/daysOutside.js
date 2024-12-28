@@ -4,6 +4,14 @@ const SVG_DEFAULTS = {
   margin: { top: 20, right: 30, bottom: 150, left: 60 },
 };
 
+// Define seasonal colors
+const SEASON_COLORS = {
+  Spring: "#7CB9A8", // Sage Green
+  Summer: "#F3B562", // Muted Gold
+  Fall: "#DB784D", // Terracotta
+  Winter: "#5B8BA0", // Dusty Blue
+};
+
 function daysOutsideChart(targetId, userTicksData, customSVG = SVG_DEFAULTS) {
   // Clear any existing SVG
   d3.select(targetId).select("svg").remove();
@@ -203,7 +211,7 @@ function daysOutsideChart(targetId, userTicksData, customSVG = SVG_DEFAULTS) {
   const color = d3
     .scaleOrdinal()
     .domain(sortedDisciplines)
-    .range(d3.schemeSet2);
+    .range(Object.values(SEASON_COLORS));
 
   const svg = d3
     .select(targetId)
