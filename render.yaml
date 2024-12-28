@@ -19,6 +19,10 @@ services:
         fromDatabase:
           name: climb-db
           property: connectionString
+    healthCheckPath: /
+    autoDeploy: false
+    dependsOn:
+      - climb-db
 
 databases:
   - name: climb-db

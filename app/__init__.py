@@ -21,6 +21,11 @@ CORS(app, resources={
 })
 
 app.config.from_object(Config)
+
+# Debug prints
+print("Database URL:", app.config['SQLALCHEMY_DATABASE_URI'])
+print("Is PostgreSQL?", 'postgresql' in str(app.config['SQLALCHEMY_DATABASE_URI']))
+
 db = SQLAlchemy(app)
 
 from app import routes, models
@@ -34,7 +39,8 @@ with app.app_context():
         db.create_all()
         
         # Initialize sequences for PostgreSQL if needed
-        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+        if 'postgresql' in str(app.config['SQLALCHEMY_DATABASE_URI']):
+            print("Initializing PostgreSQL sequences...")
             try:
                 db.session.execute(text("""
                     CREATE SEQUENCE IF NOT EXISTS user_ticks_id_seq;
@@ -53,9 +59,12 @@ with app.app_context():
                     SELECT setval('boulder_pyramid_id_seq', 1, false);
                 """))
                 db.session.commit()
+                print("PostgreSQL sequences initialized successfully")
             except Exception as e:
                 print(f"Warning: Failed to initialize sequences: {e}")
                 db.session.rollback()
+        else:
+            print("Not using PostgreSQL, skipping sequence initialization")
     except Exception as e:
         print(f"Error initializing database: {e}")
         db.session.rollback()
