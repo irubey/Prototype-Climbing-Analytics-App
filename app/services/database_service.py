@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any, Union
 from datetime import date
 from app.services.pyramid_builder import PyramidBuilder
 from sqlalchemy import text
+import os
 
 class DatabaseService:
     """Handles all database CRUD operations"""
@@ -36,6 +37,26 @@ class DatabaseService:
             
             # Commit the transaction
             db.session.commit()
+
+            # Reset sequences if using PostgreSQL
+            if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+                try:
+                    db.session.execute(text("""
+                        SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
+                        SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
+                        SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
+                        SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
+                    """))
+                    db.session.commit()
+                except Exception as e:
+                    # If sequence reset fails, log but don't fail the whole operation
+                    print(f"Warning: Failed to reset sequences: {e}")
+                    pass
+
         except SQLAlchemyError as e:
             db.session.rollback()
             raise e

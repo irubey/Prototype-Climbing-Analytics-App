@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from config import Config
 import os
+from sqlalchemy.sql import text
 
 # Initialize Flask app with correct template and static paths
 app = Flask(__name__, 
@@ -24,5 +25,37 @@ db = SQLAlchemy(app)
 
 from app import routes, models
 
+# Create tables and initialize database
 with app.app_context():
-    db.create_all()
+    try:
+        # Drop all tables if they exist (for clean initialization)
+        db.drop_all()
+        # Create all tables fresh
+        db.create_all()
+        
+        # Initialize sequences for PostgreSQL if needed
+        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+            try:
+                db.session.execute(text("""
+                    CREATE SEQUENCE IF NOT EXISTS user_ticks_id_seq;
+                    CREATE SEQUENCE IF NOT EXISTS sport_pyramid_id_seq;
+                    CREATE SEQUENCE IF NOT EXISTS trad_pyramid_id_seq;
+                    CREATE SEQUENCE IF NOT EXISTS boulder_pyramid_id_seq;
+                    
+                    ALTER TABLE user_ticks ALTER COLUMN id SET DEFAULT nextval('user_ticks_id_seq');
+                    ALTER TABLE sport_pyramid ALTER COLUMN id SET DEFAULT nextval('sport_pyramid_id_seq');
+                    ALTER TABLE trad_pyramid ALTER COLUMN id SET DEFAULT nextval('trad_pyramid_id_seq');
+                    ALTER TABLE boulder_pyramid ALTER COLUMN id SET DEFAULT nextval('boulder_pyramid_id_seq');
+                    
+                    SELECT setval('user_ticks_id_seq', 1, false);
+                    SELECT setval('sport_pyramid_id_seq', 1, false);
+                    SELECT setval('trad_pyramid_id_seq', 1, false);
+                    SELECT setval('boulder_pyramid_id_seq', 1, false);
+                """))
+                db.session.commit()
+            except Exception as e:
+                print(f"Warning: Failed to initialize sequences: {e}")
+                db.session.rollback()
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+        db.session.rollback()
