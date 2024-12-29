@@ -19,12 +19,14 @@ services:
         value: 10000
       - key: DATABASE_URL
         fromDatabase:
+          type: postgres
           name: climb-db
-          property: connectionString
+          property: internalDatabaseUrl
       - key: SQLALCHEMY_DATABASE_URI
         fromDatabase:
+          type: postgres
           name: climb-db
-          property: connectionString
+          property: internalDatabaseUrl
 
 databases:
   - name: climb-db
