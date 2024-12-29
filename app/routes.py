@@ -254,18 +254,26 @@ def performance_characteristics():
     username = request.args.get('username')
     
     # Initialize binned code dict if empty
-    if not BinnedCodeDict.query.first():
+    print("Checking binned code dict...")
+    first_entry = BinnedCodeDict.query.first()
+    print(f"First entry found: {first_entry}")
+    
+    if not first_entry:
+        print("Initializing binned code dict...")
         grade_processor = GradeProcessor()
         DatabaseService.init_binned_code_dict(grade_processor.binned_code_dict)
+        print("Initialization complete")
     
     pyramids = DatabaseService.get_pyramids_by_username(username)
     binned_code_dict = BinnedCodeDict.query.all()
+    print(f"Retrieved {len(binned_code_dict)} binned code entries")
 
     # Convert to list of dicts and handle date serialization
     sport_pyramid_data = [r.as_dict() for r in pyramids['sport']]
     trad_pyramid_data = [r.as_dict() for r in pyramids['trad']]
     boulder_pyramid_data = [r.as_dict() for r in pyramids['boulder']]
     binned_code_dict_data = [r.as_dict() for r in binned_code_dict]
+    print(f"Converted binned code dict data length: {len(binned_code_dict_data)}")
 
     # Convert dates to strings
     for item in sport_pyramid_data + trad_pyramid_data + boulder_pyramid_data:
