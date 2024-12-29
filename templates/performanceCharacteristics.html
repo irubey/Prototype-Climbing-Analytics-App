@@ -56,10 +56,29 @@
     <main class="main-content">
       <div class="container">
         <script>
-          var sportPyramidData = {{ sport_pyramid|tojson|safe }};
-          var tradPyramidData = {{ trad_pyramid|tojson|safe }};
-          var boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
-          var binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+          // Try to get data from sessionStorage first
+          const cachedData = sessionStorage.getItem('pyramidData');
+          if (cachedData) {
+            const data = JSON.parse(cachedData);
+            window.sportPyramidData = data.sportPyramidData;
+            window.tradPyramidData = data.tradPyramidData;
+            window.boulderPyramidData = data.boulderPyramidData;
+            window.binnedCodeDict = data.binnedCodeDict;
+          } else {
+            // If not in cache, get from server and cache it
+            window.sportPyramidData = {{ sport_pyramid|tojson|safe }};
+            window.tradPyramidData = {{ trad_pyramid|tojson|safe }};
+            window.boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
+            window.binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+
+            // Cache the data
+            sessionStorage.setItem('pyramidData', JSON.stringify({
+              sportPyramidData: window.sportPyramidData,
+              tradPyramidData: window.tradPyramidData,
+              boulderPyramidData: window.boulderPyramidData,
+              binnedCodeDict: window.binnedCodeDict
+            }));
+          }
         </script>
 
         <section class="dashboard-section">

@@ -324,12 +324,38 @@
 
     <!-- Initialize data after loading required files -->
     <script>
-      // Initialize data in global scope
-      window.sportPyramidData = {{ sport_pyramid|tojson|safe }};
-      window.tradPyramidData = {{ trad_pyramid|tojson|safe }};
-      window.boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
-      window.userTicksData = {{ user_ticks|tojson|safe }};
-      window.binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+      // Initialize data in global scope and cache in sessionStorage
+      function initializeAndCacheData() {
+        // Try to get data from sessionStorage first
+        const cachedData = sessionStorage.getItem('pyramidData');
+        if (cachedData) {
+          const data = JSON.parse(cachedData);
+          window.sportPyramidData = data.sportPyramidData;
+          window.tradPyramidData = data.tradPyramidData;
+          window.boulderPyramidData = data.boulderPyramidData;
+          window.userTicksData = data.userTicksData;
+          window.binnedCodeDict = data.binnedCodeDict;
+        } else {
+          // If not in cache, get from server and cache it
+          window.sportPyramidData = {{ sport_pyramid|tojson|safe }};
+          window.tradPyramidData = {{ trad_pyramid|tojson|safe }};
+          window.boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
+          window.userTicksData = {{ user_ticks|tojson|safe }};
+          window.binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+
+          // Cache the data
+          sessionStorage.setItem('pyramidData', JSON.stringify({
+            sportPyramidData: window.sportPyramidData,
+            tradPyramidData: window.tradPyramidData,
+            boulderPyramidData: window.boulderPyramidData,
+            userTicksData: window.userTicksData,
+            binnedCodeDict: window.binnedCodeDict
+          }));
+        }
+      }
+
+      // Initialize data immediately
+      initializeAndCacheData();
 
       // Function to check if all required data is loaded
       function isDataLoaded() {
@@ -351,6 +377,8 @@
 
         if (!isDataLoaded()) {
           console.log("Data not yet loaded, retrying...");
+          // Try to initialize data again
+          initializeAndCacheData();
           setTimeout(() => initializeVisualization(retryCount + 1), 500);
           return;
         }
@@ -371,6 +399,8 @@
           );
         } catch (error) {
           console.error("Error initializing pyramid visualization:", error);
+          // Clear cache if there's an error
+          sessionStorage.removeItem('pyramidData');
         }
       }
 
@@ -380,35 +410,8 @@
       });
     </script>
 
-    <!-- Initialize visualizations -->
+    <!-- Modal Scripts -->
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        // Initialize both visualizations
-        if (
-          typeof pyramidVizChart === "function" &&
-          userTicksData &&
-          binnedCodeDict
-        ) {
-          const data = determineData();
-          pyramidVizChart(
-            "#performance-pyramid",
-            data.pyramidData,
-            data.userTicksData,
-            binnedCodeDict
-          );
-        } else {
-          console.error(
-            "Required data or functions not loaded for Performance Pyramid",
-            {
-              pyramidVizChartExists: typeof pyramidVizChart === "function",
-              userTicksDataExists: !!userTicksData,
-              binnedCodeDictExists: !!binnedCodeDict,
-            }
-          );
-        }
-      });
-
-      // Modal Scripts
       function openPyramidModal() {
         document.getElementById("pyramidModal").style.display = "block";
       }
