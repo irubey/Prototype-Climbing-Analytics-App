@@ -57,7 +57,9 @@
       <div class="container">
         <script>
           const initialBinnedCodeDict = {{ binned_code_dict|tojson|safe }};
-          console.log("Initial binned code dict:", initialBinnedCodeDict);
+          console.log("Initial binned code dict (raw):", {{ binned_code_dict|tojson|safe }});
+          console.log("Initial binned code dict (parsed):", initialBinnedCodeDict);
+          console.log("Initial binned code dict length:", initialBinnedCodeDict.length);
 
           Object.assign(window, {
             binnedCodeDict: initialBinnedCodeDict,
