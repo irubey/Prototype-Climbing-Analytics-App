@@ -3,7 +3,7 @@ services:
     name: climb-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
@@ -15,23 +15,16 @@ services:
         value: app
       - key: SECRET_KEY
         generateValue: true
+      - key: PORT
+        value: 10000
       - key: DATABASE_URL
-        fromDatabase:
+        fromService:
+          type: postgres
           name: climb-db
           property: connectionString
-      - key: SQLALCHEMY_DATABASE_URI
-        fromDatabase:
-          name: climb-db
-          property: connectionString
-    healthCheckPath: /
-    autoDeploy: true
-    branch: master
 
 databases:
-  - name: climb-db
-    databaseName: climbdb
-    user: climb_user
+  - type: postgres
+    name: climb-db
     plan: free
-    region: oregon
-    postDeploy: |
-      psql $DATABASE_URL -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+    ipAllowList: []

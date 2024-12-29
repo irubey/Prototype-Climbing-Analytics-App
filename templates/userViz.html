@@ -39,7 +39,7 @@
       >
         <i class="fas fa-home"></i>
       </a>
-      <h1>Dashboard - {{ username }}</h1>
+      <h1>{{ username }}</h1>
       <div class="header-buttons">
         <form
           action="{{ url_for('refresh_data', username=username) }}"
