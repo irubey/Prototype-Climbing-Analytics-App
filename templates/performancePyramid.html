@@ -324,11 +324,60 @@
 
     <!-- Initialize data after loading required files -->
     <script>
-      const sportPyramidData = {{ sport_pyramid|tojson|safe }};
-      const tradPyramidData = {{ trad_pyramid|tojson|safe }};
-      const boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
-      const userTicksData = {{ user_ticks|tojson|safe }};
-      const binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+      // Initialize data in global scope
+      window.sportPyramidData = {{ sport_pyramid|tojson|safe }};
+      window.tradPyramidData = {{ trad_pyramid|tojson|safe }};
+      window.boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
+      window.userTicksData = {{ user_ticks|tojson|safe }};
+      window.binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+
+      // Function to check if all required data is loaded
+      function isDataLoaded() {
+        return (
+          window.sportPyramidData &&
+          window.tradPyramidData &&
+          window.boulderPyramidData &&
+          window.userTicksData &&
+          window.binnedCodeDict
+        );
+      }
+
+      // Function to initialize visualization with retry
+      function initializeVisualization(retryCount = 0) {
+        if (retryCount > 5) {
+          console.error("Failed to load visualization data after 5 retries");
+          return;
+        }
+
+        if (!isDataLoaded()) {
+          console.log("Data not yet loaded, retrying...");
+          setTimeout(() => initializeVisualization(retryCount + 1), 500);
+          return;
+        }
+
+        if (typeof pyramidVizChart !== "function") {
+          console.log("pyramidVizChart not yet loaded, retrying...");
+          setTimeout(() => initializeVisualization(retryCount + 1), 500);
+          return;
+        }
+
+        try {
+          const data = determineData();
+          pyramidVizChart(
+            "#performance-pyramid",
+            data.pyramidData,
+            data.userTicksData,
+            window.binnedCodeDict
+          );
+        } catch (error) {
+          console.error("Error initializing pyramid visualization:", error);
+        }
+      }
+
+      // Start initialization when DOM is loaded
+      document.addEventListener("DOMContentLoaded", function() {
+        initializeVisualization();
+      });
     </script>
 
     <!-- Initialize visualizations -->
