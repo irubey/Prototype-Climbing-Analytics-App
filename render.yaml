@@ -19,14 +19,20 @@ services:
         value: 10000
       - key: DATABASE_URL
         fromDatabase:
-          type: postgres
           name: climb-db
           property: connectionString
-    dependsOn:
-      - climb-db
+      - key: SQLALCHEMY_DATABASE_URI
+        fromDatabase:
+          name: climb-db
+          property: connectionString
 
 databases:
   - name: climb-db
     databaseName: climbdb
+    user: climb_user
     plan: free
     region: oregon
+    postgresMajorVersion: "16"
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
