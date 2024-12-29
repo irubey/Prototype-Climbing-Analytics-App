@@ -465,6 +465,13 @@ document.addEventListener(
         x.domain([0, maxCount * 1.2]); // Add 20% padding
         y.domain(joinedData.map((d) => d.binned_grade).reverse());
 
+        console.log("Y Domain Debug:", {
+          joinedData: joinedData,
+          yDomain: y.domain(),
+          binned_grades: joinedData.map((d) => d.binned_grade),
+          binned_codes: joinedData.map((d) => d.binned_code),
+        });
+
         // Process time series data
         const timeSeriesData = processTimeSeriesData(filteredUserTicks);
 
@@ -770,6 +777,8 @@ document.addEventListener(
         .select("input[name='performance-pyramid-discipline-filter']:checked")
         .node().value;
 
+      console.log("Selected discipline:", discipline);
+
       let pyramidData;
       switch (discipline) {
         case "sport":
@@ -785,12 +794,33 @@ document.addEventListener(
           console.error("Unknown discipline type");
           pyramidData = [];
       }
+
+      console.log("Pyramid Data for visualization:", {
+        discipline,
+        pyramidData,
+        userTicksData: window.userTicksData,
+        binnedCodeDict: window.binnedCodeDict,
+      });
+
       return { pyramidData, userTicksData: window.userTicksData };
     };
 
     // Function to update visualization
     function updateVisualization() {
+      console.log("Starting visualization update");
       const data = determineData();
+
+      // Check if data is valid before creating visualization
+      if (!data.pyramidData || !Array.isArray(data.pyramidData)) {
+        console.error("Invalid pyramid data:", data.pyramidData);
+        return;
+      }
+
+      if (!window.binnedCodeDict || !Array.isArray(window.binnedCodeDict)) {
+        console.error("Invalid binned code dict:", window.binnedCodeDict);
+        return;
+      }
+
       pyramidVizChart(
         "#performance-pyramid",
         data.pyramidData,
