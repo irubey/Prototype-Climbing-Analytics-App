@@ -21,6 +21,32 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
     />
+    <!-- Preload loading screen images -->
+    <link
+      rel="preload"
+      as="image"
+      href="{{ url_for('static', filename='images/loading1.jpg') }}"
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="{{ url_for('static', filename='images/loading2.jpg') }}"
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="{{ url_for('static', filename='images/loading3.jpg') }}"
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="{{ url_for('static', filename='images/loading4.jpg') }}"
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="{{ url_for('static', filename='images/loading5.jpg') }}"
+    />
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
@@ -159,6 +185,7 @@
           document.getElementById(stage).classList.remove("active");
         });
         document.querySelector(".progress-fill").style.width = "100%";
+        updateLoadingStages();
       }
 
       function hideLoadingScreen() {
