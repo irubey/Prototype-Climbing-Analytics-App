@@ -18,13 +18,15 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        fromService:
+        fromDatabase:
           type: postgres
           name: climb-db
           property: connectionString
+    dependsOn:
+      - climb-db
 
 databases:
-  - type: postgres
-    name: climb-db
+  - name: climb-db
+    databaseName: climbdb
     plan: free
-    ipAllowList: []
+    region: oregon
