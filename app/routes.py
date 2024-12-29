@@ -132,12 +132,22 @@ def performance_pyramid():
     binned_code_dict = BinnedCodeDict.query.all()
     user_ticks = DatabaseService.get_user_ticks(username)
 
-    # Convert to JSON
+    # Convert to JSON and handle date serialization
     sport_pyramid_json = [r.as_dict() for r in pyramids['sport']]
     trad_pyramid_json = [r.as_dict() for r in pyramids['trad']]
     boulder_pyramid_json = [r.as_dict() for r in pyramids['boulder']]
     user_ticks_json = [r.as_dict() for r in user_ticks]
     binned_code_dict_json = [r.as_dict() for r in binned_code_dict]
+
+    # Convert dates to strings in user_ticks
+    for tick in user_ticks_json:
+        if 'tick_date' in tick:
+            tick['tick_date'] = tick['tick_date'].strftime('%Y-%m-%d')
+
+    # Convert dates in pyramid data
+    for item in sport_pyramid_json + trad_pyramid_json + boulder_pyramid_json:
+        if 'tick_date' in item:
+            item['tick_date'] = item['tick_date'].strftime('%Y-%m-%d')
 
     return render_template('performancePyramid.html',
                          username=username,

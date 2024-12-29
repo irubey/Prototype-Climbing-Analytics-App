@@ -3,10 +3,15 @@ document.addEventListener(
   function initPerformancePyramid() {
     // Wait for required data to be loaded
     if (
-      typeof sportPyramidData === "undefined" ||
-      typeof binnedCodeDict === "undefined" ||
-      typeof userTicksData === "undefined"
+      typeof window.sportPyramidData === "undefined" ||
+      typeof window.binnedCodeDict === "undefined" ||
+      typeof window.userTicksData === "undefined"
     ) {
+      console.log("Waiting for data to load...", {
+        sportPyramidData: window.sportPyramidData,
+        binnedCodeDict: window.binnedCodeDict,
+        userTicksData: window.userTicksData,
+      });
       setTimeout(initPerformancePyramid, 100); // Retry in 100ms
       return;
     }
@@ -372,39 +377,7 @@ document.addEventListener(
         // Clear existing chart
         d3.select(targetId).select("svg").remove();
 
-        // Setup margins and dimensions
-        const margin = { top: 40, right: 600, bottom: 20, left: 20 };
-        const width = 1000 - margin.left - margin.right;
-        const height = 220 - margin.top - margin.bottom;
-
-        // Create SVG container with background
-        const svg = d3
-          .select(targetId)
-          .append("svg")
-          .attr("width", "100%")
-          .attr("height", height + margin.top + margin.bottom)
-          .attr(
-            "viewBox",
-            `0 0 ${width + margin.left + margin.right} ${
-              height + margin.top + margin.bottom
-            }`
-          )
-          .append("g")
-          .attr("transform", `translate(${margin.left},${margin.top})`);
-
-        // Add subtle background
-        svg
-          .append("rect")
-          .attr("width", width + margin.right)
-          .attr("height", height + margin.bottom)
-          .attr("fill", "#f8f9fa")
-          .attr("rx", 8);
-
-        // Create scales
-        const x = createLinearScale([0, width]);
-        const y = createBandScale([height, 0], 0.2);
-
-        // Process and prepare data
+        // Process and prepare data first
         const binnedCodeObj = convertDictToObj(binnedCodeDict);
         const timeFrame = d3
           .select("input[name='performance-pyramid-time-filter']:checked")
@@ -452,7 +425,39 @@ document.addEventListener(
           };
         });
 
-        // Set scales domains
+        // Setup margins and dimensions
+        const margin = { top: 40, right: 600, bottom: 20, left: 20 };
+        const width = 1000 - margin.left - margin.right;
+        const height = 220 - margin.top - margin.bottom;
+
+        // Create SVG container with background
+        const svg = d3
+          .select(targetId)
+          .append("svg")
+          .attr("width", "100%")
+          .attr("height", height + margin.top + margin.bottom)
+          .attr(
+            "viewBox",
+            `0 0 ${width + margin.left + margin.right} ${
+              height + margin.top + margin.bottom
+            }`
+          )
+          .append("g")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Add subtle background
+        svg
+          .append("rect")
+          .attr("width", width + margin.right)
+          .attr("height", height + margin.bottom)
+          .attr("fill", "#f8f9fa")
+          .attr("rx", 8);
+
+        // Create scales
+        const x = createLinearScale([0, width]);
+        const y = createBandScale([height, 0], 0.2);
+
+        // Set scales domains after data is processed
         const maxCount = Math.max(
           d3.max(joinedData, (d) => d.count),
           d3.max(joinedData, (d) => d.goalSends)
@@ -768,19 +773,19 @@ document.addEventListener(
       let pyramidData;
       switch (discipline) {
         case "sport":
-          pyramidData = sportPyramidData;
+          pyramidData = window.sportPyramidData;
           break;
         case "trad":
-          pyramidData = tradPyramidData;
+          pyramidData = window.tradPyramidData;
           break;
         case "boulder":
-          pyramidData = boulderPyramidData;
+          pyramidData = window.boulderPyramidData;
           break;
         default:
           console.error("Unknown discipline type");
           pyramidData = [];
       }
-      return { pyramidData, userTicksData };
+      return { pyramidData, userTicksData: window.userTicksData };
     };
 
     // Function to update visualization
@@ -790,7 +795,7 @@ document.addEventListener(
         "#performance-pyramid",
         data.pyramidData,
         data.userTicksData,
-        binnedCodeDict
+        window.binnedCodeDict
       );
     }
 
