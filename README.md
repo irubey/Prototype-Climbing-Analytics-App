@@ -54,4 +54,4 @@ This is a tool designed to help athletes easily convert their Mountain Project T
 
 ## Try it out!
 
-[Click here to access the Climbing Analytics Web Application](https://climbing-analytics-app-test-d2e4a88e081a.herokuapp.com/)
+[Click here to access the Climbing Analytics Web Application](https://prototype-climbing-analytics-app.onrender.com/)
