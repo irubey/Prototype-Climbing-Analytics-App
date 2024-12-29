@@ -4,11 +4,15 @@ from flask_cors import CORS
 from config import Config
 import os
 from sqlalchemy.sql import text
+from whitenoise import WhiteNoise
 
 # Initialize Flask app with correct template and static paths
 app = Flask(__name__, 
            template_folder='../templates',
            static_folder='../static')
+
+# Configure WhiteNoise for static files
+app.wsgi_app = WhiteNoise(app.wsgi_app, root=os.path.join(os.path.dirname(__file__), '../static/'), prefix='static/')
 
 # Enable CORS with specific configuration
 CORS(app, resources={
@@ -33,9 +37,7 @@ from app import routes, models
 # Create tables and initialize database
 with app.app_context():
     try:
-        # Drop all tables if they exist (for clean initialization)
-        db.drop_all()
-        # Create all tables fresh
+        # Only create tables if they don't exist
         db.create_all()
         
         # Initialize sequences for PostgreSQL if needed
@@ -65,6 +67,18 @@ with app.app_context():
                 db.session.rollback()
         else:
             print("Not using PostgreSQL, skipping sequence initialization")
+            
+        # Initialize binned code dict if empty
+        from app.models import BinnedCodeDict
+        from app.services.grade_processor import GradeProcessor
+        from app.services.database_service import DatabaseService
+        
+        if not BinnedCodeDict.query.first():
+            print("Initializing binned code dictionary...")
+            grade_processor = GradeProcessor()
+            DatabaseService.init_binned_code_dict(grade_processor.binned_code_dict)
+            print("Binned code dictionary initialized successfully")
+            
     except Exception as e:
-        print(f"Error initializing database: {e}")
-        db.session.rollback()
+        print(f"Error during initialization: {e}")
+        raise e
