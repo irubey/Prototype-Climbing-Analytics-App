@@ -1,9 +1,12 @@
 /* ==========================================================================
    Visualization Styles
+   Styles for data visualization components and interactive charts
    ========================================================================== */
 
-/* Chart Base Styles
+/* Performance Pyramid
    ========================================================================== */
+/* Base Container
+   -------------------------------------------------------------------------- */
 #performance-pyramid {
   background: var(--color-white);
   padding: var(--spacing-md);
@@ -17,6 +20,8 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* SVG Container
+   -------------------------------------------------------------------------- */
 #performance-pyramid svg {
   width: 100%;
   height: auto;
@@ -24,8 +29,10 @@
   min-width: 800px; /* Ensures the visualization doesn't get too compressed */
 }
 
-/* SVG Element Styles
+/* Chart Elements
    ========================================================================== */
+/* Milestone Components
+   -------------------------------------------------------------------------- */
 .viz-milestone line {
   transition: var(--transition-base);
 }
@@ -37,6 +44,8 @@
   transform: translateX(-3px);
 }
 
+/* Milestone States
+   -------------------------------------------------------------------------- */
 .viz-milestone:hover line {
   opacity: 1;
   stroke: var(--text-muted);
@@ -46,6 +55,8 @@
   opacity: 1;
 }
 
+/* Axis & Grid
+   -------------------------------------------------------------------------- */
 .viz-axis text {
   fill: var(--text);
   font-weight: var(--font-weight-medium);
@@ -60,8 +71,10 @@
   stroke-width: 0;
 }
 
-/* Bar Chart Styles
+/* Bar Chart Components
    ========================================================================== */
+/* Bar Elements
+   -------------------------------------------------------------------------- */
 .bar rect {
   transition: var(--transition-all);
 }
@@ -70,6 +83,8 @@
   opacity: var(--opacity-disabled);
 }
 
+/* Bar Labels
+   -------------------------------------------------------------------------- */
 .bar-labels text {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -84,8 +99,10 @@
   letter-spacing: -0.02em;
 }
 
-/* Legend Styles
+/* Legend Components
    ========================================================================== */
+/* Legend Text
+   -------------------------------------------------------------------------- */
 .legend-text {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-normal);
@@ -93,6 +110,8 @@
   letter-spacing: -0.01em;
 }
 
+/* Legend Items
+   -------------------------------------------------------------------------- */
 .legend-item {
   cursor: default;
   opacity: 1;
@@ -103,8 +122,10 @@
   opacity: var(--opacity-disabled);
 }
 
-/* Tooltip Styles
+/* Tooltip Components
    ========================================================================== */
+/* Tooltip Container
+   -------------------------------------------------------------------------- */
 .pyramid-tooltip {
   background: var(--color-white);
   padding: calc(var(--spacing-xs) * 0.7) var(--spacing-xs);
@@ -116,6 +137,8 @@
   z-index: 1000;
 }
 
+/* Tooltip Content
+   -------------------------------------------------------------------------- */
 .tooltip-content {
   line-height: var(--line-height-tight);
 }
@@ -128,13 +151,17 @@
   font-size: var(--font-size-xs);
 }
 
-/* Data Table Styles
+/* Data Table Components
    ========================================================================== */
+/* Table Container
+   -------------------------------------------------------------------------- */
 .projects-table-container {
   margin-top: var(--spacing-md);
   overflow-x: auto;
 }
 
+/* Table Base
+   -------------------------------------------------------------------------- */
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -142,6 +169,8 @@
   font-size: var(--font-size-sm);
 }
 
+/* Table Cells
+   -------------------------------------------------------------------------- */
 .data-table th,
 .data-table td {
   padding: var(--spacing-sm);
@@ -155,6 +184,8 @@
   color: var(--text-dark);
 }
 
+/* Table States
+   -------------------------------------------------------------------------- */
 .data-table tbody tr:hover {
   background-color: var(--background);
 }
@@ -169,6 +200,8 @@
   text-decoration: underline;
 }
 
+/* Grade Headers
+   -------------------------------------------------------------------------- */
 .data-table .grade-header {
   background-color: var(--background);
   font-weight: var(--font-weight-semibold);
@@ -184,6 +217,8 @@
   text-align: center;
 }
 
+/* Cell Content
+   -------------------------------------------------------------------------- */
 .data-table td:first-child {
   max-width: 200px;
   white-space: nowrap;
@@ -198,8 +233,61 @@
   text-overflow: ellipsis;
 }
 
-/* Grade Line Styles
+/* Grade Line Components
    ========================================================================== */
 .grade-line {
   shape-rendering: crispEdges;
+}
+
+/* Mobile-first visualization adjustments */
+.viz-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: var(--spacing-mobile-lg);
+}
+
+/* Ensure SVG is responsive */
+svg {
+  width: 100%;
+  height: auto;
+  min-width: 300px; /* Minimum width to ensure readability */
+}
+
+/* Mobile-friendly tooltips */
+.pyramid-tooltip {
+  font-size: var(--font-size-mobile-sm);
+  padding: var(--spacing-mobile-xs);
+  max-width: 200px;
+}
+
+/* Adjust text size for mobile */
+.viz-text,
+.axis text {
+  font-size: var(--font-size-mobile-xs);
+}
+
+/* Mobile-friendly legend */
+.legend-item {
+  padding: var(--spacing-mobile-xs);
+  margin: var(--spacing-mobile-xs);
+}
+
+/* Responsive adjustments */
+@media (min-width: var(--breakpoint-md)) {
+  .viz-text,
+  .axis text {
+    font-size: var(--font-size-sm);
+  }
+
+  .pyramid-tooltip {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-xs);
+    max-width: 300px;
+  }
+
+  .legend-item {
+    padding: var(--spacing-xs);
+    margin: var(--spacing-xs);
+  }
 }

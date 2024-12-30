@@ -1,8 +1,9 @@
 /* ==========================================================================
    Layout Styles
+   Core structural and grid systems for page layout
    ========================================================================== */
 
-/* Container Layout
+/* Main Container
    ========================================================================== */
 main {
   max-width: var(--container-width);
@@ -13,8 +14,10 @@ main {
   box-shadow: var(--shadow);
 }
 
-/* Header Layout
+/* Header Components
    ========================================================================== */
+/* Primary Header
+   -------------------------------------------------------------------------- */
 header {
   background-color: var(--primary);
   color: var(--color-white);
@@ -26,34 +29,8 @@ header {
   align-items: center;
 }
 
-header .home-link {
-  color: var(--color-white);
-  font-size: var(--font-size-lg);
-  margin: 0;
-  padding: var(--spacing-xs);
-  display: flex;
-  align-items: center;
-  transition: opacity var(--transition-base);
-}
-
-header .home-link:hover {
-  opacity: 0.8;
-}
-
-header .buy-coffee-button {
-  color: var(--color-white);
-  font-size: var(--font-size-base);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--color-white);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-}
-
-header .buy-coffee-button:hover {
-  background-color: var(--color-white);
-  color: var(--primary);
-}
-
+/* Header Content
+   -------------------------------------------------------------------------- */
 .header-content {
   max-width: var(--container-width);
   margin: 0 auto;
@@ -68,13 +45,29 @@ header .buy-coffee-button:hover {
   margin: 0 auto;
 }
 
+/* Header Links
+   -------------------------------------------------------------------------- */
+header .home-link {
+  color: var(--color-white);
+  font-size: var(--font-size-lg);
+  margin: 0;
+  padding: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  transition: opacity var(--transition-base);
+}
+
+header .home-link:hover {
+  opacity: 0.8;
+}
+
 .header-link {
   text-decoration: none;
   color: var(--color-white);
   transition: var(--transition-base);
 }
 
-/* Footer Layout
+/* Footer Components
    ========================================================================== */
 footer {
   background-color: var(--primary);
@@ -84,6 +77,8 @@ footer {
   margin-top: var(--spacing-xxl);
 }
 
+/* Footer Navigation
+   -------------------------------------------------------------------------- */
 .footer-nav {
   display: flex;
   justify-content: center;
@@ -114,14 +109,7 @@ footer {
   font-size: var(--font-size-md);
 }
 
-@media (max-width: var(--breakpoint-md)) {
-  .footer-nav {
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-}
-
-/* Navigation Layout
+/* Navigation Components
    ========================================================================== */
 .nav-links {
   display: flex;
@@ -132,8 +120,10 @@ footer {
   margin-bottom: var(--spacing-xxl);
 }
 
-/* Grid Layouts
+/* Grid Systems
    ========================================================================== */
+/* Card Grid
+   -------------------------------------------------------------------------- */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -141,6 +131,8 @@ footer {
   margin-bottom: var(--spacing-lg);
 }
 
+/* Analytics Grid
+   -------------------------------------------------------------------------- */
 .analytics-row {
   display: grid;
   gap: var(--spacing-lg);
@@ -148,6 +140,8 @@ footer {
   width: 100%;
 }
 
+/* Metrics Grid
+   -------------------------------------------------------------------------- */
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -155,6 +149,8 @@ footer {
   margin-top: var(--spacing-sm);
 }
 
+/* Links Grid
+   -------------------------------------------------------------------------- */
 .links-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -188,6 +184,7 @@ footer {
    ========================================================================== */
 .viz-header {
   display: flex;
+  flex-direction: row;
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--spacing-xl);
@@ -203,10 +200,12 @@ footer {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+  flex-wrap: wrap;
 }
 
 .viz-filters {
   display: flex;
+  flex-direction: row;
   align-items: flex-start;
   gap: var(--spacing-lg);
   margin-left: auto;
@@ -216,6 +215,7 @@ footer {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .viz-container {
@@ -230,9 +230,10 @@ footer {
   overflow-y: hidden;
 }
 
-/* Responsive Layouts
+/* Responsive Adjustments
    ========================================================================== */
 @media (max-width: var(--breakpoint-lg)) {
+  /* Large Screen Adjustments */
   .metrics-grid {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -258,6 +259,7 @@ footer {
 }
 
 @media (max-width: var(--breakpoint-md)) {
+  /* Medium Screen Adjustments */
   main {
     margin: var(--spacing-sm);
     padding: var(--spacing-sm);
@@ -294,14 +296,54 @@ footer {
     padding: var(--spacing-sm);
     width: calc(100% - var(--spacing-sm) * 2);
   }
+
+  .footer-nav {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
 }
 
 @media (max-width: var(--breakpoint-sm)) {
+  /* Small Screen Adjustments */
   .metrics-grid {
     grid-template-columns: 1fr;
   }
 
   .header-content {
     padding: var(--spacing-sm);
+  }
+}
+
+/* Main content layout
+   ========================================================================== */
+.main-content {
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--spacing-sm);
+}
+
+.main-content .container {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+}
+
+/* Responsive adjustments */
+@media (min-width: var(--breakpoint-sm)) {
+  .main-content {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (min-width: var(--breakpoint-md)) {
+  .main-content {
+    max-width: var(--breakpoint-md);
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (min-width: var(--breakpoint-lg)) {
+  .main-content {
+    max-width: var(--breakpoint-lg);
   }
 }

@@ -1,20 +1,47 @@
 /* ==========================================================================
    Base Styles
+   Core foundational styles for basic HTML elements
    ========================================================================== */
 
-/* Typography
+/* Reset & Defaults
    ========================================================================== */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-family-base);
+  font-size: var(--font-size-mobile-base);
   line-height: var(--line-height-base);
   color: var(--text);
   background-color: var(--background);
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure all elements inherit box-sizing */
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+}
+
+/* Typography Scale
+   Establishes a clear visual hierarchy
+   ========================================================================== */
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
 }
 
 h1 {
-  font-size: var(--font-size-xxl);
+  font-size: var(--font-size-mobile-lg);
   margin-bottom: var(--spacing-lg);
   font-weight: var(--font-weight-semibold);
 }
@@ -22,31 +49,74 @@ h1 {
 h2 {
   color: var(--primary);
   margin-bottom: var(--spacing-md);
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-mobile-md);
 }
 
 h3 {
-  margin-top: 0;
   margin-bottom: var(--spacing-sm);
   color: var(--primary);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-mobile-base);
 }
 
 h4 {
   color: var(--secondary);
-  margin: 0 0 var(--spacing-xs) 0;
-  font-size: var(--font-size-md);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-mobile-sm);
 }
 
 p {
-  margin: 0;
   color: var(--text);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
 }
 
-/* Form Elements
+/* Interactive Elements
    ========================================================================== */
+/* Links
+   -------------------------------------------------------------------------- */
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition-base);
+}
+
+a:hover {
+  color: var(--secondary);
+}
+
+.accent-link {
+  color: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+.route-link {
+  color: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+.secondary-link {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Buttons
+   -------------------------------------------------------------------------- */
+button {
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+/* Form Elements
+   -------------------------------------------------------------------------- */
 input,
 select,
 textarea {
@@ -74,51 +144,10 @@ label {
   font-weight: var(--font-weight-medium);
 }
 
-/* Links
+/* Content Elements
    ========================================================================== */
-a {
-  color: var(--accent);
-  text-decoration: none;
-  transition: color var(--transition-base);
-}
-
-a:hover {
-  color: var(--secondary);
-}
-
-.accent-link {
-  color: var(--accent);
-  font-weight: var(--font-weight-medium);
-}
-
-.route-link {
-  color: var(--accent);
-  font-weight: var(--font-weight-medium);
-}
-
-.secondary-link {
-  color: var(--text-muted);
-  font-size: var(--font-size-sm);
-}
-
-/* Buttons
-   ========================================================================== */
-button {
-  cursor: pointer;
-  font-family: inherit;
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: inherit;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: var(--opacity-disabled);
-}
-
 /* Lists
-   ========================================================================== */
+   -------------------------------------------------------------------------- */
 ul,
 ol {
   margin: 0;
@@ -131,7 +160,7 @@ li {
 }
 
 /* Media
-   ========================================================================== */
+   -------------------------------------------------------------------------- */
 img,
 video {
   max-width: 100%;
@@ -139,29 +168,27 @@ video {
   display: block;
 }
 
-/* Responsive Design
+/* Responsive Adjustments
    ========================================================================== */
 @media (max-width: var(--breakpoint-md)) {
+  /* Typography Scale - Medium Screens */
   h1 {
     font-size: var(--font-size-xl);
   }
-
   h2 {
     font-size: var(--font-size-lg);
   }
-
   h3 {
     font-size: var(--font-size-md);
   }
-
   h4 {
     font-size: var(--font-size-base);
   }
-
   p {
     font-size: var(--font-size-xs);
   }
 
+  /* Form Elements - Medium Screens */
   input,
   select,
   textarea {
@@ -170,11 +197,68 @@ video {
 }
 
 @media (max-width: var(--breakpoint-sm)) {
+  /* Typography Scale - Small Screens */
   h1 {
     font-size: var(--font-size-lg);
   }
 
+  /* Links - Small Screens */
   .secondary-link {
     font-size: var(--font-size-xs);
+  }
+}
+
+/* Responsive container */
+.container {
+  width: 100%;
+  padding-right: var(--spacing-sm);
+  padding-left: var(--spacing-sm);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mobile-first table styles */
+table {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Media queries for larger screens */
+@media (min-width: var(--breakpoint-sm)) {
+  h1 {
+    font-size: var(--font-size-xl);
+  }
+  h2 {
+    font-size: var(--font-size-lg);
+  }
+  h3 {
+    font-size: var(--font-size-md);
+  }
+  h4 {
+    font-size: var(--font-size-base);
+  }
+
+  .container {
+    padding-right: var(--spacing-md);
+    padding-left: var(--spacing-md);
+  }
+}
+
+@media (min-width: var(--breakpoint-md)) {
+  .container {
+    max-width: var(--breakpoint-md);
+  }
+}
+
+@media (min-width: var(--breakpoint-lg)) {
+  .container {
+    max-width: var(--breakpoint-lg);
   }
 }

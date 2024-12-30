@@ -1,0 +1,140 @@
+/* ==========================================================================
+   Responsive Utilities
+   Mixins and utility classes for responsive design
+   ========================================================================== */
+
+/* Container
+   ========================================================================== */
+.container {
+  width: 100%;
+  margin-right: auto;
+  margin-left: auto;
+  padding-right: var(--spacing-responsive-sm);
+  padding-left: var(--spacing-responsive-sm);
+}
+
+/* Responsive Container Sizes */
+@media (min-width: var(--breakpoint-md)) {
+  .container {
+    max-width: var(--container-md);
+  }
+}
+
+@media (min-width: var(--breakpoint-lg)) {
+  .container {
+    max-width: var(--container-lg);
+  }
+}
+
+@media (min-width: var(--breakpoint-xl)) {
+  .container {
+    max-width: var(--container-xl);
+  }
+}
+
+/* Responsive Utilities
+   ========================================================================== */
+/* Hide on specific breakpoints */
+@media (max-width: var(--breakpoint-sm)) {
+  .hide-sm {
+    display: none !important;
+  }
+}
+
+@media (max-width: var(--breakpoint-md)) {
+  .hide-md {
+    display: none !important;
+  }
+}
+
+@media (max-width: var(--breakpoint-lg)) {
+  .hide-lg {
+    display: none !important;
+  }
+}
+
+/* Responsive Text Alignment */
+@media (min-width: var(--breakpoint-sm)) {
+  .text-sm-left {
+    text-align: left !important;
+  }
+  .text-sm-center {
+    text-align: center !important;
+  }
+  .text-sm-right {
+    text-align: right !important;
+  }
+}
+
+@media (min-width: var(--breakpoint-md)) {
+  .text-md-left {
+    text-align: left !important;
+  }
+  .text-md-center {
+    text-align: center !important;
+  }
+  .text-md-right {
+    text-align: right !important;
+  }
+}
+
+/* Responsive Spacing
+   ========================================================================== */
+@media (max-width: var(--breakpoint-md)) {
+  .spacing-responsive {
+    padding: var(--spacing-responsive-sm);
+    margin-bottom: var(--spacing-responsive-md);
+  }
+}
+
+/* Responsive Grid
+   ========================================================================== */
+.grid {
+  display: grid;
+  gap: var(--spacing-responsive-sm);
+}
+
+/* Default 1 column on mobile */
+.grid-cols {
+  grid-template-columns: 1fr;
+}
+
+/* Responsive grid columns */
+@media (min-width: var(--breakpoint-sm)) {
+  .grid-cols-sm-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid-cols-sm-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: var(--breakpoint-md)) {
+  .grid-cols-md-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid-cols-md-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .grid-cols-md-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Responsive Typography
+   ========================================================================== */
+@media (max-width: var(--breakpoint-md)) {
+  body {
+    font-size: var(--font-size-responsive-sm);
+  }
+
+  h1 {
+    font-size: var(--font-size-responsive-lg);
+  }
+  h2 {
+    font-size: var(--font-size-responsive-md);
+  }
+  h3 {
+    font-size: var(--font-size-responsive-sm);
+  }
+}

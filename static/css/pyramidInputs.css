@@ -1,9 +1,12 @@
 /* ==========================================================================
    Pyramid Input Styles
+   Styles for the pyramid input interface and performance table
    ========================================================================== */
 
-/* Performance Table Styles
+/* Performance Table
    ========================================================================== */
+/* Table Container
+   -------------------------------------------------------------------------- */
 .chart-container {
   position: relative;
   border-radius: var(--radius-lg);
@@ -24,7 +27,8 @@
   background-color: var(--color-white);
 }
 
-/* Table Header */
+/* Table Header
+   -------------------------------------------------------------------------- */
 .performance-table thead {
   position: sticky;
   top: 0;
@@ -44,13 +48,16 @@
   text-align: left;
 }
 
-/* Table Column Widths */
+/* Table Columns
+   -------------------------------------------------------------------------- */
+/* Number Column */
 .number-column {
   width: 3%;
   min-width: 40px;
   text-align: center;
 }
 
+/* Route Name Column */
 .route-name-column {
   width: 12%;
   min-width: 120px;
@@ -63,33 +70,39 @@
   text-overflow: ellipsis;
 }
 
+/* Date Column */
 .date-column {
   width: 8%;
   min-width: 100px;
 }
 
+/* Grade Column */
 .grade-column {
   width: 6%;
   min-width: 70px;
   text-align: center;
 }
 
+/* Attempts Column */
 .attempts-column {
   width: 8%;
   min-width: 100px;
   text-align: center;
 }
 
+/* Characteristic Column */
 .characteristic-column {
   width: 15%;
   min-width: 160px;
 }
 
+/* Style Column */
 .style-column {
   width: 15%;
   min-width: 160px;
 }
 
+/* Actions Column */
 .actions-column {
   width: 4%;
   min-width: 50px;
@@ -97,7 +110,8 @@
   padding: var(--spacing-xs);
 }
 
-/* Table Row Styles */
+/* Table Row Styles
+   -------------------------------------------------------------------------- */
 .performance-table tr:nth-child(even) {
   background-color: var(--background);
 }
@@ -106,8 +120,10 @@
   background-color: rgba(var(--accent-rgb), 0.05);
 }
 
-/* Attempts Input Group
+/* Input Components
    ========================================================================== */
+/* Attempts Input Group
+   -------------------------------------------------------------------------- */
 .attempts-input-group {
   display: flex;
   align-items: center;
@@ -124,20 +140,26 @@
   transition: var(--transition-base);
 }
 
+/* Input Number Controls
+   -------------------------------------------------------------------------- */
 .attempts-input::-webkit-inner-spin-button,
 .attempts-input::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
+/* Input States
+   -------------------------------------------------------------------------- */
 .attempts-input:focus {
   border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
 }
 
-/* Table Radio Group
+/* Radio Components
    ========================================================================== */
+/* Radio Group Container
+   -------------------------------------------------------------------------- */
 .table-radio-group {
   display: flex;
   flex-direction: row;
@@ -152,6 +174,8 @@
   position: relative;
 }
 
+/* Radio Input
+   -------------------------------------------------------------------------- */
 .table-radio-group input[type="radio"] {
   position: absolute;
   opacity: 0;
@@ -159,6 +183,8 @@
   height: 0;
 }
 
+/* Radio Label
+   -------------------------------------------------------------------------- */
 .table-radio-group input[type="radio"] + span {
   display: inline-block;
   padding: calc(var(--spacing-xs) * 0.6) var(--spacing-xs);
@@ -172,6 +198,8 @@
   white-space: nowrap;
 }
 
+/* Radio States
+   -------------------------------------------------------------------------- */
 .table-radio-group input[type="radio"]:checked + span {
   background-color: var(--accent);
   color: var(--color-white);
@@ -179,8 +207,10 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* Discipline Selector
+/* Discipline Components
    ========================================================================== */
+/* Discipline Selector
+   -------------------------------------------------------------------------- */
 .discipline-selector {
   display: flex;
   justify-content: center;
@@ -188,6 +218,8 @@
   margin-bottom: var(--spacing-lg);
 }
 
+/* Discipline Section States
+   -------------------------------------------------------------------------- */
 .discipline-section {
   display: none;
 }
@@ -196,8 +228,10 @@
   display: block;
 }
 
-/* Attempts Visual
+/* Visual Feedback
    ========================================================================== */
+/* Attempts Visual
+   -------------------------------------------------------------------------- */
 .attempts-visual {
   display: flex;
   align-items: center;
@@ -207,6 +241,8 @@
   font-size: var(--font-size-xs);
 }
 
+/* Status Indicators
+   -------------------------------------------------------------------------- */
 .attempts-visual .success {
   color: var(--secondary);
 }

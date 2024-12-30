@@ -2,695 +2,2440 @@
 
 ## \_base.css
 
-**Purpose**: Provides foundational styles that form the base layer of the application's CSS architecture. These styles define the default look and behavior of basic HTML elements and establish core typographic rules.
+**Purpose**: Provides foundational styles that establish the core visual language and behavior of basic HTML elements across the application. This file serves as the base layer of the CSS architecture, ensuring consistent styling of fundamental elements.
 
-### Contents Organization:
+### File Organization
 
-1. **Typography**
+The file is organized into five main sections, each handling different aspects of base styling:
 
-   - Basic text elements (`body`, `h1`-`h6`, `p`)
-   - Font sizes, weights, and line heights
-   - Text colors and basic text utilities
+1. **Reset & Defaults**
 
-2. **Form Elements**
+   - Establishes base styling for the `body` element
+   - Sets foundational typography and colors
+   - Enables font smoothing for better text rendering
 
-   - Input fields
-   - Labels
-   - Basic form layout
-   - Form validation states
+   ```css
+   body {
+     font-family: var(--font-family-base);
+     line-height: var(--line-height-base);
+     color: var(--text);
+     background-color: var(--background);
+   }
+   ```
 
-3. **Links**
+2. **Typography Scale**
 
-   - Default link styles
-   - Link states (hover, active, visited)
-   - Special link types (accent, secondary)
+   - Creates a clear visual hierarchy through heading sizes
+   - Establishes consistent spacing and colors
+   - Defines base text styles
 
-4. **Buttons**
+   | Element | Size Variable   | Color       | Spacing                         |
+   | ------- | --------------- | ----------- | ------------------------------- |
+   | h1      | --font-size-xxl | inherit     | margin-bottom: --spacing-lg     |
+   | h2      | --font-size-xl  | --primary   | margin-bottom: --spacing-md     |
+   | h3      | --font-size-lg  | --primary   | margin-bottom: --spacing-sm     |
+   | h4      | --font-size-md  | --secondary | margin-bottom: --spacing-xs     |
+   | p       | --font-size-sm  | --text      | line-height: --line-height-base |
 
-   - Basic button styles
-   - Button states
-   - Button variations
+3. **Interactive Elements**
 
-5. **Lists**
+   - **Links**
 
-   - Unordered lists
-   - Ordered lists
-   - List item spacing
+     - Default, accent, route, and secondary link styles
+     - Consistent hover states and transitions
+     - Color-coded for different purposes
 
-6. **Media**
+   - **Buttons**
 
-   - Image defaults
-   - Video/media element basics
-   - Responsive media rules
+     - Reset default button styling
+     - Define base button behavior
+     - Handle disabled states
 
-7. **Responsive Design**
-   - Base breakpoints
-   - Typography scaling
-   - Element spacing adjustments
+   - **Form Elements**
+     - Consistent input, select, and textarea styling
+     - Focus states with accent colors
+     - Standardized padding and borders
+     ```css
+     input,
+     select,
+     textarea {
+       font-family: inherit;
+       font-size: var(--font-size-base);
+       padding: var(--spacing-xs);
+       border: 1px solid var(--input-border);
+     }
+     ```
 
-### Usage Guidelines:
+4. **Content Elements**
 
-- Keep styles generic and reusable
-- Avoid component-specific styles
-- Use CSS variables from `_variables.css`
-- Focus on default element styling
-- Maintain a consistent typographic scale
+   - **Lists**
 
-### Dependencies:
+     - Reset default list styling
+     - Consistent list item spacing
+
+   - **Media**
+     - Responsive image and video handling
+     - Maintain aspect ratios
+     - Block display behavior
+
+5. **Responsive Adjustments**
+
+   - **Medium Screens** (max-width: --breakpoint-md)
+
+     - Reduced typography scale
+     - Adjusted form element sizes
+
+   - **Small Screens** (max-width: --breakpoint-sm)
+     - Further reduced typography
+     - Optimized link sizes
+
+### Usage Guidelines
+
+1. **Variable Usage**
+
+   - Always use CSS variables for:
+     - Colors
+     - Spacing
+     - Typography
+     - Transitions
+   - This ensures consistency and makes theme changes easier
+
+2. **Typography**
+
+   - Use the established type scale
+   - Don't override base heading colors without good reason
+   - Maintain the spacing rhythm
+
+3. **Interactive Elements**
+
+   - Build upon these base styles rather than overriding them
+   - Maintain consistent focus states for accessibility
+   - Use provided transition variables
+
+4. **Responsive Design**
+   - Follow the established breakpoints
+   - Use the provided responsive adjustments as a foundation
+   - Add component-specific responsive behavior in component files
+
+### Best Practices
+
+1. **Inheritance**
+
+   - Use `inherit` for font properties where possible
+   - Leverage cascading for consistent typography
+
+2. **Accessibility**
+
+   - Maintain sufficient color contrast
+   - Keep focus states visible
+   - Use semantic HTML elements
+
+3. **Performance**
+   - Avoid overriding base styles repeatedly
+   - Use the provided CSS variables
+   - Keep specificity low
+
+### Dependencies
 
 - Requires `_variables.css` for design tokens
-- Should be imported before component and layout styles
+- Should be imported before component styles
+- Must be included in the main stylesheet
+
+### Example Usage
+
+```css
+// Building upon base styles
+.custom-heading {
+  /* Extends h2 styles */
+  font-size: var(--font-size-xl);
+  color: var(--primary);
+  /* Add custom modifications */
+  text-transform: uppercase;
+}
+
+.custom-input {
+  /* Inherits base input styles */
+  /* Add specific modifications */
+  border-width: 2px;
+  padding: var(--spacing-sm);
+}
+```
 
 ## \_variables.css
 
-**Purpose**: Defines global CSS custom properties (variables) that maintain consistent design tokens throughout the application. This file serves as a single source of truth for colors, spacing, typography, and other design values.
+**Purpose**: Defines the global CSS custom properties (variables) that maintain consistent design tokens throughout the application. This file serves as the single source of truth for the design system.
 
-### Contents Organization:
+### Color System
 
-1. **Colors - Core**
+#### Brand Colors
 
-   - Primary (`--primary`, `--primary-rgb`)
-   - Secondary (`--secondary`, `--secondary-rgb`)
-   - Accent (`--accent`, `--accent-rgb`)
-   - Light (`--light`)
-   - Background (`--background`)
+```css
+--primary: #2a4f5f      /* Main brand color */
+--secondary: #7ea88b    /* Secondary brand color */
+--accent: #6cb2eb       /* Accent for CTAs and highlights */
+--light: #f6b17a        /* Light accent color */
+--background: #f7f9fc   /* Default background */
+```
 
-2. **Colors - Text**
+RGB variants (`--primary-rgb`, etc.) are provided for opacity/alpha operations.
 
-   - Base text (`--text`)
-   - Muted text (`--text-muted`)
-   - Dark text (`--text-dark`)
-   - Light text (`--text-light`)
+#### Extended Color Palette
 
-3. **Colors - State**
+```css
+--accent-coral: #ff6b6b     /* Vibrant red-orange */
+--accent-peach: #ffb4a2     /* Soft coral */
+--accent-gold: #ffd93d      /* Bright yellow */
+--accent-teal: #4ecdc4      /* Bright teal */
+--accent-lavender: #6c63ff  /* Purple */
+--accent-sky: #6cb2eb       /* Light blue */
+```
 
-   - Warning background (`--warning-bg`)
-   - Warning border (`--warning-border`)
-   - Warning text (`--warning-text`)
-   - Warning dark (`--warning-dark`)
-   - Warning light (`--warning-light`)
+#### Status Colors
 
-4. **Colors - Status**
+Each status has four variants:
 
-   - Error (`--error`, `--error-light`, `--error-dark`, `--error-border`)
-   - Success (`--success`, `--success-light`, `--success-dark`, `--success-border`)
-   - Warning (`--warning`, `--warning-light`, `--warning-dark`, `--warning-border`)
+```css
+/* Example: Success */
+--success: #2e7d32         /* Base */
+--success-light: #dcfce7   /* Background */
+--success-dark: #166534    /* Text/Icons */
+--success-border: #bbf7d0  /* Borders */
+```
 
-5. **Colors - Borders**
+Similar patterns for `error` and `warning`.
 
-   - Light border (`--border-light`)
-   - Input border (`--input-border`)
+### Typography System
 
-6. **Colors - Base**
+#### Font Scale
 
-   - White (`--color-white`)
-   - Black (`--color-black`)
+```css
+--font-size-xs: 0.8rem    /* Small labels */
+--font-size-sm: 0.9rem    /* Secondary text */
+--font-size-base: 1rem    /* Body text */
+--font-size-md: 1.1rem    /* Emphasized text */
+--font-size-lg: 1.25rem   /* Subheadings */
+--font-size-xl: 1.8rem    /* Headings */
+--font-size-xxl: 2.5rem   /* Hero text */
+```
 
-7. **Shadows**
+#### Font Weights
 
-   - Base shadow (`--shadow`)
-   - Small shadow (`--shadow-sm`)
-   - Large shadow (`--shadow-lg`)
+```css
+--font-weight-normal: 400    /* Body text */
+--font-weight-medium: 500    /* Slightly emphasized */
+--font-weight-semibold: 600  /* Subheadings */
+--font-weight-bold: 700      /* Headings */
+```
 
-8. **Spacing**
+#### Line Heights
 
-   - Extra small (`--spacing-xs`): 0.5rem
-   - Small (`--spacing-sm`): 1rem
-   - Medium (`--spacing-md`): 1.5rem
-   - Large (`--spacing-lg`): 2rem
-   - Extra large (`--spacing-xl`): 2.5rem
-   - Extra extra large (`--spacing-xxl`): 3rem
+```css
+--line-height-tight: 1.25  /* Headings */
+--line-height-base: 1.5    /* Body text */
+--line-height-loose: 1.75  /* Large text blocks */
+```
 
-9. **Border Radius**
+### Spacing System
 
-   - Small (`--radius-sm`): 4px
-   - Medium (`--radius-md`): 8px
-   - Large (`--radius-lg`): 12px
-   - Extra large (`--radius-xl`): 16px
+#### Base Spacing Scale
 
-10. **Grid**
+```css
+--spacing-xs: 0.5rem   /* Tight spacing */
+--spacing-sm: 1rem     /* Default spacing */
+--spacing-md: 1.5rem   /* Medium spacing */
+--spacing-lg: 2rem     /* Section spacing */
+--spacing-xl: 2.5rem   /* Large sections */
+--spacing-xxl: 3rem    /* Page sections */
+```
 
-    - Grid gap (`--grid-gap`)
-    - Container width (`--container-width`)
-    - Container padding (`--container-padding`)
+#### Grid System
 
-11. **Transitions**
+```css
+--grid-gap: 1.5rem         /* Default grid spacing */
+--container-width: 1200px  /* Max content width */
+--container-padding: 2rem  /* Container edge spacing */
+```
 
-    - Base transition (`--transition-base`)
-    - All properties (`--transition-all`)
-    - Transform (`--transition-transform`)
+### Visual Style
 
-12. **Typography**
+#### Border Radius
 
-    - Font Family
-      - Base (`--font-family-base`)
-    - Font Sizes
-      - Extra small (`--font-size-xs`): 0.8rem
-      - Small (`--font-size-sm`): 0.9rem
-      - Base (`--font-size-base`): 1rem
-      - Medium (`--font-size-md`): 1.1rem
-      - Large (`--font-size-lg`): 1.25rem
-      - Extra large (`--font-size-xl`): 1.8rem
-      - Extra extra large (`--font-size-xxl`): 2.5rem
-    - Font Weights
-      - Normal (`--font-weight-normal`): 400
-      - Medium (`--font-weight-medium`): 500
-      - Semibold (`--font-weight-semibold`): 600
-      - Bold (`--font-weight-bold`): 700
-    - Line Heights
-      - Base (`--line-height-base`): 1.5
-      - Tight (`--line-height-tight`): 1.25
-      - Loose (`--line-height-loose`): 1.75
+```css
+--radius-sm: 4px    /* Buttons, inputs */
+--radius-md: 8px    /* Cards, panels */
+--radius-lg: 12px   /* Large cards */
+--radius-xl: 16px   /* Modal, dialogs */
+```
 
-13. **Opacity**
+#### Shadows
 
-    - Disabled (`--opacity-disabled`): 0.6
+```css
+--shadow-sm: 0 2px 4px rgba(0,0,0,0.05)     /* Subtle elevation */
+--shadow: [multiple layers]                  /* Default elevation */
+--shadow-lg: 0 4px 20px rgba(0,0,0,0.15)    /* High elevation */
+```
 
-14. **Breakpoints**
+#### Transitions
 
-    - Small (`--breakpoint-sm`): 480px
-    - Medium (`--breakpoint-md`): 768px
-    - Large (`--breakpoint-lg`): 1024px
-    - Extra large (`--breakpoint-xl`): 1280px
+```css
+--transition-base: 0.2s ease          /* Default */
+--transition-all: all 0.15s ease      /* Full element */
+--transition-transform: transform 0.2s /* Movement only */
+```
 
-15. **Sizes**
-    - Small icon (`--size-icon-sm`): 28px
-    - Small container (`--size-container-sm`): 800px
+### Breakpoints
 
-### Usage Guidelines:
+```css
+--breakpoint-sm: 480px   /* Mobile */
+--breakpoint-md: 768px   /* Tablet */
+--breakpoint-lg: 1024px  /* Desktop */
+--breakpoint-xl: 1280px  /* Large desktop */
+```
 
-- Always use CSS variables instead of hard-coded values
-- Use RGB variants for colors when opacity is needed
-- Follow the naming convention: `--category-name-variant`
-- Keep values consistent with design system
-- Use breakpoint variables for media queries
-- Use spacing variables for margins, paddings, and gaps
-- Use typography variables for consistent text styling
+### Usage Guidelines
 
-### Dependencies:
+1. **Color Usage**
+
+   - Use semantic color names (e.g., `--primary` not `--blue`)
+   - Use RGB variants for opacity: `rgba(var(--primary-rgb), 0.5)`
+   - Status colors include context variants (light/dark/border)
+
+2. **Typography**
+
+   - Use relative units (rem) for font sizes
+   - Follow the type scale for hierarchy
+   - Use appropriate line heights for content type
+
+3. **Spacing**
+
+   - Use spacing scale for consistency
+   - Combine values for larger spaces
+   - Use grid variables for layouts
+
+4. **Responsive Design**
+   - Use breakpoint variables in media queries
+   - Follow mobile-first approach
+   ```css
+   @media (min-width: var(--breakpoint-md)) {
+     /* Tablet and up */
+   }
+   ```
+
+### Best Practices
+
+1. **Variable Naming**
+
+   - Use semantic names
+   - Follow `--category-name-variant` pattern
+   - Be consistent with naming conventions
+
+2. **Color Management**
+
+   - Keep RGB variants for opacity
+   - Use HSL for color variations
+   - Maintain consistent status color patterns
+
+3. **Maintainability**
+
+   - Document significant changes
+   - Keep variables organized by category
+   - Use comments to explain non-obvious values
+
+4. **Performance**
+   - Minimize redundant variables
+   - Use calculated values where appropriate
+   - Keep specificity low
+
+### Common Patterns
+
+1. **Color with Opacity**
+
+   ```css
+   background: rgba(var(--primary-rgb), 0.1);
+   ```
+
+2. **Spacing Combinations**
+
+   ```css
+   margin: var(--spacing-sm) var(--spacing-lg);
+   ```
+
+3. **Responsive Containers**
+
+   ```css
+   max-width: var(--container-width);
+   padding: var(--container-padding);
+   ```
+
+4. **Shadow Layering**
+   ```css
+   box-shadow: var(--shadow);
+   transition: var(--transition-all);
+   ```
+
+### Dependencies
 
 - No dependencies
-- Must be imported first in the CSS cascade
+- Must be imported first in stylesheet cascade
+- Required by all other CSS files
 
 ## \_components.css
 
-**Purpose**: Contains all reusable component styles that build upon the base styles. These components are modular, self-contained UI elements that can be used across different parts of the application.
+**Purpose**: Provides reusable UI components and patterns that form the building blocks of the application's interface. This file contains all styled components, from basic inputs to complex dashboard elements.
 
-### Contents Organization:
+### File Organization
 
-1. **Form Components**
+The file is organized into logical component groups, each serving specific UI needs:
 
-   - Radio groups with custom styling and hover effects
-   - Input states and transitions
-   - Custom radio button designs
+1. **Input Components**
 
-2. **Card Components**
+   - Radio Groups
+   - Visualization Radio Groups
 
-   - Basic card structure with shadows and hover elevation
-   - Card links and view details
-   - Consistent spacing and borders
-   - Z-index management for hover states
+   ```css
+   .radio-group {
+     display: flex;
+     gap: var(--spacing-sm);
+     flex-wrap: wrap;
+   }
+   ```
 
-3. **Warning Components**
+2. **Button Components**
 
-   - Warning cards with status colors
-   - Warning banners with icons
-   - Warning content with consistent typography
-   - Flexible content layout
+   - Primary Buttons (`.accent-button`, `.submit-btn`)
+   - Secondary Buttons (`.discipline-btn`, `.add-route-btn`)
+   - Danger Buttons (`.delete-btn`, `.remove-btn`)
+   - Utility Buttons (`.buy-coffee-button`, `.info-button`, `.refresh-button`)
 
-4. **Info Components**
+3. **Card Components**
 
-   - Info boxes with accent colors
-   - Info buttons with hover states
-   - Consistent spacing and borders
-   - Accent color integration
+   - Base Card Structure
+   - Card Content Layout
+   - Specialized Cards (Warning, Performance)
 
-5. **Button Components**
+   ```css
+   .card {
+     background: var(--background);
+     border-radius: var(--radius-md);
+     transition: all var(--transition-base);
+     overflow: hidden;
+     position: relative;
+   }
+   ```
 
-   - Accent buttons with hover effects
-   - Delete buttons with error states
-   - Submit buttons with success states
-   - Remove buttons with icon sizing
-   - Add route buttons with transitions
-   - Buy coffee button with animations
-   - Consistent hover and focus states
+4. **Modal Components**
 
-6. **Modal Components**
+   - Modal Container
+   - Modal Content
+   - Modal Sections
+   - Close Buttons
 
-   - Modal overlay with backdrop blur
-   - Modal content with responsive sizing
-   - Section organization and spacing
-   - Close button positioning
-   - Consistent typography hierarchy
-   - Responsive behavior
+5. **Notification Components**
 
-7. **Filter Components**
+   - Flash Messages (Success, Error, Warning)
+   - Warning Banners
+   - Info Boxes
 
-   - Filter groups with consistent spacing
-   - Filter sections with headers
-   - Filter controls alignment
-   - Typography for filter labels
+6. **Filter Components**
 
-8. **Flash Messages**
+   - Filter Groups
+   - Filter Sections
+   - Filter Controls
 
-   - Success messages with status colors
-   - Error messages with status colors
-   - Warning messages with status colors
-   - Consistent spacing and borders
-   - Center alignment and responsive width
+7. **Visualization Components**
 
-9. **Chart Components**
+   - Chart Container
+   - Chart Header
+   - Chart Elements (Axis, Grid)
+   - Milestone Components
 
-   - Chart containers with responsive design
-   - Chart headers with borders
-   - Chart notes and titles
-   - Axis styling with grid lines
-   - Milestone markers with transitions
-   - SVG element styling
+8. **Dashboard Components**
 
-10. **Analytics Components**
+   - Quick Stats
+   - Metrics Grid
+   - Metric Colors
 
-    - Analytics cards with shadows
-    - Performance cards with spacing
-    - Metric displays with typography
-    - Consistent card styling
+9. **Grade Components**
 
-11. **Grade/Send Components**
+   - Grade Lists
+   - Grade Items
+   - Grade Styling
 
-    - Grade lists with consistent spacing
-    - Send items with borders and shadows
-    - Send details with grid layout
-    - Recent sends section
-    - Responsive grid adjustments
+10. **Recent Sends Components**
+    - Send Lists
+    - Send Items
+    - Discipline Indicators
 
-12. **Navigation Components**
+### Component Patterns
 
-    - Navbar with primary colors
-    - Home icon with transitions
-    - Consistent spacing and alignment
+#### Interactive States
 
-13. **Section Components**
-    - Section headers with spacing
-    - Consistent typography
-    - Flexible layouts
+All interactive components follow these patterns:
 
-### Usage Guidelines:
+```css
+/* Hover State */
+component:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
 
-- Use semantic class names that describe the component's purpose
-- Follow BEM naming convention for component variants
-- Leverage CSS variables for consistent styling
-- Keep components modular and independent
-- Use responsive design patterns
-- Include hover and active states
-- Maintain accessibility standards
-- Use provided transition variables
-- Follow spacing hierarchy
-- Implement consistent shadow patterns
+/* Active/Selected State */
+component.active {
+  background-color: var(--accent);
+  color: var(--color-white);
+}
+```
 
-### Dependencies:
+#### Color Usage
+
+- Primary Actions: `var(--accent)`
+- Secondary Actions: `var(--secondary)`
+- Danger Actions: `var(--error)`
+- Success States: `var(--success-*)`
+- Warning States: `var(--warning-*)`
+
+#### Spacing Patterns
+
+- Small Components: `var(--spacing-xs)` to `var(--spacing-sm)`
+- Medium Components: `var(--spacing-md)`
+- Large Components: `var(--spacing-lg)` to `var(--spacing-xl)`
+- Container Padding: `var(--spacing-lg)` to `var(--spacing-xl)`
+
+### Usage Guidelines
+
+1. **Button Usage**
+
+   - Use `.accent-button` for primary actions
+   - Use `.submit-btn` for form submissions
+   - Use `.delete-btn` for destructive actions
+   - Use `.info-button` for help/information triggers
+
+2. **Card Implementation**
+
+   ```css
+   <div class="card">
+     <a class="card-link">
+       <h3>Title</h3>
+       <p>Content</p>
+     </a>
+   </div>
+   ```
+
+3. **Notification System**
+
+   - Use `.flash-message.success` for success messages
+   - Use `.flash-message.error` for error messages
+   - Use `.flash-message.warning` for warning messages
+
+4. **Dashboard Metrics**
+   ```css
+   <div class="dashboard-quick-stats">
+     <div class="metrics-grid">
+       <div class="metric">
+         <span class="metric-label">Label</span>
+         <span class="metric-value">Value</span>
+       </div>
+     </div>
+   </div>
+   ```
+
+### Responsive Design
+
+The components use these breakpoints:
+
+- Medium: `var(--breakpoint-md)` - 768px
+- Small: `var(--breakpoint-sm)` - 480px
+
+Key responsive adjustments:
+
+```css
+@media (max-width: var(--breakpoint-md)) {
+  /* Reduced padding */
+  /* Simplified layouts */
+  /* Adjusted grid columns */
+}
+
+@media (max-width: var(--breakpoint-sm)) {
+  /* Single column layouts */
+  /* Further simplified components */
+}
+```
+
+### Best Practices
+
+1. **Component Structure**
+
+   - Keep components modular and independent
+   - Use BEM-like naming for component variants
+   - Maintain consistent spacing patterns
+
+2. **Interaction Design**
+
+   - Use transitions for all interactive states
+   - Maintain hover and focus states
+   - Provide visual feedback for actions
+
+3. **Accessibility**
+
+   - Ensure sufficient color contrast
+   - Maintain focus visibility
+   - Use semantic HTML elements
+
+4. **Performance**
+   - Use CSS transforms for animations
+   - Minimize complex selectors
+   - Optimize transition properties
+
+### Dependencies
 
 - Requires `_variables.css` for design tokens
 - Builds upon `_base.css` styles
-- Should be imported after layout styles
-- Uses CSS custom properties for theming
+- Should be imported after base styles
 
-### Responsive Design:
+### Example Usage
 
-- Components adapt to different screen sizes
-- Uses breakpoint variables for consistency
-- Maintains functionality across devices
-- Adjusts spacing and layout as needed
-- Preserves hover states on touch devices
-- Ensures readability at all sizes
+```html
+<!-- Button Example -->
+<button class="accent-button">
+  <i class="icon"></i>
+  <span>Action</span>
+</button>
+
+<!-- Card Example -->
+<div class="card">
+  <div class="card-link">
+    <h3>Card Title</h3>
+    <p>Card content goes here</p>
+  </div>
+</div>
+
+<!-- Notification Example -->
+<div class="flash-messages">
+  <div class="flash-message success">Success message</div>
+</div>
+```
+
+### Common Patterns
+
+1. **Elevation on Hover**
+
+   ```css
+   element:hover {
+     transform: translateY(-1px);
+     box-shadow: var(--shadow-sm);
+   }
+   ```
+
+2. **Color Transitions**
+
+   ```css
+   element {
+     transition: var(--transition-all);
+   }
+   ```
+
+3. **Grid Layouts**
+
+   ```css
+   container {
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+     gap: var(--spacing-lg);
+   }
+   ```
+
+4. **Responsive Patterns**
+   ```css
+   @media (max-width: var(--breakpoint-md)) {
+     container {
+       grid-template-columns: repeat(2, 1fr);
+     }
+   }
+   ```
 
 ## \_layout.css
 
-**Purpose**: Defines the structural layout and grid systems of the application. This file handles the positioning and arrangement of major UI sections, establishing the overall page structure and responsive grid patterns.
+**Purpose**: Defines the core structural layout and grid systems for the application. This file establishes the foundational layout patterns, spacing, and responsive behavior for major page sections.
 
-### Contents Organization:
+### File Organization
 
-1. **Container Layout**
+The file is organized into eight main sections:
 
-   - Main content container
-   - Maximum widths
-   - Container padding
-   - Background and shadows
+1. **Main Container**
 
-2. **Header Layout**
+   - Defines the primary content wrapper
+   - Sets maximum width constraints
+   - Establishes base spacing and visual treatment
 
-   - Header structure
-   - Header content wrapper
-   - Header positioning
-   - Header links
+   ```css
+   main {
+     max-width: var(--container-width);
+     margin: var(--spacing-lg) auto;
+     padding: var(--spacing-lg);
+   }
+   ```
 
-3. **Footer Layout**
+2. **Header Components**
 
-   - Footer positioning
-   - Footer spacing
-   - Footer content alignment
+   - **Primary Header**: Main navigation bar
+   - **Header Content**: Content wrapper and spacing
+   - **Header Links**: Navigation and action links
 
-4. **Navigation Layout**
+   ```css
+   header {
+     background-color: var(--primary);
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+   }
+   ```
 
-   - Navigation structure
-   - Nav links positioning
-   - Navigation spacing
-   - Border treatments
+3. **Footer Components**
 
-5. **Grid Layouts**
+   - Base footer structure
+   - Footer navigation
+   - Footer links and icons
 
-   - Card grid system
-   - Analytics row structure
-   - Metrics grid
-   - Links row organization
-   - Grid gaps and spacing
+   ```css
+   .footer-nav {
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     gap: var(--spacing-xl);
+   }
+   ```
 
-6. **Section Layouts**
+4. **Grid Systems**
+   | Grid Type | Columns | Use Case |
+   |-----------|---------|----------|
+   | Card Grid | auto-fit, minmax(300px, 1fr) | Card layouts |
+   | Analytics | Full width | Data displays |
+   | Metrics | 5 columns | Dashboard metrics |
+   | Links | 3 columns | Navigation links |
+
+5. **Section Layouts**
 
    - Dashboard sections
-   - Section spacing
-   - Section backgrounds
-   - Shadow treatments
+   - Content blocks
+   - Spacing patterns
+
+6. **Link Layouts**
+
+   - Standalone links
+   - Link groups
+   - Link positioning
 
 7. **Visualization Layouts**
 
-   - Visualization headers and titles
-   - Filter sections and controls
-   - Container structure
-   - Responsive visualization wrappers
-   - Filter alignment patterns
+   - Visualization headers
+   - Filter sections
+   - Container constraints
+   - Overflow handling
 
-8. **Link Layouts**
+8. **Responsive Adjustments**
+   - Large screens (1024px)
+   - Medium screens (768px)
+   - Small screens (480px)
 
-   - Home link positioning
-   - Feedback link positioning
-   - Link spacing
+### Layout Patterns
 
-9. **Responsive Layouts**
-   - Large screens (1024px+)
-     - Metrics grid adjustments
-     - Links row modifications
-     - Visualization filter layouts
-   - Medium screens (768px+)
-     - Container adjustments
-     - Grid simplification
-     - Navigation stack
-     - Filter responsiveness
-   - Small screens (480px+)
-     - Single column layouts
-     - Spacing adjustments
-     - Filter stack adaptations
+#### Container Widths
 
-### Usage Guidelines:
+```css
+/* Maximum width constraint */
+max-width: var(--container-width);
+margin: 0 auto;
 
-- Use semantic class names for layout elements
-- Maintain consistent spacing using variables
-- Follow a mobile-first approach
-- Keep layouts separate from component styles
-- Use CSS Grid for complex layouts
-- Use Flexbox for simpler alignments
-- Maintain proper nesting of layout elements
+/* Fluid width with padding */
+width: calc(100% - var(--spacing-md) * 2);
+```
 
-### Dependencies:
+#### Flexbox Patterns
+
+```css
+/* Center alignment */
+display: flex;
+justify-content: center;
+align-items: center;
+
+/* Space between */
+display: flex;
+justify-content: space-between;
+align-items: center;
+```
+
+#### Grid Patterns
+
+```css
+/* Responsive card grid */
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+gap: var(--grid-gap);
+
+/* Fixed column grid */
+display: grid;
+grid-template-columns: repeat(5, 1fr);
+gap: var(--spacing-md);
+```
+
+### Usage Guidelines
+
+1. **Container Usage**
+
+   - Use `main` for primary content wrapper
+   - Maintain consistent max-width constraints
+   - Apply appropriate spacing variables
+
+2. **Grid Implementation**
+
+   - Use `card-grid` for card-based layouts
+   - Use `metrics-grid` for dashboard metrics
+   - Use `analytics-row` for full-width data displays
+
+3. **Header Structure**
+
+   ```html
+   <header>
+     <div class="header-content">
+       <div class="header-wrapper">
+         <!-- Header content -->
+       </div>
+     </div>
+   </header>
+   ```
+
+4. **Visualization Layout**
+   ```html
+   <div class="viz-container">
+     <div class="viz-header">
+       <div class="viz-title">
+         <h2>Title</h2>
+       </div>
+       <div class="viz-filters">
+         <!-- Filters -->
+       </div>
+     </div>
+   </div>
+   ```
+
+### Responsive Design
+
+#### Breakpoints
+
+- Large: `var(--breakpoint-lg)` - 1024px
+
+  ```css
+  /* Grid adjustments */
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .links-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  ```
+
+- Medium: `var(--breakpoint-md)` - 768px
+
+  ```css
+  /* Layout simplification */
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+  .nav-links {
+    flex-direction: column;
+  }
+  ```
+
+- Small: `var(--breakpoint-sm)` - 480px
+  ```css
+  /* Single column layouts */
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  ```
+
+### Best Practices
+
+1. **Layout Structure**
+
+   - Use semantic HTML elements
+   - Maintain consistent spacing
+   - Follow mobile-first approach
+
+2. **Grid Usage**
+
+   - Use appropriate grid system for content type
+   - Consider responsive breakpoints
+   - Maintain consistent gaps
+
+3. **Spacing**
+
+   - Use spacing variables consistently
+   - Maintain rhythm between sections
+   - Consider mobile spacing needs
+
+4. **Performance**
+   - Use appropriate units (rem, em)
+   - Optimize for reflow
+   - Consider paint performance
+
+### Dependencies
 
 - Requires `_variables.css` for design tokens
 - Should be imported before component styles
 - Works in conjunction with responsive utilities
 
-### Grid System:
+### Example Implementations
 
-- Uses CSS Grid for main layouts
-- Implements responsive breakpoints
-- Maintains consistent gaps
-- Adapts to content needs
-- Uses auto-fit/auto-fill where appropriate
+1. **Dashboard Section**
 
-### Responsive Strategy:
+   ```html
+   <section class="dashboard-section">
+     <div class="metrics-grid">
+       <!-- Metric items -->
+     </div>
+   </section>
+   ```
 
-- Breakpoints defined in variables
-- Mobile-first approach
-- Graceful degradation of layouts
-- Maintains readability at all sizes
-- Preserves functionality across devices
+2. **Card Layout**
+
+   ```html
+   <div class="card-grid">
+     <div class="card">
+       <!-- Card content -->
+     </div>
+   </div>
+   ```
+
+3. **Visualization Section**
+   ```html
+   <div class="viz-container">
+     <div class="viz-header">
+       <!-- Visualization header -->
+     </div>
+     <!-- Visualization content -->
+   </div>
+   ```
+
+### Common Patterns
+
+1. **Section Spacing**
+
+   ```css
+   .section {
+     margin-bottom: var(--spacing-xxl);
+     padding: var(--spacing-lg);
+   }
+   ```
+
+2. **Responsive Containers**
+
+   ```css
+   .container {
+     max-width: var(--container-width);
+     padding: var(--spacing-md);
+     margin: 0 auto;
+   }
+   ```
+
+3. **Flex Layouts**
+
+   ```css
+   .flex-container {
+     display: flex;
+     align-items: center;
+     gap: var(--spacing-md);
+   }
+   ```
+
+4. **Grid Layouts**
+   ```css
+   .grid-container {
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+     gap: var(--spacing-lg);
+   }
+   ```
 
 ## loadingScreen.css
 
-**Purpose**: Provides styles for the application's loading screen feature, including animations, transitions, and loading states. This file handles the visual feedback during application initialization and loading processes.
+**Purpose**: Provides styles for the application's loading screen, featuring animated background transitions, loading stages, and visual feedback.
 
-### Contents Organization:
+### File Organization
 
-1. **Loading Screen Variables**
+1. **Custom Properties**
 
-   - Overlay colors
-   - Background colors
-   - Hover states
-   - Custom loading-specific variables
+   ```css
+   :root {
+     --loading-overlay: rgba(45, 50, 80, 0.5);
+     --loading-content-bg: rgba(255, 255, 255, 0.45);
+   }
+   ```
 
-2. **Loading Screen Container**
+   - Consistent colors
+   - Configurable opacity
+   - Reusable values
 
-   - Full-screen overlay
-   - Background image handling
-   - Image transitions
-   - Z-index management
-   - Base animations
+2. **Loading Container**
 
-3. **Loading Overlay**
+   ```css
+   #loadingScreen {
+     position: fixed;
+     z-index: 9999;
+     opacity: 0;
+     animation: fadeIn var(--transition-base) forwards;
+   }
+   ```
 
-   - Gradient overlay
-   - Opacity controls
-   - Position handling
+   - Full screen overlay
+   - Proper z-indexing
+   - Smooth entrance
 
-4. **Loading Content**
+3. **Background System**
 
-   - Content positioning
-   - Backdrop blur effects
-   - Content container styling
-   - Hover interactions
-   - Header styling
-   - Text formatting
+   ```css
+   #loadingScreen::before,
+   #loadingScreen::after {
+     background-size: cover;
+     background-position: center;
+     transition: opacity 1s ease-in-out;
+   }
+   ```
 
-5. **Loading Icon**
+   - Dual background system
+   - Smooth transitions
+   - Responsive images
 
-   - Spinner animation
-   - Loading icon positioning
-   - Size and border controls
-   - Animation timing
+4. **Content Card**
 
-6. **Loading Stages**
+   ```css
+   .loading-content {
+     background: var(--loading-content-bg);
+     backdrop-filter: blur(8px);
+     width: 90%;
+     max-width: 600px;
+   }
+   ```
 
-   - Stage progression
-   - Active state handling
-   - Stage transitions
-   - Dot indicators
-   - Text styling
+   - Glass morphism effect
+   - Responsive sizing
+   - Proper positioning
 
-7. **Progress Bar**
+5. **Loading Indicators**
+   | Component | Size | Animation |
+   |-----------|------|-----------|
+   | Spinner | 50px/40px | Continuous rotation |
+   | Stage Dot | 12px/10px | Pulse effect |
+   | Progress Bar | 6px height | Width transition |
 
-   - Progress container
-   - Progress fill animation
-   - Status text
-   - Loading feedback
+6. **Stage System**
 
-8. **Animations**
-   - Fade in/out
-   - Slide up
+   ```css
+   .stage {
+     opacity: 0.5;
+     transform: translateX(-10px);
+   }
+   .stage.active {
+     opacity: 1;
+     transform: translateX(0);
+   }
+   ```
+
+   - Visual progression
+   - Smooth transitions
+   - Clear active states
+
+7. **Responsive Design**
+   ```css
+   @media (max-width: var(--breakpoint-sm)) {
+     .loading-content {
+       width: 94%;
+       padding: var(--spacing-lg);
+     }
+   }
+   ```
+   - Mobile optimizations
+   - Proper spacing
+   - Touch-friendly
+   - Readable text
+
+### Animation System
+
+1. **Entrance Animations**
+
+   - FadeIn for screen
+   - SlideUp for content
+   - Staggered timing
+
+2. **Loading Animations**
+
    - Spinner rotation
-   - Pulse effect
-   - Image transitions
-   - Background image sequences
+   - Stage transitions
+   - Progress bar
 
-### Usage Guidelines:
+3. **Background Transitions**
+   - 35s cycle
+   - 5 background images
+   - Smooth opacity changes
 
-- Use loading screen for initial application load
-- Maintain proper z-index hierarchy
-- Follow animation timing guidelines
-- Use provided variables for consistency
-- Ensure proper image paths
-- Handle loading states appropriately
-- Consider accessibility during loading
+### Best Practices
 
-### Dependencies:
+1. **Performance**
 
-- Requires `_variables.css` for design tokens
-- Requires loading images in ../images/
-- Uses backdrop-filter (check browser support)
-- Relies on CSS animations
+   - Hardware acceleration
+   - Efficient animations
+   - Image optimization
+   - Smooth transitions
 
-### Animation System:
+2. **Accessibility**
 
-- Uses keyframe animations
-- Coordinated timing sequences
-- Smooth transitions
-- Progressive loading states
-- Image crossfading
-- Loading indicators
+   - ARIA attributes
+   - Progress feedback
+   - Clear status text
+   - Proper contrast
 
-### Responsive Strategy:
+3. **Responsiveness**
 
-- Adapts to screen sizes
-- Maintains readability
-- Adjusts content spacing
-- Scales loading indicators
-- Preserves animation smoothness
+   - Mobile-first
+   - Touch-friendly
+   - Flexible layouts
+   - Proper spacing
 
-## pyramidInputs.css
-
-This file contains styles specific to the pyramid input page functionality. It focuses on the performance table interface and related components.
-
-### Purpose
-
-- Provides specialized styling for the pyramid input interface
-- Handles table layout and responsiveness
-- Manages input groups and discipline selection
-- Controls visual feedback for attempts and success/failure states
-
-### Components
-
-#### Performance Table
-
-- `.chart-container`: Wrapper for the performance table with responsive behavior
-- `.performance-table`: Core table styling with fixed header and column management
-- Column-specific classes for width control and alignment
-- Zebra striping and hover effects for rows
-
-#### Attempts Input
-
-- `.attempts-input-group`: Flexbox container for attempts input interface
-- `.attempts-input`: Specialized number input with custom styling
-- `.attempts-visual`: Visual feedback for success/failure states
-- `.attempts-count`: Counter display styling
-
-#### Table Radio Groups
-
-- `.table-radio-group`: Custom radio button styling for table inputs
-- Hidden radio inputs with styled spans for better UX
-- Transition effects and visual feedback for selection states
-
-#### Discipline Selector
-
-- `.discipline-selector`: Layout for discipline selection interface
-- `.discipline-section`: Toggle visibility of discipline-specific content
-- Active state management for selected disciplines
+4. **Visual Feedback**
+   - Clear progression
+   - Smooth animations
+   - Status updates
+   - Loading indicators
 
 ### Dependencies
 
-- Requires variables from `_variables.css`
-- Uses common color schemes and spacing defined in base styles
-- Integrates with the application's responsive design system
+- Requires `_variables.css` for design tokens
+- Needs loading images:
+  - loading1.jpg through loading5.jpg
+- Uses modern CSS features:
+  - backdrop-filter
+  - CSS animations
+  - transforms
+
+### Common Patterns
+
+1. **Stage Management**
+
+   ```css
+   .stage {
+     opacity: 0.5;
+     transition: var(--transition-all);
+   }
+   .stage.active {
+     opacity: 1;
+     background: rgba(var(--accent-rgb), 0.1);
+   }
+   ```
+
+2. **Loading States**
+
+   ```css
+   .loading-icon {
+     display: flex;
+     justify-content: center;
+   }
+   .spinner {
+     animation: spin 0.8s infinite;
+   }
+   ```
+
+3. **Content Transitions**
+   ```css
+   .loading-content {
+     animation: slideUp 0.4s ease forwards;
+     transition: background-color var(--transition-base);
+   }
+   ```
+
+### Known Issues
+
+1. **Background Images**
+
+   - Heavy resource usage
+   - May need preloading
+   - Mobile bandwidth consideration
+
+2. **Glass Effect**
+
+   - Performance impact
+   - Browser support varies
+   - Fallback needed
+
+3. **Animations**
+   - CPU intensive
+   - Battery impact on mobile
+   - May need reduced motion support
+
+## pyramidInputs.css
+
+**Purpose**: Provides specialized styles for the pyramid input interface, focusing on the performance table, input controls, and discipline selection components.
+
+### File Organization
+
+The file is organized into five main sections:
+
+1. **Performance Table**
+
+   ```css
+   .chart-container {
+     border-radius: var(--radius-lg);
+     box-shadow: var(--shadow);
+     overflow-x: auto;
+     -webkit-overflow-scrolling: touch;
+   }
+   ```
+
+   | Column         | Width | Min-Width | Purpose          |
+   | -------------- | ----- | --------- | ---------------- |
+   | Number         | 3%    | 40px      | Row numbering    |
+   | Route Name     | 12%   | 120px     | Route identifier |
+   | Date           | 8%    | 100px     | Completion date  |
+   | Grade          | 6%    | 70px      | Difficulty grade |
+   | Attempts       | 8%    | 100px     | Try count        |
+   | Characteristic | 15%   | 160px     | Route features   |
+   | Style          | 15%   | 160px     | Climbing style   |
+   | Actions        | 4%    | 50px      | Row controls     |
+
+2. **Input Components**
+
+   - Attempts Input
+     ```css
+     .attempts-input {
+       width: 35px;
+       text-align: center;
+       border-radius: var(--radius-sm);
+     }
+     ```
+   - Focus States
+   - Number Controls
+   - Input Groups
+
+3. **Radio Components**
+
+   ```css
+   .table-radio-group {
+     display: flex;
+     flex-wrap: wrap;
+     gap: var(--spacing-xs);
+   }
+   ```
+
+   - Custom Radio Design
+   - Hidden Input Pattern
+   - Visual States
+   - Label Styling
+
+4. **Discipline Components**
+
+   ```css
+   .discipline-selector {
+     display: flex;
+     justify-content: center;
+     gap: var(--spacing-sm);
+   }
+   ```
+
+   - Section Toggle
+   - Active States
+   - Layout Control
+
+5. **Visual Feedback**
+   ```css
+   .attempts-visual {
+     display: flex;
+     align-items: center;
+     gap: var(--spacing-xs);
+   }
+   ```
+   - Success/Failure States
+   - Count Display
+   - Status Indicators
 
 ### Usage Guidelines
 
-1. Maintain table column widths for consistent layout
-2. Keep radio group styles consistent with the table interface
-3. Ensure attempts input remains compact but usable
-4. Follow the established color scheme for success/failure states
-5. Preserve responsive behavior for mobile views
+1. **Table Implementation**
 
-### Media Queries
+   ```html
+   <div class="chart-container">
+     <table class="performance-table">
+       <thead>
+         <tr>
+           <th class="number-column">#</th>
+           <th class="route-name-column">Route</th>
+           <!-- Additional columns -->
+         </tr>
+       </thead>
+     </table>
+   </div>
+   ```
 
-- Table remains scrollable on smaller screens
-- Input groups and radio buttons adapt to available space
-- Visual feedback remains clear at all viewport sizes
+2. **Input Controls**
+
+   ```html
+   <div class="attempts-input-group">
+     <input type="number" class="attempts-input" />
+     <div class="attempts-visual">
+       <!-- Status indicators -->
+     </div>
+   </div>
+   ```
+
+3. **Radio Groups**
+
+   ```html
+   <div class="table-radio-group">
+     <label>
+       <input type="radio" name="group" />
+       <span>Option</span>
+     </label>
+   </div>
+   ```
+
+4. **Discipline Selection**
+   ```html
+   <div class="discipline-selector">
+     <!-- Discipline options -->
+   </div>
+   <div class="discipline-section">
+     <!-- Section content -->
+   </div>
+   ```
+
+### Component Patterns
+
+1. **Table Scrolling**
+
+   ```css
+    {
+     overflow-x: auto;
+     -webkit-overflow-scrolling: touch;
+     width: 100%;
+     max-width: 100%;
+   }
+   ```
+
+2. **Input Styling**
+
+   ```css
+    {
+     border: 1px solid var(--input-border);
+     transition: var(--transition-base);
+   }
+   ```
+
+3. **Radio Design**
+   ```css
+   input[type="radio"] {
+     position: absolute;
+     opacity: 0;
+   }
+   input[type="radio"] + span {
+     /* Visual representation */
+   }
+   ```
+
+### Best Practices
+
+1. **Table Structure**
+
+   - Use semantic table markup
+   - Maintain column width ratios
+   - Handle overflow gracefully
+   - Implement sticky headers
+
+2. **Input Handling**
+
+   - Clear focus states
+   - Proper input validation
+   - Visual feedback
+   - Touch-friendly targets
+
+3. **Radio Groups**
+
+   - Accessible markup
+   - Clear visual states
+   - Consistent spacing
+   - Proper grouping
+
+4. **Visual States**
+   - Clear success/failure indicators
+   - Consistent color usage
+   - Appropriate transitions
+   - Hover feedback
+
+### Dependencies
+
+- Requires `_variables.css` for design tokens
+- Uses CSS custom properties for theming
+- Relies on flexbox for layout
+- Requires modern browser support
+
+### Browser Support
+
+- Modern browsers (Chrome, Firefox, Safari, Edge)
+- Mobile browsers with touch support
+- Fallbacks for:
+  - Sticky positioning
+  - Custom radio styling
+  - Touch scrolling
+
+### Common Patterns
+
+1. **Column Widths**
+
+   ```css
+   .column {
+     width: percentage;
+     min-width: fixed-px;
+   }
+   ```
+
+2. **Input States**
+
+   ```css
+   .input:focus {
+     border-color: var(--accent);
+     box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
+   }
+   ```
+
+3. **Radio Toggles**
+   ```css
+   input[type="radio"]:checked + span {
+     background-color: var(--accent);
+     color: var(--color-white);
+   }
+   ```
+
+### Known Issues
+
+1. **Table Scrolling**
+
+   - May require horizontal scroll on small screens
+   - Touch scrolling needs -webkit prefix
+   - Sticky headers may jump in some browsers
+
+2. **Input Numbers**
+
+   - Spinner removal needs vendor prefixes
+   - Width constraints may clip longer numbers
+   - Mobile keyboard might not show number pad
+
+3. **Radio Groups**
+   - Custom styling requires hidden input pattern
+   - Focus states need explicit handling
+   - Layout may break with long labels
 
 ## visualizations.css
 
 **Purpose**: Provides specialized styles for data visualization components, including charts, graphs, and interactive data displays. This file focuses on SVG styling, data presentation, and visualization-specific interactions.
 
-### Contents Organization:
+### File Organization
 
-1. **Chart Base Styles**
+The file is organized into seven main sections:
 
-   - Performance pyramid container
-   - SVG base layout
-   - Responsive chart sizing
-   - Chart container styling
+1. **Performance Pyramid**
 
-2. **SVG Element Styles**
+   ```css
+   #performance-pyramid {
+     overflow-x: auto;
+     overflow-y: hidden;
+     -webkit-overflow-scrolling: touch;
+   }
+   ```
 
-   - Milestone lines and text
-   - Axis styling
-   - Grid lines
-   - SVG element transitions
-   - Interactive hover states
+   - Responsive container
+   - Touch scrolling support
+   - Minimum width constraints
 
-3. **Bar Chart Styles**
+2. **Chart Elements**
+   | Element | Purpose | Interaction |
+   |---------|---------|-------------|
+   | Milestones | Progress markers | Hover reveals text |
+   | Axis | Data scales | Static display |
+   | Grid | Reference lines | Static background |
+
+3. **Bar Chart Components**
+
+   ```css
+   .bar rect {
+     transition: var(--transition-all);
+   }
+   .bar-labels text {
+     font-size: var(--font-size-sm);
+     letter-spacing: -0.02em;
+   }
+   ```
 
    - Bar rectangles
-   - Hover interactions
-   - Bar labels
    - Label positioning
-   - Text alignment and sizing
+   - Hover states
 
-4. **Legend Styles**
+4. **Legend Components**
 
-   - Legend text formatting
-   - Legend items
+   ```css
+   .legend-item {
+     cursor: default;
+     opacity: 1;
+     transition: var(--transition-base);
+   }
+   ```
+
+   - Text styling
    - Interactive states
-   - Spacing and alignment
-   - Typography settings
+   - Hover effects
 
-5. **Tooltip Styles**
+5. **Tooltip Components**
 
-   - Tooltip containers
+   ```css
+   .pyramid-tooltip {
+     pointer-events: none;
+     z-index: 1000;
+     box-shadow: var(--shadow-sm);
+   }
+   ```
+
+   - Positioning
    - Content formatting
-   - Strong text emphasis
-   - Positioning and z-index
-   - Hover interactions
+   - Visual styling
 
-6. **Data Table Styles**
+6. **Data Table Components**
 
-   - Table containers
-   - Header styling
+   - Table structure
    - Cell formatting
-   - Row hover states
-   - Link interactions
    - Grade headers
-   - Text truncation
    - Responsive behavior
 
-7. **Grade Line Styles**
+7. **Grade Line Components**
    - Line rendering
-   - Shape characteristics
-   - Visual presentation
+   - Visual properties
 
-### Usage Guidelines:
+### SVG Styling Patterns
 
-- Use SVG-specific properties for vector graphics
-- Maintain consistent spacing with variables
-- Follow accessibility guidelines for data visualization
-- Implement responsive design patterns
-- Use appropriate text sizing for readability
-- Handle interactive states smoothly
-- Ensure proper z-index management
-- Maintain consistent typography
+1. **Text Elements**
 
-### Dependencies:
+   ```css
+   text {
+     font-size: var(--font-size-xs);
+     fill: var(--text);
+     letter-spacing: -0.02em;
+   }
+   ```
+
+2. **Interactive Elements**
+
+   ```css
+   .interactive-element {
+     transition: var(--transition-base);
+     cursor: default;
+   }
+   ```
+
+3. **Lines and Paths**
+   ```css
+   line,
+   path {
+     stroke: var(--border-light);
+     transition: var(--transition-base);
+   }
+   ```
+
+### Usage Guidelines
+
+1. **Chart Implementation**
+
+   ```html
+   <div id="performance-pyramid">
+     <svg>
+       <!-- Chart elements -->
+       <g class="viz-milestone">
+         <line />
+         <text />
+       </g>
+     </svg>
+   </div>
+   ```
+
+2. **Table Structure**
+
+   ```html
+   <div class="projects-table-container">
+     <table class="data-table">
+       <thead>
+         <tr>
+           <th>Header</th>
+         </tr>
+       </thead>
+       <tbody>
+         <!-- Data rows -->
+       </tbody>
+     </table>
+   </div>
+   ```
+
+3. **Tooltip Integration**
+   ```html
+   <div class="pyramid-tooltip">
+     <div class="tooltip-content">
+       <strong>Label</strong>
+       <span>Value</span>
+     </div>
+   </div>
+   ```
+
+### Best Practices
+
+1. **SVG Performance**
+
+   - Use `shape-rendering` appropriately
+   - Minimize path complexity
+   - Optimize animations
+   - Handle large datasets efficiently
+
+2. **Accessibility**
+
+   - Provide ARIA labels
+   - Include descriptive text
+   - Maintain color contrast
+   - Support keyboard navigation
+
+3. **Responsiveness**
+
+   - Handle overflow gracefully
+   - Scale text appropriately
+   - Maintain touch targets
+   - Support mobile interactions
+
+4. **Interactions**
+   - Clear hover states
+   - Smooth transitions
+   - Informative tooltips
+   - Consistent feedback
+
+### Dependencies
 
 - Requires `_variables.css` for design tokens
-- Works with SVG elements and D3.js
-- Uses CSS custom properties for theming
-- Integrates with layout system
+- Works with SVG elements
+- Integrates with D3.js or similar libraries
+- Uses modern CSS features
 
-### SVG Styling Best Practices:
+### Common Patterns
 
-- Use `shape-rendering` appropriately
-- Maintain crisp edges where needed
-- Handle text alignment consistently
-- Implement smooth transitions
-- Manage hover states effectively
-- Control opacity for interactions
+1. **Hover Effects**
 
-### Responsive Strategy:
+   ```css
+   element:hover {
+     opacity: var(--opacity-disabled);
+     transform: translateX(-3px);
+   }
+   ```
 
-- Charts scale with container width
-- Tables remain scrollable on small screens
-- Text remains readable at all sizes
-- Tooltips stay within viewport
-- Maintains interaction points on touch devices
+2. **Text Truncation**
 
-### Accessibility Considerations:
+   ```css
+   .truncate {
+     white-space: nowrap;
+     overflow: hidden;
+     text-overflow: ellipsis;
+   }
+   ```
 
-- Proper contrast ratios in data visualization
-- Clear text labels and descriptions
-- Interactive elements are keyboard accessible
-- Screen reader friendly markup
-- Appropriate ARIA attributes
+3. **Responsive Tables**
+   ```css
+   .table-container {
+     overflow-x: auto;
+     -webkit-overflow-scrolling: touch;
+   }
+   ```
+
+### Known Issues
+
+1. **SVG Text**
+
+   - Font rendering inconsistencies
+   - Scaling challenges
+   - Line height handling
+   - Text alignment quirks
+
+2. **Touch Interactions**
+
+   - Tooltip positioning on mobile
+   - Small target areas
+   - Scroll vs. swipe conflicts
+   - Hover state alternatives
+
+3. **Performance**
+   - Large dataset rendering
+   - Animation smoothness
+   - Memory management
+   - Mobile optimization
+
+### Browser Support
+
+- Modern browsers (Chrome, Firefox, Safari, Edge)
+- SVG support required
+- Touch events for mobile
+- CSS variables support
+
+### Animation Guidelines
+
+1. **Transitions**
+
+   ```css
+   .animated-element {
+     transition: var(--transition-base);
+     transform: translateX(0);
+   }
+   ```
+
+2. **Hover States**
+
+   ```css
+   .hover-element:hover {
+     opacity: 1;
+     transform: translateX(-3px);
+   }
+   ```
+
+3. **Loading States**
+   ```css
+   .loading {
+     opacity: 0.5;
+     pointer-events: none;
+   }
+   ```
+
+### Data Visualization Tips
+
+1. **Color Usage**
+
+   - Use semantic colors
+   - Maintain contrast
+   - Consider color blindness
+   - Consistent meaning
+
+2. **Typography**
+
+   - Scale appropriately
+   - Clear hierarchy
+   - Readable sizes
+   - Consistent spacing
+
+3. **Interaction Design**
+   - Clear feedback
+   - Intuitive behavior
+   - Smooth transitions
+   - Error prevention
+
+## \_landingPage.css
+
+**Purpose**: Provides styles specific to the landing/home page of the application, featuring a full-screen background image, centered content card, and interactive form elements.
+
+### File Organization
+
+The file is organized into eight main sections:
+
+1. **Base Reset & Container**
+
+   ```css
+   html,
+   body {
+     margin: 0;
+     padding: 0;
+     height: 100%;
+     overflow: hidden;
+   }
+   .container {
+     min-height: 100vh;
+     display: flex;
+     flex-direction: column;
+     z-index: 1;
+   }
+   ```
+
+   - Prevents scrolling on landing
+   - Full viewport height container
+   - Proper z-indexing
+
+2. **Background & Layout**
+
+   ```css
+   .background-overlay {
+     background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+       url("../images/index_background.jpg");
+     background-size: cover;
+     background-position: center;
+   }
+   ```
+
+   - Fixed position overlay
+   - Gradient overlay for text contrast
+   - Responsive background image
+
+3. **Main Content**
+
+   ```css
+   .main-content {
+     background: rgba(255, 255, 255, 0.45);
+     backdrop-filter: blur(8px);
+     width: 280px;
+     max-width: 320px;
+     border-radius: 20px;
+   }
+   ```
+
+   - Glass morphism effect
+   - Fixed width for consistency
+   - Responsive padding
+   - Centered alignment
+
+4. **Form Elements**
+
+   ```css
+   .input-container input[type="url"] {
+     width: 280px;
+     padding: 12px;
+     text-align: center;
+     min-height: 44px;
+   }
+   ```
+
+   - URL input optimization
+   - Consistent width with buttons
+   - Touch-friendly sizing
+   - Centered text alignment
+
+5. **Button Components**
+   | Button Type | Width | Padding | Height |
+   |-------------|--------|---------|---------|
+   | Primary & Secondary | 280px | 12px | 44px min |
+   | Desktop | 400px | 16px | 44px min |
+
+6. **Footer**
+
+   ```css
+   footer {
+     position: fixed;
+     background: rgba(42, 79, 95, 0.98);
+     backdrop-filter: blur(8px);
+   }
+   .footer-links {
+     gap: 32px;
+     width: 375px;
+   }
+   ```
+
+   - Fixed positioning
+   - Semi-transparent background
+   - Consistent link spacing
+   - Mobile optimizations
+
+7. **Loading States**
+
+   ```css
+   .loading-spinner {
+     border: 2px solid rgba(255, 255, 255, 0.3);
+     animation: spin 0.8s linear infinite;
+   }
+   ```
+
+   - Button loading indicators
+   - Smooth animations
+   - Color variations
+
+8. **Responsive Design**
+   ```css
+   @media (min-width: var(--breakpoint-md)) {
+     .main-content {
+       width: 440px;
+       max-width: 480px;
+     }
+     input[type="url"],
+     .button-group {
+       width: 400px;
+     }
+   }
+   ```
+   - Mobile-first approach
+   - Consistent element sizing
+   - Touch-friendly targets
+   - Responsive typography
+
+### Best Practices
+
+1. **Layout**
+
+   - Fixed widths for consistency
+   - Proper element alignment
+   - Touch-friendly sizing
+   - Consistent spacing
+
+2. **Typography**
+
+   - Responsive font sizes
+   - Clear hierarchy
+   - Proper line heights
+   - Mobile optimization
+
+3. **Interactions**
+
+   - Clear focus states
+   - Smooth transitions
+   - Loading indicators
+   - Error states
+
+4. **Mobile**
+   - No horizontal scroll
+   - Touch-friendly targets
+   - Readable text sizes
+   - Proper spacing
+
+## style.css
+
+**Purpose**: Main stylesheet entry point that manages the import order of all CSS modules, ensuring proper cascade and dependency resolution.
+
+### File Organization
+
+```css
+/* Import base styles */
+@import "_variables.css"; /* Design tokens and variables */
+@import "_base.css"; /* Base element styles */
+@import "_layout.css"; /* Layout and grid systems */
+@import "_components.css"; /* Reusable components */
+
+/* Import feature-specific styles */
+@import "loadingScreen.css"; /* Loading screen styles */
+@import "pyramidInputs.css"; /* Pyramid input interface */
+@import "visualizations.css"; /* Data visualization styles */
+```
+
+### Import Order
+
+1. **Core Styles**
+
+   - `_variables.css`: Must be first to make variables available
+   - `_base.css`: Establishes foundational styles
+   - `_layout.css`: Defines structural layout
+   - `_components.css`: Adds reusable components
+
+2. **Feature Styles**
+   - `loadingScreen.css`: Loading screen specifics
+   - `pyramidInputs.css`: Pyramid interface styles
+   - `visualizations.css`: Chart and graph styles
+
+### Usage Guidelines
+
+1. **Import Management**
+
+   - Maintain this order for proper cascade
+   - Core styles before feature styles
+   - Variables must be first
+
+2. **Adding New Styles**
+   - Feature styles go after core imports
+   - Keep related styles grouped
+   - Consider dependencies
+
+### Best Practices
+
+1. **File Organization**
+
+   - Use underscore prefix for partials
+   - Group related imports
+   - Comment import sections
+
+2. **Performance**
+   - Consider using CSS bundling
+   - Minimize import chains
+   - Watch for duplicates
+
+### Dependencies
+
+- All imported files must exist
+- Files must be in correct relative paths
+- Modern browser @import support
+
+## Responsive Design System
+
+### Overview
+
+The responsive design system is built on a mobile-first approach using CSS custom properties and utility classes. It provides consistent breakpoints, fluid typography, and responsive layouts across the application.
+
+### Breakpoints
+
+```css
+--breakpoint-xs: 320px  /* Small phones */
+--breakpoint-sm: 480px  /* Large phones */
+--breakpoint-md: 768px  /* Tablets */
+--breakpoint-lg: 1024px /* Laptops/Desktops */
+--breakpoint-xl: 1280px /* Large Desktops */
+```
+
+### Container System
+
+The container system automatically handles responsive widths:
+
+```css
+--container-sm: 100%    /* Mobile */
+--container-md: 720px   /* Tablet */
+--container-lg: 960px   /* Laptop */
+--container-xl: 1140px  /* Desktop */
+```
+
+Usage:
+
+```html
+<div class="container">
+  <!-- Content automatically responds to screen size -->
+</div>
+```
+
+### Responsive Grid System
+
+Built-in grid utilities for responsive layouts:
+
+```html
+<div class="grid grid-cols grid-cols-sm-2 grid-cols-md-3">
+  <!-- 1 column on mobile, 2 on tablet, 3 on desktop -->
+</div>
+```
+
+### Responsive Typography
+
+Fluid typography using clamp():
+
+```css
+--font-size-responsive-sm: clamp(var(--font-size-xs), 2vw, var(--font-size-sm))
+--font-size-responsive-md: clamp(var(--font-size-sm), 2.5vw, var(--font-size-md))
+--font-size-responsive-lg: clamp(var(--font-size-md), 3vw, var(--font-size-lg))
+```
+
+### Responsive Spacing
+
+Fluid spacing that scales with viewport:
+
+```css
+--spacing-responsive-sm: clamp(var(--spacing-xs), 2vw, var(--spacing-sm))
+--spacing-responsive-md: clamp(var(--spacing-sm), 3vw, var(--spacing-md))
+--spacing-responsive-lg: clamp(var(--spacing-md), 4vw, var(--spacing-lg))
+```
+
+### Utility Classes
+
+#### Responsive Display
+
+```css
+.hide-sm  /* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+/* Hidden on mobile */
+.hide-md  /* Hidden on tablet */
+.hide-lg; /* Hidden on desktop */
+```
+
+#### Responsive Text Alignment
+
+```css
+.text-sm-left   /* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+/* Left-aligned on mobile */
+.text-sm-center /* Center-aligned on mobile */
+.text-sm-right  /* Right-aligned on mobile */
+.text-md-left; /* Left-aligned on tablet */
+/* etc... */
+```
+
+### Best Practices
+
+1. **Mobile-First Development**
+
+   - Start with mobile layout
+   - Add complexity for larger screens
+   - Use min-width media queries
+
+2. **Container Usage**
+
+   ```css
+   .section {
+     @extend .container;
+     /* Additional styles */
+   }
+   ```
+
+3. **Grid Implementation**
+
+   ```css
+   .dashboard {
+     display: grid;
+     gap: var(--spacing-responsive-sm);
+     grid-template-columns: 1fr;
+
+     @media (min-width: var(--breakpoint-md)) {
+       grid-template-columns: repeat(3, 1fr);
+     }
+   }
+   ```
+
+4. **Responsive Typography**
+
+   ```css
+   .title {
+     font-size: var(--font-size-responsive-lg);
+   }
+   ```
+
+5. **Responsive Spacing**
+   ```css
+   .card {
+     padding: var(--spacing-responsive-sm);
+     margin-bottom: var(--spacing-responsive-md);
+   }
+   ```
+
+### Example Implementation
+
+```html
+<div class="dashboard-section container">
+  <div class="grid grid-cols grid-cols-sm-2 grid-cols-md-3">
+    <div class="metric-card spacing-responsive">
+      <h2 class="card-title">Metric</h2>
+      <p class="card-details hide-sm">Details</p>
+      <div class="card-footer text-sm-center text-md-left">Footer</div>
+    </div>
+  </div>
+</div>
+```
+
+```css
+.metric-card {
+  background: var(--background);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-responsive-md);
+}
+
+.card-title {
+  font-size: var(--font-size-responsive-md);
+  margin-bottom: var(--spacing-responsive-sm);
+}
+
+.card-details {
+  font-size: var(--font-size-responsive-sm);
+}
+```
+
+### Converting Existing Components
+
+1. **Replace Fixed Widths**
+
+   - Before:
+     ```css
+     .section {
+       width: 1200px;
+     }
+     ```
+   - After:
+     ```css
+     .section {
+       @extend .container;
+     }
+     ```
+
+2. **Use Grid System**
+
+   - Before:
+     ```css
+     .cards {
+       display: flex;
+       flex-wrap: wrap;
+     }
+     .card {
+       width: 33.33%;
+     }
+     ```
+   - After:
+     ```html
+     <div class="grid grid-cols grid-cols-sm-2 grid-cols-md-3"></div>
+     ```
+
+3. **Apply Utility Classes**
+
+   - Before:
+     ```html
+     <div style="text-align: left;"></div>
+     ```
+   - After:
+     ```html
+     <div class="text-sm-center text-md-left"></div>
+     ```
+
+4. **Use Responsive Variables**
+
+   - Before:
+     ```css
+     padding: 20px;
+     margin: 30px;
+     ```
+   - After:
+     ```css
+     padding: var(--spacing-responsive-sm);
+     margin: var(--spacing-responsive-md);
+     ```
+
+5. **Implement Fluid Typography**
+   - Before:
+     ```css
+     font-size: 24px;
+     @media (max-width: 768px) {
+       font-size: 20px;
+     }
+     ```
+   - After:
+     ```css
+     font-size: var(--font-size-responsive-lg);
+     ```

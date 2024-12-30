@@ -4,6 +4,7 @@
     <!-- Google tag (gtag.js) -->
     <script
       async
+      defer
       src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
     ></script>
     <script>
@@ -15,16 +16,32 @@
       gtag("config", "G-QLKC35PVJB");
     </script>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Climbing Analytics</title>
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
+    <meta
+      name="description"
+      content="Analyze and visualize your climbing data from Mountain Project"
+    />
+    <meta name="theme-color" content="#2a4f5f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+
+    <title>Climbing Analytics</title>
+
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
     <!-- Preload loading screen images -->
     <link
       rel="preload"
       as="image"
+      fetchpriority="high"
       href="{{ url_for('static', filename='images/loading1.jpg') }}"
     />
     <link
@@ -47,109 +64,136 @@
       as="image"
       href="{{ url_for('static', filename='images/loading5.jpg') }}"
     />
+
+    <!-- Load fonts -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    />
+
+    <!-- Load CSS -->
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/landingPage.css') }}"
-    />
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/loadingScreen.css') }}"
+      href="{{ url_for('static', filename='css/_landingPage.css') }}"
     />
   </head>
   <body>
+    <div class="background-overlay"></div>
     <div class="container">
-      <div class="content-wrapper">
+      <main class="content-wrapper spacing-responsive" role="main">
         <div class="main-content">
-          <h1>Your Climbing Data Visualized</h1>
+          <h1 class="text-sm-center text-md-left" tabindex="0">
+            Your Climbing Data Visualized
+          </h1>
           <div class="input-container">
             <form
               action="/"
               method="POST"
               id="profileForm"
               onsubmit="return handleSubmit(event)"
+              class="grid grid-cols"
             >
               <input
-                type="text"
+                type="url"
                 name="first_input"
-                placeholder="Paste your Mountain Project Profile URL Here"
+                placeholder="Paste Mtn. Project Profile URL"
                 aria-label="Mountain Project Profile URL"
                 id="profileInput"
+                class="spacing-responsive"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
               />
-              <div class="error-message" id="errorMessage"></div>
-              <div class="button-group">
-                <button type="submit" class="primary-button" id="submitButton">
-                  <span class="button-text">Analyze My Climbing</span>
-                  <span class="loading-spinner"></span>
+              <div
+                class="error-message"
+                id="errorMessage"
+                role="alert"
+                aria-live="polite"
+              ></div>
+              <div class="button-group grid grid-cols">
+                <button
+                  type="submit"
+                  class="primary-button"
+                  id="submitButton"
+                  aria-label="Analyze climbing data"
+                >
+                  <span class="button-text">Analyze</span>
+                  <span class="loading-spinner" aria-hidden="true"></span>
                 </button>
                 <button
                   type="button"
                   class="secondary-button"
                   id="demoButton"
                   onclick="tryDemo()"
+                  aria-label="Try demo analysis"
                 >
                   <span class="button-text">Try Demo</span>
-                  <span class="loading-spinner"></span>
+                  <span class="loading-spinner" aria-hidden="true"></span>
                 </button>
               </div>
             </form>
           </div>
         </div>
-      </div>
+      </main>
 
       <footer>
-        <nav>
-          <ul>
-            <li><a href="mailto:climbing.analytics@gmail.com">Contact</a></li>
-            <li>
-              <a href="{{ url_for('terms_and_privacy') }}">Terms of Service</a>
-            </li>
-            <li>
-              <a href="{{ url_for('terms_and_privacy') }}">Privacy Policy</a>
-            </li>
-          </ul>
+        <nav class="footer-links">
+          <a href="/contact" class="footer-link">Contact</a>
+          <a href="/terms" class="footer-link">Terms</a>
+          <a href="/privacy" class="footer-link">Privacy</a>
         </nav>
       </footer>
     </div>
 
     <!-- Loading Screen -->
-    <div id="loadingScreen" style="display: none">
+    <div
+      id="loadingScreen"
+      style="display: none"
+      role="dialog"
+      aria-label="Loading progress"
+    >
       <div class="loading-overlay"></div>
       <div class="loading-content">
         <div class="loading-header">
-          <h2>Analyzing Your Climbing Journey</h2>
+          <h2 tabindex="0">Analyzing Your Climbing</h2>
           <div class="loading-icon">
-            <div class="spinner"></div>
+            <div class="spinner" aria-hidden="true"></div>
           </div>
         </div>
 
         <div class="loading-stages">
           <div class="stage" id="stage1">
-            <div class="stage-dot"></div>
-            <span>Fetching your climbing data</span>
+            <div class="stage-dot" aria-hidden="true"></div>
+            <span>Fetching data</span>
           </div>
           <div class="stage" id="stage2">
-            <div class="stage-dot"></div>
-            <span>Processing routes and grades</span>
+            <div class="stage-dot" aria-hidden="true"></div>
+            <span>Processing routes</span>
           </div>
           <div class="stage" id="stage3">
-            <div class="stage-dot"></div>
-            <span>Building performance metrics</span>
+            <div class="stage-dot" aria-hidden="true"></div>
+            <span>Building metrics</span>
           </div>
           <div class="stage" id="stage4">
-            <div class="stage-dot"></div>
-            <span>Preparing visualizations</span>
+            <div class="stage-dot" aria-hidden="true"></div>
+            <span>Preparing viz</span>
           </div>
         </div>
 
-        <div class="progress-container">
+        <div
+          class="progress-container"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
           <div class="progress-bar">
             <div class="progress-fill"></div>
           </div>
-          <p class="loading-status">This may take a few moments</p>
+          <p class="loading-status">Processing your data...</p>
         </div>
       </div>
     </div>
@@ -169,41 +213,61 @@
           .getElementById("demoButton")
           .classList.toggle("loading", loading);
         document.getElementById("profileInput").disabled = loading;
+
+        // Update ARIA states
+        document
+          .getElementById("submitButton")
+          .setAttribute("aria-busy", loading);
+        document
+          .getElementById("demoButton")
+          .setAttribute("aria-busy", loading);
       }
 
       function updateLoadingStages() {
         if (currentStage < stages.length) {
-          document.getElementById(stages[currentStage]).classList.add("active");
+          const stageElement = document.getElementById(stages[currentStage]);
+          stageElement.classList.add("active");
+          stageElement.setAttribute("aria-current", "step");
           currentStage++;
+
+          // Update progress bar
+          const progress = (currentStage / stages.length) * 100;
+          document
+            .querySelector(".progress-container")
+            .setAttribute("aria-valuenow", progress);
         }
       }
 
       function showLoadingScreen() {
-        document.getElementById("loadingScreen").style.display = "flex";
+        const loadingScreen = document.getElementById("loadingScreen");
+        loadingScreen.style.display = "flex";
+        loadingScreen.setAttribute("aria-hidden", "false");
         currentStage = 0;
         stages.forEach((stage) => {
-          document.getElementById(stage).classList.remove("active");
+          const element = document.getElementById(stage);
+          element.classList.remove("active");
+          element.removeAttribute("aria-current");
         });
         document.querySelector(".progress-fill").style.width = "100%";
         updateLoadingStages();
       }
 
       function hideLoadingScreen() {
-        document.getElementById("loadingScreen").style.display = "none";
+        const loadingScreen = document.getElementById("loadingScreen");
+        loadingScreen.style.display = "none";
+        loadingScreen.setAttribute("aria-hidden", "true");
         document.querySelector(".progress-fill").style.width = "0";
         currentStage = 0;
         stages.forEach((stage) => {
-          document.getElementById(stage).classList.remove("active");
+          const element = document.getElementById(stage);
+          element.classList.remove("active");
+          element.removeAttribute("aria-current");
         });
       }
 
       async function submitForm(formData) {
         try {
           showLoadingScreen();
-
-          // Log form data for debugging
-          for (let pair of formData.entries()) {
-          }
 
           // Stage 1: Fetching data
           updateLoadingStages();
@@ -222,23 +286,16 @@
 
           // Stage 2: Processing routes
           updateLoadingStages();
-
-          // Wait a moment to show processing
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
           // Stage 3: Building metrics
           updateLoadingStages();
-
-          // Wait a moment to show processing
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
           // Stage 4: Preparing visualizations
           updateLoadingStages();
-
-          // Wait a moment before redirect
           await new Promise((resolve) => setTimeout(resolve, 500));
 
-          // If successful, the response will be a redirect
           window.location.href = response.url;
         } catch (error) {
           hideLoadingScreen();
@@ -252,13 +309,18 @@
         errorElement.textContent = message;
         errorElement.style.display = "block";
         document.getElementById("profileInput").classList.add("error");
+        document
+          .getElementById("profileInput")
+          .setAttribute("aria-invalid", "true");
       }
 
       function clearError() {
         const errorElement = document.getElementById("errorMessage");
         errorElement.textContent = "";
         errorElement.style.display = "none";
-        document.getElementById("profileInput").classList.remove("error");
+        const input = document.getElementById("profileInput");
+        input.classList.remove("error");
+        input.removeAttribute("aria-invalid");
       }
 
       async function handleSubmit(event) {
@@ -277,7 +339,7 @@
 
         if (!value.includes("mountainproject.com/user/")) {
           showError(
-            "Please enter valid URL: https://www.mountainproject.com/user/#########/your-username"
+            "Please enter valid URL: mountainproject.com/user/#########"
           );
           return false;
         }

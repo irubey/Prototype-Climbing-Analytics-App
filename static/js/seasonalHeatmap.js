@@ -75,7 +75,7 @@ function seasonalHeatmap(userTicksData, targetId) {
   const color = d3
     .scaleSequential()
     .domain([0, d3.max(data, (d) => d.pitches)])
-    .interpolator(d3.interpolateRgb("#FFF5EC", "#DB784D"));
+    .interpolator(d3.interpolateRgb("#ffffff", "#2a4f5f"));
 
   // Add background for the chart area
   svg
