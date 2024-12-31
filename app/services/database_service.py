@@ -2,64 +2,84 @@ from app.models import (
     db, BinnedCodeDict, BoulderPyramid, SportPyramid, 
     TradPyramid, UserTicks
 )
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 import pandas as pd
 from typing import Dict, List, Optional, Any, Union
 from datetime import date
 from app.services.pyramid_builder import PyramidBuilder
 from sqlalchemy import text
 import os
+from functools import wraps
+import time
+
+def retry_on_db_error(max_retries=3, delay=1):
+    """Decorator to retry database operations on connection errors"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except OperationalError as e:
+                    retries += 1
+                    if retries == max_retries:
+                        raise
+                    db.session.rollback()
+                    time.sleep(delay * retries)  # Exponential backoff
+                except SQLAlchemyError as e:
+                    db.session.rollback()
+                    raise
+            return None
+        return wrapper
+    return decorator
 
 class DatabaseService:
     """Handles all database CRUD operations"""
 
     @staticmethod
+    @retry_on_db_error()
     def save_calculated_data(calculated_data: Dict[str, pd.DataFrame]) -> None:
         """Save calculated pyramid and tick data to database"""
-        try:
-            # Start a new transaction
-            db.session.begin_nested()
-            
-            # Get username from any of the dataframes
-            username = None
-            for df in calculated_data.values():
-                if not df.empty and 'username' in df.columns:
-                    username = df.iloc[0]['username']
-                    break
-            
-            if username:
-                # Clear existing data first
-                DatabaseService.clear_user_data(username)
-            
-            # Save new data
-            for table_name, df in calculated_data.items():
-                DatabaseService._save_dataframe_to_table(df, table_name)
-            
-            # Commit the transaction
-            db.session.commit()
+        # Start a new transaction
+        db.session.begin_nested()
+        
+        # Get username from any of the dataframes
+        username = None
+        for df in calculated_data.values():
+            if not df.empty and 'username' in df.columns:
+                username = df.iloc[0]['username']
+                break
+        
+        if username:
+            # Clear existing data first
+            DatabaseService.clear_user_data(username)
+        
+        # Save new data
+        for table_name, df in calculated_data.items():
+            DatabaseService._save_dataframe_to_table(df, table_name)
+        
+        # Commit the transaction
+        db.session.commit()
 
-            # Reset sequences if using PostgreSQL
-            if 'postgresql' in os.environ.get('DATABASE_URL', ''):
-                try:
-                    db.session.execute(text("""
-                        SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
-                        SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
-                        SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
-                        SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
-                    """))
-                    db.session.commit()
-                except Exception as e:
-                    # If sequence reset fails, log but don't fail the whole operation
-                    print(f"Warning: Failed to reset sequences: {e}")
-                    pass
-
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            raise e
+        # Reset sequences if using PostgreSQL
+        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+            try:
+                db.session.execute(text("""
+                    SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
+                    SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
+                    SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
+                    SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
+                """))
+                db.session.commit()
+            except Exception as e:
+                # If sequence reset fails, log but don't fail the whole operation
+                print(f"Warning: Failed to reset sequences: {e}")
+                pass
 
     @staticmethod
     def _save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> None:
@@ -126,12 +146,10 @@ class DatabaseService:
 
     # User Ticks Operations
     @staticmethod
+    @retry_on_db_error(max_retries=3)
     def get_user_ticks(username: str) -> List[UserTicks]:
-        """Get all ticks for a user"""
-        try:
-            return UserTicks.query.filter_by(username=username).all()
-        except SQLAlchemyError as e:
-            raise e
+        """Get all ticks for a user with retry logic"""
+        return UserTicks.query.filter_by(username=username).all()
 
     @staticmethod
     def update_user_tick(tick_id: int, **kwargs) -> Optional[UserTicks]:
@@ -189,16 +207,14 @@ class DatabaseService:
 
     # Pyramid Operations
     @staticmethod
+    @retry_on_db_error()
     def get_pyramids_by_username(username: str) -> Dict[str, List[Any]]:
         """Get all pyramids for a user, sorted by difficulty (binned_code)"""
-        try:
-            return {
-                'sport': SportPyramid.query.filter_by(username=username).order_by(SportPyramid.binned_code.desc()).all(),
-                'trad': TradPyramid.query.filter_by(username=username).order_by(TradPyramid.binned_code.desc()).all(),
-                'boulder': BoulderPyramid.query.filter_by(username=username).order_by(BoulderPyramid.binned_code.desc()).all()
-            }
-        except SQLAlchemyError as e:
-            raise e
+        return {
+            'sport': SportPyramid.query.filter_by(username=username).order_by(SportPyramid.binned_code.desc()).all(),
+            'trad': TradPyramid.query.filter_by(username=username).order_by(TradPyramid.binned_code.desc()).all(),
+            'boulder': BoulderPyramid.query.filter_by(username=username).order_by(BoulderPyramid.binned_code.desc()).all()
+        }
 
     @staticmethod
     def update_pyramid(discipline: str, pyramid_id: int, field: str, value: Any) -> bool:
@@ -278,31 +294,28 @@ class DatabaseService:
             raise e
 
     @staticmethod
+    @retry_on_db_error()
     def clear_user_data(username: str) -> None:
         """Clear all data for a user (ticks and pyramids) and reset sequences"""
-        try:
-            # Delete all related data in correct order
-            BoulderPyramid.query.filter_by(username=username).delete(synchronize_session=False)
-            SportPyramid.query.filter_by(username=username).delete(synchronize_session=False)
-            TradPyramid.query.filter_by(username=username).delete(synchronize_session=False)
-            UserTicks.query.filter_by(username=username).delete(synchronize_session=False)
-            
-            # Commit the deletions
-            db.session.commit()
-            
-            # Reset sequences
-            db.session.execute(text("""
-                SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
-                SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
-                SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
-                SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
-            """))
-            
-            db.session.commit()
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            raise e
+        # Delete all related data in correct order
+        BoulderPyramid.query.filter_by(username=username).delete(synchronize_session=False)
+        SportPyramid.query.filter_by(username=username).delete(synchronize_session=False)
+        TradPyramid.query.filter_by(username=username).delete(synchronize_session=False)
+        UserTicks.query.filter_by(username=username).delete(synchronize_session=False)
+        
+        # Commit the deletions
+        db.session.commit()
+        
+        # Reset sequences
+        db.session.execute(text("""
+            SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
+                COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
+            SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
+                COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
+            SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
+                COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
+            SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
+                COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
+        """))
+        
+        db.session.commit()

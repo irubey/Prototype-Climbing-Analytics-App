@@ -26,6 +26,22 @@ CORS(app, resources={
 
 app.config.from_object(Config)
 
+# Add SQLAlchemy engine configuration
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 5,  # Maximum number of connections in the pool
+    'pool_timeout': 30,  # Seconds to wait before giving up on getting a connection
+    'pool_recycle': 1800,  # Recycle connections after 30 minutes
+    'pool_pre_ping': True,  # Enable connection health checks
+    'max_overflow': 10,  # Allow up to 10 connections beyond pool_size
+    'connect_args': {
+        'connect_timeout': 10,  # Timeout for establishing new connections
+        'keepalives': 1,  # Enable TCP keepalive
+        'keepalives_idle': 30,  # Seconds before sending keepalive
+        'keepalives_interval': 10,  # Seconds between keepalives
+        'keepalives_count': 5  # Failed keepalives before dropping connection
+    }
+}
+
 # Debug prints
 print("Database URL:", app.config['SQLALCHEMY_DATABASE_URI'])
 print("Is PostgreSQL?", 'postgresql' in str(app.config['SQLALCHEMY_DATABASE_URI']))
