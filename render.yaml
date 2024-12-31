@@ -3,7 +3,7 @@ services:
     name: climb-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -c gunicorn_config.py app:app
+    startCommand: gunicorn -c gunicorn_config.py app:app --timeout 120 --workers 3 --threads 4 --worker-class gthread
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
@@ -29,15 +29,19 @@ services:
           property: internalDatabaseUrl
       # Memory and performance settings
       - key: WEB_CONCURRENCY
-        value: "3" # Match with gunicorn workers
+        value: "3"
       - key: PYTHON_MEMORY_LIMIT
-        value: "512" # Memory limit in MB
+        value: "512"
       - key: SQLALCHEMY_POOL_SIZE
         value: "5"
       - key: SQLALCHEMY_MAX_OVERFLOW
         value: "5"
       - key: GUNICORN_TIMEOUT
         value: "120"
+      - key: GUNICORN_WORKERS
+        value: "3"
+      - key: GUNICORN_THREADS
+        value: "4"
     disk:
       name: logs
       mountPath: /opt/render/project/src/logs
