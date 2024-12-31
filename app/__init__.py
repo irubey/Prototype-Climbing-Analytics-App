@@ -5,11 +5,28 @@ from config import Config
 import os
 from sqlalchemy.sql import text
 from whitenoise import WhiteNoise
+import logging
+from logging.handlers import RotatingFileHandler
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 # Initialize Flask app with correct template and static paths
 app = Flask(__name__, 
            template_folder='../templates',
            static_folder='../static')
+
+# Set up logging
+if not os.path.exists('logs'):
+    os.mkdir('logs')
+
+file_handler = RotatingFileHandler('logs/climbapp.log', maxBytes=10240000, backupCount=10)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+file_handler.setLevel(logging.INFO)
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
+app.logger.info('ClimbApp startup')
 
 # Configure WhiteNoise for static files
 app.wsgi_app = WhiteNoise(app.wsgi_app, root=os.path.join(os.path.dirname(__file__), '../static/'), prefix='static/')
@@ -26,27 +43,28 @@ CORS(app, resources={
 
 app.config.from_object(Config)
 
-# Add SQLAlchemy engine configuration
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 5,  # Maximum number of connections in the pool
-    'pool_timeout': 30,  # Seconds to wait before giving up on getting a connection
-    'pool_recycle': 1800,  # Recycle connections after 30 minutes
-    'pool_pre_ping': True,  # Enable connection health checks
-    'max_overflow': 10,  # Allow up to 10 connections beyond pool_size
-    'connect_args': {
-        'connect_timeout': 10,  # Timeout for establishing new connections
-        'keepalives': 1,  # Enable TCP keepalive
-        'keepalives_idle': 30,  # Seconds before sending keepalive
-        'keepalives_interval': 10,  # Seconds between keepalives
-        'keepalives_count': 5  # Failed keepalives before dropping connection
-    }
-}
-
 # Debug prints
-print("Database URL:", app.config['SQLALCHEMY_DATABASE_URI'])
-print("Is PostgreSQL?", 'postgresql' in str(app.config['SQLALCHEMY_DATABASE_URI']))
+app.logger.info(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
+app.logger.info(f"SQLAlchemy Engine Options: {app.config['SQLALCHEMY_ENGINE_OPTIONS']}")
 
 db = SQLAlchemy(app)
+
+# Log database events
+@event.listens_for(Engine, "connect")
+def connect(dbapi_connection, connection_record):
+    app.logger.info("Database connection established")
+
+@event.listens_for(Engine, "disconnect")
+def disconnect(dbapi_connection, connection_record):
+    app.logger.info("Database connection closed")
+
+@event.listens_for(Engine, "checkout")
+def receive_checkout(dbapi_connection, connection_record, connection_proxy):
+    app.logger.info("Database connection checked out from pool")
+
+@event.listens_for(Engine, "checkin")
+def receive_checkin(dbapi_connection, connection_record):
+    app.logger.info("Database connection checked in to pool")
 
 from app import routes, models
 
@@ -58,7 +76,7 @@ with app.app_context():
         
         # Initialize sequences for PostgreSQL if needed
         if 'postgresql' in str(app.config['SQLALCHEMY_DATABASE_URI']):
-            print("Initializing PostgreSQL sequences...")
+            app.logger.info("Initializing PostgreSQL sequences...")
             try:
                 db.session.execute(text("""
                     CREATE SEQUENCE IF NOT EXISTS user_ticks_id_seq;
@@ -77,12 +95,12 @@ with app.app_context():
                     SELECT setval('boulder_pyramid_id_seq', 1, false);
                 """))
                 db.session.commit()
-                print("PostgreSQL sequences initialized successfully")
+                app.logger.info("PostgreSQL sequences initialized successfully")
             except Exception as e:
-                print(f"Warning: Failed to initialize sequences: {e}")
+                app.logger.warning(f"Failed to initialize sequences: {e}")
                 db.session.rollback()
         else:
-            print("Not using PostgreSQL, skipping sequence initialization")
+            app.logger.info("Not using PostgreSQL, skipping sequence initialization")
             
         # Initialize binned code dict if empty
         from app.models import BinnedCodeDict
@@ -90,11 +108,11 @@ with app.app_context():
         from app.services.database_service import DatabaseService
         
         if not BinnedCodeDict.query.first():
-            print("Initializing binned code dictionary...")
+            app.logger.info("Initializing binned code dictionary...")
             grade_processor = GradeProcessor()
             DatabaseService.init_binned_code_dict(grade_processor.binned_code_dict)
-            print("Binned code dictionary initialized successfully")
+            app.logger.info("Binned code dictionary initialized successfully")
             
     except Exception as e:
-        print(f"Error during initialization: {e}")
+        app.logger.error(f"Error during initialization: {e}")
         raise e

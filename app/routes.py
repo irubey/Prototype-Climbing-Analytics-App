@@ -12,6 +12,10 @@ from app.services.pyramid_builder import PyramidBuilder
 from app.services.grade_processor import GradeProcessor
 from app.services.pyramid_update_service import PyramidUpdateService
 from flask import session
+import psutil
+import os
+from sqlalchemy.sql import text
+from datetime import datetime
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -24,6 +28,11 @@ def index():
     if request.method == 'POST':
         first_input = request.form.get('first_input')
         app.logger.info(f"Received form data - first_input: {first_input}")
+        
+        # Log memory usage at start of request
+        process = psutil.Process(os.getpid())
+        start_memory = process.memory_info().rss / 1024 / 1024
+        app.logger.info(f"Memory usage at start: {start_memory:.2f} MB")
         
         if not first_input:
             app.logger.error("No first_input provided")
@@ -60,6 +69,10 @@ def index():
             processor = DataProcessor()
             sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username = processor.process_profile(first_input)
 
+            # Log memory usage before database operations
+            current_memory = process.memory_info().rss / 1024 / 1024
+            app.logger.info(f"Memory usage before DB ops: {current_memory:.2f} MB (Change: {current_memory - start_memory:.2f} MB)")
+
             # Clear existing data for this username
             DatabaseService.clear_user_data(username)
 
@@ -71,10 +84,17 @@ def index():
                 'user_ticks': user_ticks
             })
             
+            # Log final memory usage
+            end_memory = process.memory_info().rss / 1024 / 1024
+            app.logger.info(f"Final memory usage: {end_memory:.2f} MB (Total change: {end_memory - start_memory:.2f} MB)")
+            
             return redirect(url_for('userviz', username=username))
             
         except Exception as e:
             app.logger.error(f"Error processing request: {str(e)}")
+            # Log memory on error
+            error_memory = process.memory_info().rss / 1024 / 1024
+            app.logger.error(f"Memory usage at error: {error_memory:.2f} MB (Change: {error_memory - start_memory:.2f} MB)")
             return jsonify({
                 'error': 'An error occurred while processing your data. Please try again.'
             }), 500
@@ -350,4 +370,40 @@ def refresh_data(username):
         app.logger.error(f"Error refreshing data for {username}: {str(e)}")
         return jsonify({
             'error': 'An error occurred while refreshing your data. Please try again.'
+        }), 500
+
+@app.route("/health")
+def health_check():
+    """Health check endpoint that includes database connection and memory status"""
+    try:
+        # Test database connection
+        db.session.execute(text('SELECT 1'))
+        db_status = "healthy"
+        
+        # Get connection pool stats
+        pool_status = DatabaseService.get_pool_status()
+        
+        # Get memory usage
+        process = psutil.Process(os.getpid())
+        memory_info = process.memory_info()
+        
+        return jsonify({
+            'status': 'healthy',
+            'database': {
+                'status': db_status,
+                'pool': pool_status
+            },
+            'memory': {
+                'rss': memory_info.rss / 1024 / 1024,  # RSS in MB
+                'vms': memory_info.vms / 1024 / 1024,  # VMS in MB
+                'percent': process.memory_percent()
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app.logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
         }), 500

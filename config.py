@@ -19,6 +19,28 @@ class Config:
     print(f"Final SQLALCHEMY_DATABASE_URI: {SQLALCHEMY_DATABASE_URI}")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # SQLAlchemy configuration
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 5,  # Match with gunicorn workers
+        'max_overflow': 5,  # Reduced from 10
+        'pool_timeout': 30,
+        'pool_recycle': 1800,
+        'pool_pre_ping': True,
+        'connect_args': {
+            'connect_timeout': 10,
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+            'statement_timeout': 110000,  # 110 seconds (less than gunicorn timeout)
+            'idle_in_transaction_session_timeout': 110000  # 110 seconds
+        }
+    }
+    
     # Session configuration
     SESSION_TYPE = 'filesystem'
-    PERMANENT_SESSION_LIFETIME = 3600  # 1 hour 
+    PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
+    
+    # Query monitoring
+    SQLALCHEMY_RECORD_QUERIES = True
+    DATABASE_QUERY_TIMEOUT = 0.5  # Slow query threshold in seconds 
