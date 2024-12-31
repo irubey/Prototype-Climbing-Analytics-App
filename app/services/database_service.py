@@ -41,49 +41,43 @@ class DatabaseService:
     @retry_on_db_error()
     def save_calculated_data(calculated_data: Dict[str, pd.DataFrame]) -> None:
         """Save calculated pyramid and tick data to database"""
-        # Start a new transaction
-        db.session.begin_nested()
-        
-        # Get username from any of the dataframes
-        username = None
-        for df in calculated_data.values():
-            if not df.empty and 'username' in df.columns:
-                username = df.iloc[0]['username']
-                break
-        
-        if username:
-            # Clear existing data first
-            DatabaseService.clear_user_data(username)
-        
-        # Save new data
-        for table_name, df in calculated_data.items():
-            DatabaseService._save_dataframe_to_table(df, table_name)
-        
-        # Commit the transaction
-        db.session.commit()
-
-        # Reset sequences if using PostgreSQL
-        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
-            try:
-                db.session.execute(text("""
-                    SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
-                    SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
-                    SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
-                    SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
-                """))
-                db.session.commit()
-            except Exception as e:
-                # If sequence reset fails, log but don't fail the whole operation
-                print(f"Warning: Failed to reset sequences: {e}")
-                pass
+        # Get a single connection from the pool and reuse it
+        with db.session.begin():
+            # Get username from any of the dataframes
+            username = None
+            for df in calculated_data.values():
+                if not df.empty and 'username' in df.columns:
+                    username = df.iloc[0]['username']
+                    break
+            
+            if username:
+                # Clear existing data first
+                DatabaseService.clear_user_data(username)
+            
+            # Batch insert new data
+            for table_name, df in calculated_data.items():
+                if not df.empty:
+                    DatabaseService._batch_save_dataframe(df, table_name)
+            
+            # Reset sequences if using PostgreSQL
+            if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+                try:
+                    db.session.execute(text("""
+                        SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
+                        SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
+                        SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
+                        SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
+                            COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
+                    """))
+                except Exception as e:
+                    print(f"Warning: Failed to reset sequences: {e}")
 
     @staticmethod
-    def _save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> None:
-        """Save a dataframe to the appropriate database table"""
+    def _batch_save_dataframe(df: pd.DataFrame, table_name: str) -> None:
+        """Batch save a dataframe to the appropriate database table"""
         model_class = {
             'sport_pyramid': SportPyramid,
             'trad_pyramid': TradPyramid,
@@ -95,22 +89,26 @@ class DatabaseService:
             raise ValueError(f"No model found for table name: {table_name}")
 
         model_columns = [c.name for c in model_class.__table__.columns]
-
-        # If this is a pyramid table and tick_id is not in the DataFrame,
-        # we need to get the tick IDs from UserTicks
+        
+        # Prepare batch of records
+        records_to_insert = []
+        
+        # If this is a pyramid table, get all tick IDs in one query
+        tick_ids = {}
         if table_name != 'user_ticks' and 'tick_id' not in df.columns:
-            # Get tick IDs for each route
-            tick_ids = {}
-            for _, row in df.iterrows():
-                tick = UserTicks.query.filter_by(
-                    username=row['username'],
-                    route_name=row['route_name'],
-                    tick_date=row['tick_date']
-                ).first()
-                if tick:
-                    key = (row['username'], row['route_name'], row['tick_date'])
-                    tick_ids[key] = tick.id
+            conditions = [(row['username'], row['route_name'], row['tick_date']) for _, row in df.iterrows()]
+            if conditions:
+                # Build one query to get all tick IDs
+                tick_records = UserTicks.query.filter(
+                    db.tuple_(
+                        UserTicks.username,
+                        UserTicks.route_name,
+                        UserTicks.tick_date
+                    ).in_(conditions)
+                ).all()
+                tick_ids = {(t.username, t.route_name, t.tick_date): t.id for t in tick_records}
 
+        # Prepare all records
         for _, row in df.iterrows():
             data_dict = {k: v for k, v in row.where(pd.notnull(row), None).to_dict().items() 
                         if k in model_columns}
@@ -119,18 +117,12 @@ class DatabaseService:
             if table_name != 'user_ticks' and 'tick_id' not in data_dict:
                 key = (data_dict['username'], data_dict['route_name'], data_dict['tick_date'])
                 data_dict['tick_id'] = tick_ids.get(key)
-                
-            exists = db.session.query(model_class).filter_by(
-                username=data_dict['username'],
-                route_name=data_dict['route_name'], 
-                tick_date=data_dict['tick_date']
-            ).first()
+            
+            records_to_insert.append(model_class(**data_dict))
 
-            if not exists:
-                new_entry = model_class(**data_dict)
-                db.session.add(new_entry)
-
-        db.session.commit()
+        # Bulk insert all records
+        if records_to_insert:
+            db.session.bulk_save_objects(records_to_insert)
 
     @staticmethod
     def init_binned_code_dict(binned_code_dict: Dict[int, List[str]]) -> None:
