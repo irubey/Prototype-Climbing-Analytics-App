@@ -61,7 +61,12 @@ class AnalyticsService:
             'route_name': send.route_name,
             'binned_grade': send.binned_grade,
             'location': send.location,
-            'num_attempts': "Flash/Onsight" if (send.num_attempts or 1) == 1 else f"{send.num_attempts} attempts",
+            'num_attempts': (
+                "Flash/Onsight" if send.num_attempts == 1 and send.lead_style not in ['Redpoint', 'Pinkpoint']
+                else f"{send.num_attempts} attempts" if send.num_attempts and send.num_attempts > 1
+                else "Redpoint/Pinkpoint (unknown attempts)" if send.lead_style in ['Redpoint', 'Pinkpoint']
+                else "Unknown style"
+            ),
             'discipline': send.discipline
         } for send in all_sends]
 
