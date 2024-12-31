@@ -41,39 +41,39 @@ class DatabaseService:
     @retry_on_db_error()
     def save_calculated_data(calculated_data: Dict[str, pd.DataFrame]) -> None:
         """Save calculated pyramid and tick data to database"""
-        # Get a single connection from the pool and reuse it
-        with db.session.begin():
-            # Get username from any of the dataframes
-            username = None
-            for df in calculated_data.values():
-                if not df.empty and 'username' in df.columns:
-                    username = df.iloc[0]['username']
-                    break
-            
-            if username:
-                # Clear existing data first
-                DatabaseService.clear_user_data(username)
-            
-            # Batch insert new data
-            for table_name, df in calculated_data.items():
-                if not df.empty:
-                    DatabaseService._batch_save_dataframe(df, table_name)
-            
-            # Reset sequences if using PostgreSQL
-            if 'postgresql' in os.environ.get('DATABASE_URL', ''):
-                try:
-                    db.session.execute(text("""
-                        SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
-                        SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
-                        SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
-                        SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
-                            COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
-                    """))
-                except Exception as e:
-                    print(f"Warning: Failed to reset sequences: {e}")
+        # Get username from any of the dataframes
+        username = None
+        for df in calculated_data.values():
+            if not df.empty and 'username' in df.columns:
+                username = df.iloc[0]['username']
+                break
+        
+        if username:
+            # Clear existing data first
+            DatabaseService.clear_user_data(username)
+        
+        # Batch insert new data
+        for table_name, df in calculated_data.items():
+            if not df.empty:
+                DatabaseService._batch_save_dataframe(df, table_name)
+        
+        # Reset sequences if using PostgreSQL
+        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+            try:
+                db.session.execute(text("""
+                    SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
+                    SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
+                    SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
+                    SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
+                        COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
+                """))
+                db.session.commit()
+            except Exception as e:
+                print(f"Warning: Failed to reset sequences: {e}")
+                db.session.rollback()
 
     @staticmethod
     def _batch_save_dataframe(df: pd.DataFrame, table_name: str) -> None:
@@ -123,6 +123,7 @@ class DatabaseService:
         # Bulk insert all records
         if records_to_insert:
             db.session.bulk_save_objects(records_to_insert)
+            db.session.commit()
 
     @staticmethod
     def init_binned_code_dict(binned_code_dict: Dict[int, List[str]]) -> None:
