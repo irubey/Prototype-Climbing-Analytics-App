@@ -3,7 +3,7 @@ services:
     name: climb-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn -c gunicorn_config.py app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
@@ -27,6 +27,21 @@ services:
           type: postgres
           name: climb-db
           property: internalDatabaseUrl
+      # Memory and performance settings
+      - key: WEB_CONCURRENCY
+        value: "3" # Match with gunicorn workers
+      - key: PYTHON_MEMORY_LIMIT
+        value: "512" # Memory limit in MB
+      - key: SQLALCHEMY_POOL_SIZE
+        value: "5"
+      - key: SQLALCHEMY_MAX_OVERFLOW
+        value: "5"
+      - key: GUNICORN_TIMEOUT
+        value: "120"
+    disk:
+      name: logs
+      mountPath: /opt/render/project/src/logs
+      sizeGB: 1
 
 databases:
   - name: climb-db
