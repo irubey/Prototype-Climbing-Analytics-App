@@ -54,10 +54,6 @@ db = SQLAlchemy(app)
 def connect(dbapi_connection, connection_record):
     app.logger.info("Database connection established")
 
-@event.listens_for(Engine, "disconnect")
-def disconnect(dbapi_connection, connection_record):
-    app.logger.info("Database connection closed")
-
 @event.listens_for(Engine, "checkout")
 def receive_checkout(dbapi_connection, connection_record, connection_proxy):
     app.logger.info("Database connection checked out from pool")
@@ -65,6 +61,10 @@ def receive_checkout(dbapi_connection, connection_record, connection_proxy):
 @event.listens_for(Engine, "checkin")
 def receive_checkin(dbapi_connection, connection_record):
     app.logger.info("Database connection checked in to pool")
+
+@event.listens_for(Engine, "close")
+def close(dbapi_connection, connection_record):
+    app.logger.info("Database connection closed")
 
 from app import routes, models
 
