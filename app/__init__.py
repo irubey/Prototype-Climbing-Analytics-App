@@ -53,6 +53,10 @@ db = SQLAlchemy(app)
 @event.listens_for(Engine, "connect")
 def connect(dbapi_connection, connection_record):
     app.logger.info("Database connection established")
+    # Set statement timeout to 110 seconds
+    with dbapi_connection.cursor() as cursor:
+        cursor.execute("SET statement_timeout = '110s'")
+        cursor.execute("SET idle_in_transaction_session_timeout = '110s'")
 
 @event.listens_for(Engine, "checkout")
 def receive_checkout(dbapi_connection, connection_record, connection_proxy):

@@ -31,9 +31,7 @@ class Config:
             'keepalives': 1,
             'keepalives_idle': 30,
             'keepalives_interval': 10,
-            'keepalives_count': 5,
-            'statement_timeout': 110000,  # 110 seconds (less than gunicorn timeout)
-            'idle_in_transaction_session_timeout': 110000  # 110 seconds
+            'keepalives_count': 5
         }
     }
     
@@ -43,4 +41,4 @@ class Config:
     
     # Query monitoring
     SQLALCHEMY_RECORD_QUERIES = True
-    DATABASE_QUERY_TIMEOUT = 0.5  # Slow query threshold in seconds 
+    DATABASE_QUERY_TIMEOUT = 110  # Slow query threshold in seconds 
