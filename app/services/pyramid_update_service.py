@@ -112,6 +112,7 @@ class PyramidUpdateService:
                             continue
 
             db.session.commit()
+            db.session.expire_all()  # Ensure fresh data on subsequent queries
             return True
 
         except SQLAlchemyError as e:
