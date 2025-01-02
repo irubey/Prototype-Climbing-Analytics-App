@@ -30,7 +30,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
   </head>
-  <body>
+  <body data-username="{{ username }}">
     <header>
       <a
         href="{{ url_for('index') }}"
@@ -322,6 +322,26 @@
       </div>
     </div>
 
+    <!-- Support Popup -->
+    <div id="coffee-popup" class="coffee-popup hidden">
+      <div class="coffee-popup-content">
+        <h3 class="coffee-popup-title">Enjoying the Analytics?</h3>
+        <h4 class="coffee-popup-text">
+          You're one of <span id="support-count" style="display: none">0</span
+          ><span class="loading-count">...</span> climbers discovering insights
+          through these visualizations!
+        </h4>
+        <a
+          href="https://www.buymeacoffee.com/irubey"
+          target="_blank"
+          class="coffee-button"
+        >
+          <i class="fas fa-coffee"></i>
+          Buy me a coffee
+        </a>
+      </div>
+    </div>
+
     <footer>
       <nav class="footer-nav">
         <a href="{{ url_for('index') }}" class="footer-link">
@@ -380,5 +400,7 @@
       const userTicksData = {{ user_ticks|tojson|safe }};
       const binnedCodeDict = {{ binned_code_dict|tojson|safe }};
     </script>
+
+    <script src="{{ url_for('static', filename='js/supportPopup.js') }}"></script>
   </body>
 </html>

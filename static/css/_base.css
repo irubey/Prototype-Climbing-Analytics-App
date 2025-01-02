@@ -59,7 +59,7 @@ h3 {
 }
 
 h4 {
-  color: var(--secondary);
+  color: var(--color-white);
   margin-bottom: var(--spacing-xs);
   font-size: var(--font-size-mobile-sm);
 }

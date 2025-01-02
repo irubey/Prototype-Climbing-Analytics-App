@@ -1,7 +1,7 @@
 import pandas as pd
 from flask import render_template, request, redirect, url_for, jsonify, flash
 from app import app, db
-from app.models import BinnedCodeDict, BoulderPyramid, SportPyramid, TradPyramid, UserTicks
+from app.models import BinnedCodeDict, UserTicks
 from app.services import DataProcessor
 from app.services.database_service import DatabaseService
 from app.services.analytics_service import AnalyticsService
@@ -16,12 +16,18 @@ import psutil
 import os
 from sqlalchemy.sql import text
 from datetime import datetime
+from functools import lru_cache
+from time import time
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, date):
             return obj.strftime('%Y-%m-%d')
         return super(CustomJSONEncoder, self).default(obj)
+
+# Cache for support count that expires every hour
+_support_count_cache = {'count': None, 'timestamp': 0}
+CACHE_DURATION = 3600  # 1 hour in seconds
 
 @app.route("/", methods=['GET', 'POST'])
 def index():
@@ -407,3 +413,22 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
+
+@app.route("/api/support-count")
+def get_support_count():
+    current_time = time()
+    
+    # Return cached value if it exists and hasn't expired
+    if _support_count_cache['count'] is not None and current_time - _support_count_cache['timestamp'] < CACHE_DURATION:
+        app.logger.info(f"Returning cached support count: {_support_count_cache['count']}")
+        return jsonify({"count": _support_count_cache['count']})
+    
+    # Cache miss or expired, query the database
+    unique_users = db.session.query(UserTicks.username).distinct().count()
+    
+    # Update cache
+    _support_count_cache['count'] = unique_users
+    _support_count_cache['timestamp'] = current_time
+    
+    app.logger.info(f"Updated cache with new support count: {unique_users}")
+    return jsonify({"count": unique_users})
