@@ -675,11 +675,28 @@
                   updateAttemptsVisual(input);
               }
 
+              function trackAttemptChange(input) {
+                  const row = input.closest('tr');
+                  if (row) {
+                      const tickId = row.dataset.tickId;
+                      const discipline = input.name.split('_')[0];
+                      if (tickId && discipline in submitData) {
+                          if (!submitData[discipline].updated[tickId]) {
+                              submitData[discipline].updated[tickId] = {};
+                          }
+                          const value = parseInt(input.value) || 1;
+                          submitData[discipline].updated[tickId]['num_attempts'] = value;
+                          console.log(`Tracking num_attempts change for ${tickId} to ${value}`);
+                      }
+                  }
+              }
+
               input.addEventListener('input', () => {
                   let value = parseInt(input.value) || 1;
                   if (value < 1) value = 1;
                   input.value = value;
                   updateButtons();
+                  trackAttemptChange(input);
                   hasUnsavedChanges = true;
                   updateNavigationState();
               });
@@ -689,6 +706,7 @@
                   if (value > 1) {
                       input.value = value - 1;
                       updateButtons();
+                      trackAttemptChange(input);
                       hasUnsavedChanges = true;
                       updateNavigationState();
                   }
@@ -698,6 +716,7 @@
                   let value = parseInt(input.value) || 1;
                   input.value = value + 1;
                   updateButtons();
+                  trackAttemptChange(input);
                   hasUnsavedChanges = true;
                   updateNavigationState();
               });
@@ -905,7 +924,7 @@
           });
 
           // Setup change tracking for form fields
-          document.querySelectorAll('select.grade-select, input.attempts-input, input[type="radio"]').forEach(input => {
+          document.querySelectorAll('select.grade-select, input[type="radio"]').forEach(input => {
               input.addEventListener('change', function() {
                   const row = this.closest('tr');
                   if (row) {

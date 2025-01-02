@@ -81,10 +81,17 @@ class PyramidUpdateService:
                             ).first()
                             
                             if pyramid_entry:
+                                # Debug logging for num_attempts updates
+                                if 'num_attempts' in updates:
+                                    print(f"Updating num_attempts for {route_id}: {updates['num_attempts']} (type: {type(updates['num_attempts'])})")
+                                
                                 # Update basic fields
                                 for field, value in updates.items():
                                     if hasattr(pyramid_entry, field) and field not in ['binned_grade', 'binned_code']:
+                                        if field == 'num_attempts':
+                                            value = int(value)  # Ensure num_attempts is an integer
                                         setattr(pyramid_entry, field, value)
+                                        print(f"Updated {field} to {value} for route {route_id}")
                                 
                                 # Update binned grade and code if grade is changed
                                 if 'route_grade' in updates:
