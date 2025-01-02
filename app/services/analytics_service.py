@@ -62,7 +62,8 @@ class AnalyticsService:
             'binned_grade': send.binned_grade,
             'location': send.location,
             'num_attempts': (
-                "Flash/Onsight" if send.num_attempts == 1 and send.lead_style not in ['Redpoint', 'Pinkpoint']
+                "Flash/Onsight" if send.lead_style == "Flash" or send.lead_style == "Onsight"
+                else "Flash/Onsight" if send.num_attempts == 1 and send.lead_style not in ['Redpoint', 'Pinkpoint']
                 else f"{send.num_attempts} attempts - redpoint" if send.num_attempts and send.num_attempts > 1
                 else "Redpoint - unknown attempts" if send.lead_style in ['Redpoint', 'Pinkpoint']
                 else "Unknown style"
