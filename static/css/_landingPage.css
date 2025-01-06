@@ -76,7 +76,6 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
   min-height: 280px;
 }
 
@@ -84,11 +83,19 @@ body {
    ========================================================================== */
 .main-content h1 {
   color: var(--primary);
-  font-size: var(--font-size-mobile-lg);
-  margin-bottom: 16px; /* Reduced for mobile */
-  font-weight: var(--font-weight-bold);
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 2rem;
   line-height: 1.2;
   width: 100%;
+}
+
+.main-content h1 .subtitle {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
 }
 
 /* Form Elements - Override base form styles
@@ -259,8 +266,12 @@ body .container > footer > nav.footer-links > a.footer-link:hover {
   }
 
   .main-content h1 {
-    font-size: var(--font-size-responsive-lg);
-    margin-bottom: 24px;
+    font-size: 3rem;
+    margin-bottom: 2rem;
+  }
+
+  .main-content h1 .subtitle {
+    font-size: 1.75rem;
   }
 
   .input-container input[type="url"],

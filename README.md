@@ -1,18 +1,34 @@
-# Climbing Analytics Web Application
+# SendSage - Climbing Analytics Platform
 
-📊 **Gain actionable insights based on Athlete training and performance history**
+📊 **Transform your climbing data into actionable insights**
 
 ## Introduction
 
-This is a tool designed to help athletes easily convert their Mountain Project Ticklist data into actionable insights. The app analyzes pertinent performance metrics and provides fun information such as total vertical distance climbed and location-based bar chart races. The results are displayed as engaging visualizations to help athletes better understand their climbing performance and progress.
+SendSage is your personal climbing analytics dashboard, designed to help athletes easily convert their Mountain Project Ticklist data into meaningful insights. The platform analyzes key performance metrics and provides comprehensive information such as total vertical distance climbed and location-based visualizations. Through engaging and interactive visualizations, SendSage helps athletes better understand their climbing performance and track their progression.
 
 ## Features
 
-- **Seamless User Input:** Easy data input through Mountain Project Profile URL
-- **Interactive Visualizations:** D3.js-powered custom displays of data trends.
-- **Engaging Visuals:** Fun visualizations such as bar chart races showing climbing locations and their changes over time.
-- **Progression Tracking:** Visualizations that illustrate how climbing performance has evolved over time.
-- **Performance Insights:** A dedicated section for in-depth analysis of top-end performances.
+### Dashboard Overview
+
+- **Quick Stats:** Total pitches, unique locations, favorite areas, and days outside
+- **Experience Base Analytics:**
+  - Base Volume: Climbing milestones, seasonal patterns, and work capacity analysis
+  - Progression: Route length and difficulty tier development tracking
+  - When & Where: Seasonal heatmaps, location hierarchies, and animated crag history
+
+### Performance Analytics
+
+- **Grade Tracking:** Highest clean sends across Sport, Trad, and Boulder
+- **Recent Achievements:** Latest hard sends with attempt counts and locations
+- **Advanced Analysis:**
+  - Performance Pyramid: Interactive grade pyramids with send rates and project history
+  - Performance Characteristics: Style analysis through energy systems, route length, and angle preferences
+
+### Data Management
+
+- **Easy Data Input:** Mountain Project Profile URL integration
+- **Data Refresh:** On-demand data updates
+- **Performance Data Verification:** Manual verification system for accurate analysis
 
 ## Technologies Used
 
@@ -54,4 +70,4 @@ This is a tool designed to help athletes easily convert their Mountain Project T
 
 ## Try it out!
 
-[Click here to access the Climbing Analytics Web Application](https://prototype-climbing-analytics-app.onrender.com/)
+[Click here to access SendSage](https://prototype-climbing-analytics-app.onrender.com/)
