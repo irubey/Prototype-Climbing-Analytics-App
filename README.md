@@ -2,6 +2,18 @@
 
 📊 **Transform your climbing data into actionable insights**
 
+## About
+
+SendSage is a sophisticated analytics platform that transforms Mountain Project tick lists into comprehensive climbing insights. Built for climbers who want to understand their performance deeply, it provides interactive visualizations and metrics across all climbing disciplines. Whether you're tracking your progression, analyzing your style preferences, or planning your next projects, SendSage turns your climbing history into a powerful tool for improvement.
+
+Key highlights:
+
+- 🎯 Instant conversion of Mountain Project data into actionable insights
+- 📈 Interactive grade pyramids and progression tracking
+- 🗺️ Geographic analysis of climbing patterns
+- 📊 Deep-dive performance metrics and style analysis
+- 🔄 Real-time data updates and verification system
+
 ## Introduction
 
 SendSage is your personal climbing analytics dashboard, designed to help athletes easily convert their Mountain Project Ticklist data into meaningful insights. The platform analyzes key performance metrics and provides comprehensive information such as total vertical distance climbed and location-based visualizations. Through engaging and interactive visualizations, SendSage helps athletes better understand their climbing performance and track their progression.
