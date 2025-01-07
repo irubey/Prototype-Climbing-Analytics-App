@@ -1,4 +1,3 @@
-import pandas as pd
 from flask import render_template, request, redirect, url_for, jsonify, flash
 from app import app, db
 from app.models import BinnedCodeDict, UserTicks
@@ -6,17 +5,13 @@ from app.services import DataProcessor
 from app.services.database_service import DatabaseService
 from app.services.analytics_service import AnalyticsService
 from datetime import date
-from collections import defaultdict
 import json
-from app.services.pyramid_builder import PyramidBuilder
 from app.services.grade_processor import GradeProcessor
 from app.services.pyramid_update_service import PyramidUpdateService
-from flask import session
 import psutil
 import os
 from sqlalchemy.sql import text
 from datetime import datetime
-from functools import lru_cache
 from time import time
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -386,9 +381,6 @@ def health_check():
         db.session.execute(text('SELECT 1'))
         db_status = "healthy"
         
-        # Get connection pool stats
-        pool_status = DatabaseService.get_pool_status()
-        
         # Get memory usage
         process = psutil.Process(os.getpid())
         memory_info = process.memory_info()
@@ -396,8 +388,7 @@ def health_check():
         return jsonify({
             'status': 'healthy',
             'database': {
-                'status': db_status,
-                'pool': pool_status
+                'status': db_status
             },
             'memory': {
                 'rss': memory_info.rss / 1024 / 1024,  # RSS in MB
