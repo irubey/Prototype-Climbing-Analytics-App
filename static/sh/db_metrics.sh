@@ -1,11 +1,9 @@
 #!/bin/bash
 
 # Load environment variables from .env file
-if [ -f .env ]; then
-    source .env
-else
-    echo "Error: .env file not found"
-    exit 1
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+if [ -f "${SCRIPT_DIR}/../../.env" ]; then
+    source "${SCRIPT_DIR}/../../.env"
 fi
 
 # Set database credentials from environment variables

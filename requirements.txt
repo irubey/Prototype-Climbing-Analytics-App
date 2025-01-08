@@ -28,3 +28,4 @@ urllib3==2.0.5
 Werkzeug==2.3.7
 whitenoise==6.6.0
 psutil==6.1.1
+Flask-Caching==2.0.2

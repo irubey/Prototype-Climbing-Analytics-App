@@ -1,5 +1,5 @@
 from flask import render_template, request, redirect, url_for, jsonify, flash
-from app import app, db
+from app import app, db, cache
 from app.models import BinnedCodeDict, UserTicks
 from app.services import DataProcessor
 from app.services.database_service import DatabaseService
@@ -25,6 +25,7 @@ _support_count_cache = {'count': None, 'timestamp': 0}
 CACHE_DURATION = 3600  # 1 hour in seconds
 
 @app.route("/", methods=['GET', 'POST'])
+@cache.cached(timeout=3600, unless=lambda: request.method == 'POST')  # Only cache GET requests
 def index():
     if request.method == 'POST':
         first_input = request.form.get('first_input')
@@ -89,6 +90,14 @@ def index():
             end_memory = process.memory_info().rss / 1024 / 1024
             app.logger.info(f"Final memory usage: {end_memory:.2f} MB (Total change: {end_memory - start_memory:.2f} MB)")
             
+            # Clear any cached data for this user
+            cache.delete_memoized(userviz, username=username)
+            cache.delete_memoized(base_volume, username=username)
+            cache.delete_memoized(progression, username=username)
+            cache.delete_memoized(when_where, username=username)
+            cache.delete_memoized(performance_pyramid, username=username)
+            cache.delete_memoized(performance_characteristics, username=username)
+            
             return redirect(url_for('userviz', username=username))
             
         except Exception as e:
@@ -103,10 +112,12 @@ def index():
     return render_template('index.html')
 
 @app.route("/terms-privacy")
+@cache.cached(timeout=86400)  # Cache for 24 hours since this is static content
 def terms_and_privacy():
     return render_template('termsAndPrivacy.html')
 
 @app.route("/userviz")
+@cache.memoize(timeout=300)  # Cache for 5 minutes
 def userviz():
     username = request.args.get('username')
     if not username:
@@ -140,9 +151,10 @@ def userviz():
                          boulder_pyramid=boulder_pyramid_data,
                          user_ticks=user_ticks_data,
                          binned_code_dict=binned_code_dict_data,
-                         **metrics)  # Unpack metrics into template variables
+                         **metrics)
 
 @app.route("/performance-pyramid")
+@cache.memoize(timeout=300)  # Cache for 5 minutes
 def performance_pyramid():
     username = request.args.get('username')
     if not username:
@@ -179,6 +191,7 @@ def performance_pyramid():
                          binned_code_dict=binned_code_dict_json)
 
 @app.route("/base-volume")
+@cache.memoize(timeout=300)  # Cache for 5 minutes
 def base_volume():
     username = request.args.get('username')
     if not username:
@@ -202,6 +215,7 @@ def base_volume():
                          binned_code_dict=binned_code_dict_data)
 
 @app.route("/progression")
+@cache.memoize(timeout=300)  # Cache for 5 minutes
 def progression():
     username = request.args.get('username')
     user_ticks = DatabaseService.get_user_ticks(username)
@@ -213,6 +227,7 @@ def progression():
                          binned_code_dict=json.dumps([r.as_dict() for r in binned_code_dict], cls=CustomJSONEncoder))
 
 @app.route("/when-where")
+@cache.memoize(timeout=300)  # Cache for 5 minutes
 def when_where():
     username = request.args.get('username')
     user_ticks = DatabaseService.get_user_ticks(username)
@@ -225,6 +240,7 @@ def when_where():
 grade_processor = GradeProcessor()
 
 @app.route("/pyramid-input", methods=['GET', 'POST'])
+@cache.memoize(timeout=300, unless=lambda: request.method == 'POST')  # Only cache GET requests
 def pyramid_input():
     username = request.args.get('username')
     if not username:
@@ -242,15 +258,21 @@ def pyramid_input():
                 # Process the changes directly to pyramid tables
                 PyramidUpdateService.process_changes(username, changes)
                 
-                # Clear any cached data
-                db.session.expire_all()
+                # Clear all caches for this user since data has changed
+                cache.delete_memoized(userviz, username=username)
+                cache.delete_memoized(base_volume, username=username)
+                cache.delete_memoized(progression, username=username)
+                cache.delete_memoized(when_where, username=username)
+                cache.delete_memoized(performance_pyramid, username=username)
+                cache.delete_memoized(performance_characteristics, username=username)
+                cache.delete_memoized(pyramid_input, username=username)
                 
                 flash('Changes saved successfully!', 'success')
             else:
                 flash('No changes were submitted.', 'warning')
-                
-            # Redirect to the user's dashboard visualization page
-            return redirect(url_for('userviz', username=username))
+            
+            app.logger.info(f"Redirecting to performance characteristics for username: {username}")
+            return redirect(url_for('performance_characteristics', username=username))
             
         except Exception as e:
             app.logger.error(f"Error processing changes: {str(e)}")
@@ -271,6 +293,7 @@ def pyramid_input():
                          boulders_grade_list=boulders_grade_list)
 
 @app.route("/performance-characteristics")
+@cache.memoize(timeout=300)  # Cache for 5 minutes
 def performance_characteristics():
     username = request.args.get('username')
     
@@ -365,6 +388,12 @@ def delete_tick(tick_id):
 @app.route("/refresh-data/<username>", methods=['POST'])
 def refresh_data(username):
     try:
+        # Clear all caches related to this user
+        cache.delete_memoized(userviz, username=username)
+        cache.delete_memoized(base_volume, username=username)
+        cache.delete_memoized(progression, username=username)
+        cache.delete_memoized(when_where, username=username)
+        
         DatabaseService.clear_user_data(username)
         return redirect(url_for('index'))
     except Exception as e:
@@ -404,22 +433,3 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
-
-@app.route("/api/support-count")
-def get_support_count():
-    current_time = time()
-    
-    # Return cached value if it exists and hasn't expired
-    if _support_count_cache['count'] is not None and current_time - _support_count_cache['timestamp'] < CACHE_DURATION:
-        app.logger.info(f"Returning cached support count: {_support_count_cache['count']}")
-        return jsonify({"count": _support_count_cache['count']})
-    
-    # Cache miss or expired, query the database
-    unique_users = db.session.query(UserTicks.username).distinct().count()
-    
-    # Update cache
-    _support_count_cache['count'] = unique_users
-    _support_count_cache['timestamp'] = current_time
-    
-    app.logger.info(f"Updated cache with new support count: {unique_users}")
-    return jsonify({"count": unique_users})

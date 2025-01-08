@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_caching import Cache
 from config import Config
 import os
 from sqlalchemy.sql import text
@@ -10,10 +11,19 @@ from logging.handlers import RotatingFileHandler
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
+# Initialize Flask-Caching
+cache = Cache(config={
+    'CACHE_TYPE': 'simple',
+    'CACHE_DEFAULT_TIMEOUT': 300
+})
+
 # Initialize Flask app with correct template and static paths
 app = Flask(__name__, 
            template_folder='../templates',
            static_folder='../static')
+
+# Initialize cache with app
+cache.init_app(app)
 
 # Set up logging
 if not os.path.exists('logs'):
