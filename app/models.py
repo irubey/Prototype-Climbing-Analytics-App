@@ -13,6 +13,10 @@ class BinnedCodeDict(BaseModel):
 
 class BoulderPyramid(BaseModel):
     __tablename__ = 'boulder_pyramid'
+    __table_args__ = (
+        db.Index('idx_boulder_pyramid_username', 'username'),
+        db.Index('idx_boulder_pyramid_tick_date', 'tick_date'),
+    )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     tick_id = db.Column(db.Integer)
     route_name = db.Column(db.String(255))
@@ -36,6 +40,11 @@ class BoulderPyramid(BaseModel):
 
 class SportPyramid(BaseModel):
     __tablename__ = 'sport_pyramid'
+    __table_args__ = (
+        db.Index('idx_sport_pyramid_username', 'username'),
+        db.Index('idx_sport_pyramid_tick_date', 'tick_date'),
+        db.Index('idx_sport_pyramid_lookup', 'username', 'route_name', 'tick_date'),
+    )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     tick_id = db.Column(db.Integer)
     route_name = db.Column(db.String(255))
@@ -59,6 +68,10 @@ class SportPyramid(BaseModel):
 
 class TradPyramid(BaseModel):
     __tablename__ = 'trad_pyramid'
+    __table_args__ = (
+        db.Index('idx_trad_pyramid_username', 'username'),
+        db.Index('idx_trad_pyramid_tick_date', 'tick_date'),
+    )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     tick_id = db.Column(db.Integer)
     route_name = db.Column(db.String(255))
@@ -82,6 +95,11 @@ class TradPyramid(BaseModel):
 
 class UserTicks(BaseModel):
     __tablename__ = 'user_ticks'
+    __table_args__ = (
+        db.Index('idx_user_ticks_username', 'username'),
+        db.Index('idx_user_ticks_tick_date', 'tick_date'),
+        db.Index('idx_user_ticks_lookup', 'username', 'route_name', 'tick_date'),
+    )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     route_name = db.Column(db.String(255))
     tick_date = db.Column(db.Date)
@@ -102,4 +120,5 @@ class UserTicks(BaseModel):
     length_category = db.Column(db.String(255))
     season_category = db.Column(db.String(255))
     username = db.Column(db.String(255))
-    route_url = db.Column(db.String(255)) 
+    route_url = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, server_default=db.func.current_timestamp()) 
