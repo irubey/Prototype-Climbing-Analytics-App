@@ -334,36 +334,36 @@ document.addEventListener(
           .style("opacity", 1);
       }
 
-      function calculateGradeStats(filteredData, binned_code) {
-        // Get current discipline
-        const currentDiscipline = d3
-          .select("input[name='performance-pyramid-discipline-filter']:checked")
-          .node().value;
-
-        // Filter data for this grade AND discipline
-        const gradeData = filteredData.filter(
-          (d) =>
-            d.binned_code === binned_code && d.discipline === currentDiscipline
+      function calculateGradeStats(userTicksData, binned_code) {
+        // Filter user ticks for this grade
+        const gradeAttempts = userTicksData.filter(
+          (d) => d.binned_code === binned_code
         );
 
-        // Total attempts is sum of pitches for each tick
-        const totalAttempts = gradeData.reduce(
-          (total, tick) => total + tick.pitches,
-          0
-        );
+        // Calculate total attempts based on length_category
+        const totalAttempts = gradeAttempts.reduce((sum, tick) => {
+          if (tick.length_category === "multipitch") {
+            return sum + 1; // Each record counts as 1 attempt for multipitch
+          } else {
+            return sum + (tick.pitches || 1); // Sum pitches for single pitch
+          }
+        }, 0);
 
-        // Count sends for this grade (using send_bool, one per tick)
-        const sends = gradeData.filter((d) => d.send_bool).length;
+        // Count successful sends (using pyramid data since it's already filtered for sends)
+        const sends = pyramidData.filter(
+          (d) => d.binned_code === binned_code
+        ).length;
 
         // Calculate send rate
         const sendRate =
           totalAttempts > 0 ? Math.round((sends / totalAttempts) * 100) : 0;
 
-        // Get last send date from season_category for sends only
-        const sendDates = gradeData
-          .filter((d) => d.send_bool)
-          .map((d) => d.season_category);
-        const lastSend = sendDates.length > 0 ? d3.max(sendDates) : "-";
+        // Get last send date
+        const lastSend =
+          sends > 0
+            ? pyramidData.find((d) => d.binned_code === binned_code)
+                ?.season_category || "-"
+            : "-";
 
         return { totalAttempts, sends, sendRate, lastSend };
       }

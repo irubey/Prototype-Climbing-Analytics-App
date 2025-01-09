@@ -971,3 +971,24 @@
   background: var(--color-white);
   color: var(--primary);
 }
+
+/* Notes Button
+   -------------------------------------------------------------------------- */
+.notes-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-left: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-base);
+}
+
+.notes-btn:hover {
+  background-color: var(--background);
+}
+
+.notes-btn i {
+  font-size: var(--font-size-sm);
+}

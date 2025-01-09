@@ -38,6 +38,8 @@ function getProjectsData(userTicks, minBinnedGrade, discipline, timeRange) {
         attempts: [],
         hasSent: false,
         season_category: tick.season_category,
+        length_category: tick.length_category,
+        notes: [], // Initialize notes array
       });
     }
 
@@ -48,8 +50,18 @@ function getProjectsData(userTicks, minBinnedGrade, discipline, timeRange) {
       date: attemptDate,
       send: tick.send_bool,
       season_category: tick.season_category,
-      pitches: tick.pitches || 1, // Track pitches per attempt, default to 1
+      pitches: tick.pitches || 1,
+      length_category: tick.length_category,
+      notes: tick.notes, // Store notes with each attempt
     });
+
+    // Store notes if they exist
+    if (tick.notes) {
+      routeData.notes.push({
+        date: attemptDate,
+        text: tick.notes,
+      });
+    }
 
     // Update season_category if this attempt is more recent
     if (attemptDate > Math.max(...routeData.attempts.map((a) => a.date))) {
@@ -70,11 +82,19 @@ function getProjectsData(userTicks, minBinnedGrade, discipline, timeRange) {
         route.attempts.map((a) => a.date.toISOString().split("T")[0])
       );
 
-      // Calculate total attempts by summing pitches
-      const totalAttempts = route.attempts.reduce(
-        (sum, attempt) => sum + attempt.pitches,
-        0
-      );
+      // Sort notes by date
+      const sortedNotes = route.notes
+        .sort((a, b) => b.date - a.date)
+        .map((note) => ({
+          date: formatDate(note.date),
+          text: note.text,
+        }));
+
+      // Calculate total attempts based on length_category
+      const totalAttempts =
+        route.length_category === "multipitch"
+          ? route.attempts.length
+          : route.attempts.reduce((sum, attempt) => sum + attempt.pitches, 0);
 
       return {
         name: route.name,
@@ -87,6 +107,9 @@ function getProjectsData(userTicks, minBinnedGrade, discipline, timeRange) {
         totalAttempts: totalAttempts,
         lastAttempted: new Date(Math.max(...route.attempts.map((a) => a.date))),
         season_category: route.season_category,
+        length_category: route.length_category,
+        notes: sortedNotes,
+        hasNotes: sortedNotes.length > 0,
       };
     })
     .sort((a, b) => {
@@ -133,7 +156,7 @@ function updateProjectsTable(projects) {
       const headerRow = document.createElement("tr");
       headerRow.className = "grade-header";
       headerRow.innerHTML = `
-        <td colspan="6">${grade}</td>
+        <td colspan="7">${grade}</td>
       `;
       tbody.appendChild(headerRow);
 
@@ -142,8 +165,19 @@ function updateProjectsTable(projects) {
         .sort((a, b) => b.totalAttempts - a.totalAttempts)
         .forEach((project) => {
           const row = document.createElement("tr");
+          const notesButton = project.hasNotes
+            ? `<button onclick="showProjectNotes('${encodeURIComponent(
+                JSON.stringify(project)
+              )}')" class="notes-btn">
+              <i class="fas fa-sticky-note"></i>
+            </button>`
+            : "";
+
           row.innerHTML = `
-            <td><a href="${project.route_url}" target="_blank">${project.name}</a></td>
+            <td>
+              <a href="${project.route_url}" target="_blank">${project.name}</a>
+              ${notesButton}
+            </td>
             <td>${project.route_grade}</td>
             <td>${project.location}</td>
             <td>${project.daysProjected}</td>
@@ -153,6 +187,48 @@ function updateProjectsTable(projects) {
           tbody.appendChild(row);
         });
     });
+}
+
+// Add notes modal functionality
+window.showProjectNotes = function (projectJson) {
+  const project = JSON.parse(decodeURIComponent(projectJson));
+  const modal = document.getElementById("notesModal") || createNotesModal();
+
+  const content = modal.querySelector(".modal-content");
+  content.innerHTML = `
+    <div class="modal-section">
+      <h3>${project.name} - ${project.route_grade}</h3>
+      <span class="modal-close">&times;</span>
+      ${project.notes
+        .map(
+          (note) => `
+        <div class="modal-section">
+          <h4>${note.date}</h4>
+          <p>${note.text}</p>
+        </div>
+      `
+        )
+        .join("")}
+    </div>
+  `;
+
+  // Add event listeners
+  modal.querySelector(".modal-close").onclick = () =>
+    (modal.style.display = "none");
+  window.onclick = (event) => {
+    if (event.target === modal) modal.style.display = "none";
+  };
+
+  modal.style.display = "block";
+};
+
+function createNotesModal() {
+  const modal = document.createElement("div");
+  modal.id = "notesModal";
+  modal.className = "modal";
+  modal.innerHTML = '<div class="modal-content"></div>';
+  document.body.appendChild(modal);
+  return modal;
 }
 
 // Add to window load event

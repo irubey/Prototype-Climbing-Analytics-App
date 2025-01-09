@@ -67,7 +67,7 @@ def index():
                 return response
 
             # If no existing data, process the profile
-            processor = DataProcessor()
+            processor = DataProcessor(db.session)
             sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username = processor.process_profile(first_input)
 
             # Log memory usage before database operations
@@ -248,11 +248,10 @@ def pyramid_input():
                 app.logger.info(f"Received changes data: {changes}")
                 
                 # Process the changes directly to pyramid tables
-                PyramidUpdateService.process_changes(username, changes)
+                update_service = PyramidUpdateService()
+                update_service.process_changes(username, changes)
                 
     
-                
-                flash('Changes saved successfully!', 'success')
             else:
                 flash('No changes were submitted.', 'warning')
             

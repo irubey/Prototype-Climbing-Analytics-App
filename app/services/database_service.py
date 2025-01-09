@@ -167,12 +167,11 @@ class DatabaseService:
             if not user_tick:
                 return False
                 
-            # Store info needed for pyramid deletion
             username = user_tick.username
             
             # Delete the user tick
             db.session.delete(user_tick)
-            db.session.commit()  # Commit the tick deletion first
+            db.session.commit()
             
             # Get remaining ticks for pyramid rebuild
             remaining_ticks = DatabaseService.get_user_ticks(username)
@@ -180,9 +179,9 @@ class DatabaseService:
             # Convert to DataFrame for pyramid building
             df = pd.DataFrame([r.as_dict() for r in remaining_ticks])
             
-            # Build fresh pyramids from remaining ticks
+            # Build fresh pyramids from remaining ticks - no prediction needed
             pyramid_builder = PyramidBuilder()
-            sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(df)
+            sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(df, db.session)
             
             # Clear existing pyramids and save new ones
             DatabaseService.clear_pyramids(username)

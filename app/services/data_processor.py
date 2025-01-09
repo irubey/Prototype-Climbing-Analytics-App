@@ -9,9 +9,10 @@ from .pyramid_builder import PyramidBuilder
 class DataProcessor:
     """Main class that orchestrates the processing of climbing data"""
     
-    def __init__(self):
+    def __init__(self, db_session):
         self.grade_processor = GradeProcessor()
         self.classifier = ClimbClassifier()
+        self.db_session = db_session
     
     def process_profile(self, profile_url: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, str]:
         """Process a Mountain Project profile URL and return the processed data."""
@@ -27,9 +28,9 @@ class DataProcessor:
         # Calculate max grades
         self.calculate_max_grades(processed_df)
         
-        # Build pyramids
+        # Build pyramids with db_session for initial predictions
         pyramid_builder = PyramidBuilder()
-        sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(processed_df)
+        sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(processed_df, self.db_session)
         
         return sport_pyramid, trad_pyramid, boulder_pyramid, processed_df, username
     

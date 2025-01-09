@@ -2,6 +2,10 @@ import pandas as pd
 from typing import Tuple, Dict
 from .grade_processor import GradeProcessor
 import time
+from sqlalchemy import func, or_, text
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql import or_
+from app.models import SportPyramid, TradPyramid, BoulderPyramid
 
 class PyramidBuilder:
     """Handles the creation of climbing pyramids for different disciplines"""
@@ -47,17 +51,91 @@ class PyramidBuilder:
             "V16-","V16","V16+",
             "V17-","V17","V17+",
         ]
+        
+        # Add style and characteristic keywords
+        self.style_keywords = {
+            'Slab': ['slab', 'low angle'],
+            'Vertical': ['vertical', 'vertical face','vert'],
+            'Overhang': ['overhang', 'steep' 'overhanging'],
+            'Roof': ['roof', 'horizontal', 'ceiling']
+        }
+        
+        self.characteristic_keywords = {
+            'Power': ['powerful', 'dynamic', 'boulder', 'bouldery', 'power'],
+            'Power Endurance': ['resistance', 'sustained', 'power endurance'],
+            'Endurance': ['endurance', 'continuous', 'no rest']
+        }
 
-    def build_pyramid(self, df, discipline):
-        """Build a pyramid for a specific discipline."""
-        # Clean data
+    def predict_style_characteristic(self, row, db_session):
+        """Predict route style and characteristic based on evidence with optimized DB queries."""
+        route_name = row['route_name']
+        location = row['location']
+        notes = row.get('notes', '').lower() if pd.notna(row.get('notes')) else ''
+        
+        style = None
+        characteristic = None
+        
+        # Query existing pyramid data
+        for table in [SportPyramid, TradPyramid, BoulderPyramid]:
+            if style and characteristic:
+                break
+            
+            existing_data = (db_session.query(
+                table.route_style,
+                table.route_characteristic,
+                func.count(table.route_style).label('style_count'),
+                func.count(table.route_characteristic).label('char_count')
+            )
+            .filter(
+                table.route_name == route_name,
+                table.location == location,
+                or_(
+                    table.route_style.isnot(None),
+                    table.route_characteristic.isnot(None)
+                )
+            )
+            .group_by(table.route_style, table.route_characteristic)
+            .order_by(text('style_count DESC, char_count DESC'))
+            .limit(1)
+            .first())
+            
+            if existing_data:
+                style = style or existing_data.route_style
+                characteristic = characteristic or existing_data.route_characteristic
+        
+        # Check notes for keywords if still not found
+        if not style and notes:
+            for s, keywords in self.style_keywords.items():
+                if any(keyword in notes for keyword in keywords):
+                    style = s
+                    break
+        
+        if not characteristic and notes:
+            for c, keywords in self.characteristic_keywords.items():
+                if any(keyword in notes for keyword in keywords):
+                    characteristic = c
+                    break
+        
+        # Return None if we couldn't determine style/characteristic
+        return style, characteristic
+
+    def build_pyramid(self, df, discipline, db_session):
+        """Build a pyramid with optimized style/characteristic prediction."""
+        # Store the full dataset before filtering for sends, but filter by discipline
+        all_attempts_df = df[df['discipline'] == discipline].copy()
+        
+        # Continue with send filtering for the pyramid
         df = df.dropna(how='all')
-        df = df[df['send_bool'] == True]  # Filter for sends only
+        df = df[df['send_bool'] == True]
         df = df[df['discipline'] == discipline]
-
+        
         if df.empty:
             return df
-
+        
+        # Initialize route_style and route_characteristic as None
+        df['route_style'] = None
+        df['route_characteristic'] = None
+        
         # Remove duplicates based on route_name and location, keep oldest tick_date
         df = df.sort_values('tick_date')
         df = df.drop_duplicates(subset=['route_name', 'location'], keep='first')
@@ -87,13 +165,20 @@ class PyramidBuilder:
         # Sort by binned_code and grade
         df = df.sort_values(['binned_code', 'custom_sorting_grade'], ascending=[False, False])
 
-        # Calculate attempts
+        # New attempt calculation that uses the full dataset
         def calculate_num_attempts(row):
+            route_entries = all_attempts_df[
+                (all_attempts_df['route_name'] == row['route_name']) & 
+                (all_attempts_df['location'] == row['location'])
+            ]
+            
             if row['length_category'] == 'multipitch':
-                return df.loc[df['route_name'] == row['route_name']].shape[0]
+                # For multipitch: count unique entries since each entry represents a full attempt
+                return len(route_entries)
             else:
-                return df.loc[df['route_name'] == row['route_name'], 'pitches'].sum()
-
+                # For single pitch: sum the pitches across all entries since each pitch represents an attempt
+                return route_entries['pitches'].sum()
+        
         df['num_attempts'] = df.apply(calculate_num_attempts, axis=1)
 
         # Handle tick_id assignment - preserve UserTicks id
@@ -120,12 +205,25 @@ class PyramidBuilder:
         ]
         df = df.drop(columns=columns_to_drop, errors='ignore')
 
+        # Predict styles and characteristics
+        if db_session is not None:
+            predictions = df.apply(
+                lambda row: self.predict_style_characteristic(row, db_session), 
+                axis=1
+            )
+            df['route_style'] = df['route_style'].fillna(
+                pd.Series([p[0] for p in predictions], index=df.index)
+            )
+            df['route_characteristic'] = df['route_characteristic'].fillna(
+                pd.Series([p[1] for p in predictions], index=df.index)
+            )
+
         return df
 
-    def build_all_pyramids(self, df):
+    def build_all_pyramids(self, df, db_session=None):
         """Build pyramids for all disciplines."""
-        sport_pyramid = self.build_pyramid(df, 'sport')
-        trad_pyramid = self.build_pyramid(df, 'trad')
-        boulder_pyramid = self.build_pyramid(df, 'boulder')
+        sport_pyramid = self.build_pyramid(df, 'sport', db_session)
+        trad_pyramid = self.build_pyramid(df, 'trad', db_session)
+        boulder_pyramid = self.build_pyramid(df, 'boulder', db_session)
         
         return sport_pyramid, trad_pyramid, boulder_pyramid

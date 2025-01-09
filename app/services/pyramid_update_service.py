@@ -3,6 +3,7 @@ from app.models import db, SportPyramid, TradPyramid, BoulderPyramid, UserTicks
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 from app.services.grade_processor import GradeProcessor
+
 import time
 import pandas as pd
 from app.services.climb_classifier import ClimbClassifier
@@ -10,9 +11,9 @@ from app.services.climb_classifier import ClimbClassifier
 class PyramidUpdateService:
     def __init__(self):
         self.grade_processor = GradeProcessor()
+        self.classifier = ClimbClassifier()
 
-    @staticmethod
-    def process_changes(username: str, changes_data: Dict[str, Any]) -> bool:
+    def process_changes(self, username: str, changes_data: Dict[str, Any]) -> bool:
         """Process changes to pyramid data."""
         try:
             for discipline, changes in changes_data.items():
@@ -55,8 +56,7 @@ class PyramidUpdateService:
 
                     # Check if the route's grade is within the valid range
                     if 'route_grade' in updates:
-                        grade_processor = GradeProcessor()
-                        binned_code = grade_processor.convert_grades_to_codes([updates['route_grade']])[0]
+                        binned_code = self.grade_processor.convert_grades_to_codes([updates['route_grade']])[0]
                         if binned_code < min_valid_code or binned_code > max_valid_code:
                             continue
                         
@@ -66,7 +66,7 @@ class PyramidUpdateService:
                         updates['tick_date'] = updates.get('tick_date', datetime.now().date())
                         updates['tick_id'] = int(route_id)
                         
-                        PyramidUpdateService._add_new_route(
+                        self._add_new_route(
                             username=username,
                             model_class=model_class,
                             route_data=updates,
@@ -205,8 +205,7 @@ class PyramidUpdateService:
         
         return grade, binned_code
 
-    @staticmethod
-    def _add_new_route(username: str, model_class: Any, route_data: Dict[str, Any], new_id: str) -> None:
+    def _add_new_route(self, username: str, model_class: Any, route_data: Dict[str, Any], new_id: str) -> None:
         """Add a new route to the pyramid"""
         try:
             # Handle tick_date - if it's a string, parse it, otherwise use it as is
@@ -222,57 +221,49 @@ class PyramidUpdateService:
             else:
                 route_data['tick_date'] = datetime.now().date()
 
-            # Ensure tick_id is set
-            if 'tick_id' not in route_data:
-                route_data['tick_id'] = int(datetime.now().timestamp())
-
-            # Validate and bin the grade
-            try:
-                grade_processor = GradeProcessor()
-                route_grade = route_data.get('route_grade', '')
-                binned_code = grade_processor.convert_grades_to_codes([route_grade])[0]
-                binned_grade = grade_processor.get_grade_from_code(binned_code)
-            except ValueError as e:
-                raise ValueError(f"Invalid route data: {str(e)}")
-
-            # Set lead_style based on discipline and attempts
+            # Use user-provided values directly - no prediction
             num_attempts = int(route_data.get('num_attempts', 1))
             discipline = route_data.get('discipline', '')
+            
+            # Set lead_style based on discipline and attempts
             if discipline in ['sport', 'trad']:
                 lead_style = 'Redpoint' if num_attempts > 1 else 'Flash'
             else:  # boulder
                 lead_style = 'Send' if num_attempts > 1 else 'Flash'
 
-            # Get season category from date
-            classifier = ClimbClassifier()
+            # Calculate binned_code from route_grade
+            route_grade = route_data.get('route_grade', 'Unknown Grade')
+            binned_code = self.grade_processor.get_code_from_grade(route_grade)
+
+            # Get season category
             date_df = pd.DataFrame({
                 'tick_date': [route_data['tick_date']]
             })
-            season_category = classifier.classify_season(date_df).iloc[0]
+            season_category = self.classifier.classify_season(date_df).iloc[0]
 
-            # Create new pyramid entry with all required fields
+            # Create new pyramid entry with user-provided data
             new_entry = model_class(
                 username=username,
                 route_name=route_data.get('route_name', 'Unknown Route'),
-                route_grade=route_data.get('route_grade', 'Unknown Grade'),
+                route_grade=route_grade,
                 tick_date=route_data['tick_date'],
                 num_attempts=num_attempts,
-                route_characteristic=route_data.get('route_characteristic', 'Unknown'),
-                route_style=route_data.get('route_style', 'Unknown'),
-                tick_id=route_data['tick_id'],
-                binned_grade=binned_grade,
+                route_characteristic=route_data.get('route_characteristic'),  # Use as provided
+                route_style=route_data.get('route_style'),  # Use as provided
+                tick_id=route_data.get('tick_id', int(datetime.now().timestamp())),
+                binned_grade=self.grade_processor.get_grade_from_code(binned_code),
                 binned_code=binned_code,
-                length=None,  # Default to NA
-                pitches=num_attempts,  # Set to attempts
-                location='User Added',
+                length=None,
+                pitches=num_attempts,
+                location=route_data.get('location', 'User Added'),
                 lead_style=lead_style,
                 discipline=discipline,
-                length_category=None,  # Default to NA
+                length_category=None,
                 season_category=season_category,
-                route_url=None,  # Default to NA
-                user_grade=route_data.get('route_grade', 'Unknown Grade')  # Same as route_grade
+                route_url=None,
+                user_grade=route_data.get('route_grade', 'Unknown Grade')
             )
 
             db.session.add(new_entry)
         except Exception as e:
-            raise e 
+            raise e
