@@ -100,11 +100,11 @@ def index():
                 'error': 'An error occurred while processing your data. Please try again.'
             }), 500
 
-    # Handle GET request by clearing localStorage (handled client-side)
+   
     return render_template('index.html')
 
 @app.route("/terms-privacy")
-@cache.cached(timeout=86400)  # Cache for 24 hours since this is static content
+@cache.cached(timeout=86400) 
 def terms_and_privacy():
     return render_template('termsAndPrivacy.html')
 

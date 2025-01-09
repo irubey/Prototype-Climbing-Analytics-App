@@ -121,4 +121,5 @@ class UserTicks(BaseModel):
     season_category = db.Column(db.String(255))
     username = db.Column(db.String(255))
     route_url = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, server_default=db.func.current_timestamp()) 
+    created_at = db.Column(db.DateTime, server_default=db.func.current_timestamp())
+    notes = db.Column(db.Text) 

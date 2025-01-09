@@ -196,5 +196,6 @@ class DataProcessor:
         df['length_category'] = df['length_category'].astype('category')
         df['season_category'] = df['season_category'].astype('category')
         df['discipline'] = df['discipline'].astype('category')
+        df['notes'] = df['notes'].fillna('').astype(str).str.strip()
         
         return df 

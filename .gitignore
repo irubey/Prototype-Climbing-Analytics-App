@@ -36,7 +36,7 @@ config.json
 
 # Cache and Metadata Folders
 .cache/
-__pycache__/
+__pycache__/*
 *.pyc
 
 # Operating System Generated Files
@@ -53,4 +53,6 @@ target/
 .gradle/
 .next/
 .dockerignore
+
+.vscode/
 
