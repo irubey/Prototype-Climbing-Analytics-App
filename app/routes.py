@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, jsonify, flash
+from flask import render_template, request, redirect, url_for, jsonify, flash, make_response
 from app import app, db, cache
 from app.models import BinnedCodeDict, UserTicks
 from app.services import DataProcessor
@@ -65,7 +65,10 @@ def index():
             existing_ticks = UserTicks.query.filter_by(username=username).first()
             if existing_ticks:
                 app.logger.info(f"Found existing data for user: {username}")
-                return redirect(url_for('userviz', username=username))
+                response = make_response(redirect(url_for('userviz', username=username)))
+                # Add header to set username (optional if handled client-side)
+                response.headers['X-Set-User'] = username
+                return response
 
             # If no existing data, process the profile
             processor = DataProcessor()
@@ -109,6 +112,7 @@ def index():
                 'error': 'An error occurred while processing your data. Please try again.'
             }), 500
 
+    # Handle GET request by clearing localStorage (handled client-side)
     return render_template('index.html')
 
 @app.route("/terms-privacy")
@@ -127,19 +131,19 @@ def userviz():
     pyramids = DatabaseService.get_pyramids_by_username(username)
     binned_code_dict = BinnedCodeDict.query.all()
     user_ticks = DatabaseService.get_user_ticks(username)
-    
+
     # Get analytics metrics
     analytics_service = AnalyticsService(db)
     metrics = analytics_service.get_all_metrics(username)
-    
-    # Convert to list of dicts and handle date serialization
+
+    # Prepare data for rendering
     sport_pyramid_data = [r.as_dict() for r in pyramids['sport']]
     trad_pyramid_data = [r.as_dict() for r in pyramids['trad']]
     boulder_pyramid_data = [r.as_dict() for r in pyramids['boulder']]
     binned_code_dict_data = [r.as_dict() for r in binned_code_dict]
     user_ticks_data = [r.as_dict() for r in user_ticks]
 
-    # Convert dates to strings
+    # Serialize dates
     for item in sport_pyramid_data + trad_pyramid_data + boulder_pyramid_data + user_ticks_data:
         if 'tick_date' in item:
             item['tick_date'] = item['tick_date'].strftime('%Y-%m-%d')
@@ -393,9 +397,15 @@ def refresh_data(username):
         cache.delete_memoized(base_volume, username=username)
         cache.delete_memoized(progression, username=username)
         cache.delete_memoized(when_where, username=username)
+        cache.delete_memoized(performance_pyramid, username=username)
+        cache.delete_memoized(performance_characteristics, username=username)
         
         DatabaseService.clear_user_data(username)
-        return redirect(url_for('index'))
+        
+        # Prepare redirect response with header to clear localStorage
+        response = make_response(redirect(url_for('index')))
+        response.headers['X-Clear-User'] = 'true'
+        return response
     except Exception as e:
         app.logger.error(f"Error refreshing data for {username}: {str(e)}")
         return jsonify({
@@ -433,3 +443,22 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
+    
+@app.route("/api/support-count")
+def get_support_count():
+    current_time = time()
+    
+    # Return cached value if it exists and hasn't expired
+    if _support_count_cache['count'] is not None and current_time - _support_count_cache['timestamp'] < CACHE_DURATION:
+        app.logger.info(f"Returning cached support count: {_support_count_cache['count']}")
+        return jsonify({"count": _support_count_cache['count']})
+    
+    # Cache miss or expired, query the database
+    unique_users = db.session.query(UserTicks.username).distinct().count()
+    
+    # Update cache
+    _support_count_cache['count'] = unique_users
+    _support_count_cache['timestamp'] = current_time
+    
+    app.logger.info(f"Updated cache with new support count: {unique_users}")
+    return jsonify({"count": unique_users})

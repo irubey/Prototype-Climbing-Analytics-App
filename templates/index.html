@@ -99,6 +99,7 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/_landingPage.css') }}"
     />
+    <script src="{{ url_for('static', filename='js/userManagement.js') }}"></script>
   </head>
   <body>
     <div class="background-overlay"></div>
@@ -305,6 +306,16 @@
             );
           }
 
+          // Extract the redirected URL
+          const redirectedURL = response.url;
+          const urlParams = new URLSearchParams(new URL(redirectedURL).search);
+          const username = urlParams.get("username");
+
+          // Set the username in localStorage
+          if (username) {
+            setCurrentUser(username);
+          }
+
           // Stage 2: Processing routes
           updateLoadingStages();
           await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -317,7 +328,7 @@
           updateLoadingStages();
           await new Promise((resolve) => setTimeout(resolve, 500));
 
-          window.location.href = response.url;
+          window.location.href = redirectedURL;
         } catch (error) {
           hideLoadingScreen();
           setLoading(false);

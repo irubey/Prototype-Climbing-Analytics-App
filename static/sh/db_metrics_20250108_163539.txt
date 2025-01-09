@@ -1,0 +1,46 @@
+SendSage Database Metrics Report - Wed Jan  8 16:35:39 MST 2025
+----------------------------------------
+
+Processing Volume (Last 7 Days):
+         total_records          |               processing_rate                |          total_datapoints           
+--------------------------------+----------------------------------------------+-------------------------------------
+ Total Records Processed: 66765 | Average Processing Rate: 9537.86 records/day | Total Datapoints Processed: 1418943
+(1 row)
+
+
+User Adoption Metrics:
+        total_users         |       avg_records_per_user       
+----------------------------+----------------------------------
+ Total Users Onboarded: 117 | Average Records per User: 570.64
+(1 row)
+
+
+Processed Data Distribution:
+ discipline | records_processed | avg_per_user | percentage 
+------------+-------------------+--------------+------------
+ sport      |             30790 |       265.43 |      50.93
+ trad       |             18647 |       169.52 |      30.84
+ boulder    |             10440 |        99.43 |      17.27
+ winter/ice |               420 |        15.00 |       0.69
+ mixed      |               151 |        10.79 |       0.25
+ aid        |                 8 |         1.14 |       0.01
+(6 rows)
+
+
+Historical Data Coverage:
+ earliest_record | latest_record | unique_dates |               coverage_summary               
+-----------------+---------------+--------------+----------------------------------------------
+ 1989-12-22      | 2025-12-31    |         4865 | 117 users spanning 13158 of climbing history
+(1 row)
+
+
+Top Users by Processing Volume:
+       username       | records_processed | percent_of_total | history_span 
+----------------------+-------------------+------------------+--------------
+ charles-vernon       |              2062 |             3.09 |        11807
+ brian-stevens        |              1937 |             2.90 |         5230
+ chris-stocking       |              1935 |             2.90 |         8855
+ jack-lange           |              1918 |             2.87 |         2884
+ aldous-william-eaton |              1475 |             2.21 |         2302
+(5 rows)
+

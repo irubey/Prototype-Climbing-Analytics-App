@@ -1,0 +1,46 @@
+SendSage Database Metrics Report - Wed Jan  8 09:54:42 MST 2025
+----------------------------------------
+
+Processing Volume (Last 7 Days):
+         total_records          |               processing_rate                |          total_datapoints           
+--------------------------------+----------------------------------------------+-------------------------------------
+ Total Records Processed: 55943 | Average Processing Rate: 7991.86 records/day | Total Datapoints Processed: 1189979
+(1 row)
+
+
+User Adoption Metrics:
+        total_users         |       avg_records_per_user       
+----------------------------+----------------------------------
+ Total Users Onboarded: 104 | Average Records per User: 537.91
+(1 row)
+
+
+Processed Data Distribution:
+ discipline | records_processed | avg_per_user | percentage 
+------------+-------------------+--------------+------------
+ sport      |             25795 |       250.44 |      51.41
+ trad       |             16256 |       165.88 |      32.40
+ boulder    |              7550 |        79.47 |      15.05
+ winter/ice |               412 |        15.26 |       0.82
+ mixed      |               151 |        10.79 |       0.30
+ aid        |                 7 |         1.17 |       0.01
+(6 rows)
+
+
+Historical Data Coverage:
+ earliest_record | latest_record | unique_dates |               coverage_summary               
+-----------------+---------------+--------------+----------------------------------------------
+ 1989-12-22      | 2025-12-31    |         4193 | 104 users spanning 13158 of climbing history
+(1 row)
+
+
+Top Users by Processing Volume:
+       username       | records_processed | percent_of_total | history_span 
+----------------------+-------------------+------------------+--------------
+ charles-vernon       |              2062 |             3.69 |        11807
+ chris-stocking       |              1935 |             3.46 |         8855
+ jack-lange           |              1918 |             3.43 |         2884
+ aldous-william-eaton |              1475 |             2.64 |         2302
+ mike-robinson        |              1357 |             2.43 |         4248
+(5 rows)
+
