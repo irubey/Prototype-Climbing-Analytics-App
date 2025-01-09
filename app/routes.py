@@ -20,12 +20,8 @@ class CustomJSONEncoder(json.JSONEncoder):
             return obj.strftime('%Y-%m-%d')
         return super(CustomJSONEncoder, self).default(obj)
 
-# Cache for support count that expires every hour
-_support_count_cache = {'count': None, 'timestamp': 0}
-CACHE_DURATION = 3600  # 1 hour in seconds
 
-@app.route("/", methods=['GET', 'POST'])
-@cache.cached(timeout=3600, unless=lambda: request.method == 'POST')  # Only cache GET requests
+@app.route("/", methods=['GET', 'POST']) 
 def index():
     if request.method == 'POST':
         first_input = request.form.get('first_input')
@@ -93,14 +89,6 @@ def index():
             end_memory = process.memory_info().rss / 1024 / 1024
             app.logger.info(f"Final memory usage: {end_memory:.2f} MB (Total change: {end_memory - start_memory:.2f} MB)")
             
-            # Clear any cached data for this user
-            cache.delete_memoized(userviz, username=username)
-            cache.delete_memoized(base_volume, username=username)
-            cache.delete_memoized(progression, username=username)
-            cache.delete_memoized(when_where, username=username)
-            cache.delete_memoized(performance_pyramid, username=username)
-            cache.delete_memoized(performance_characteristics, username=username)
-            
             return redirect(url_for('userviz', username=username))
             
         except Exception as e:
@@ -121,7 +109,6 @@ def terms_and_privacy():
     return render_template('termsAndPrivacy.html')
 
 @app.route("/userviz")
-@cache.memoize(timeout=300)  # Cache for 5 minutes
 def userviz():
     username = request.args.get('username')
     if not username:
@@ -194,7 +181,6 @@ def performance_pyramid():
                          binned_code_dict=binned_code_dict_json)
 
 @app.route("/base-volume")
-@cache.memoize(timeout=300)  # Cache for 5 minutes
 def base_volume():
     username = request.args.get('username')
     if not username:
@@ -218,9 +204,11 @@ def base_volume():
                          binned_code_dict=binned_code_dict_data)
 
 @app.route("/progression")
-@cache.memoize(timeout=300)  # Cache for 5 minutes
 def progression():
     username = request.args.get('username')
+    if not username:
+        return "Username is required", 400
+
     user_ticks = DatabaseService.get_user_ticks(username)
     binned_code_dict = BinnedCodeDict.query.all()
 
@@ -230,9 +218,11 @@ def progression():
                          binned_code_dict=json.dumps([r.as_dict() for r in binned_code_dict], cls=CustomJSONEncoder))
 
 @app.route("/when-where")
-@cache.memoize(timeout=300)  # Cache for 5 minutes
 def when_where():
     username = request.args.get('username')
+    if not username:
+        return "Username is required", 400
+
     user_ticks = DatabaseService.get_user_ticks(username)
 
     return render_template('whenWhere.html',
@@ -382,12 +372,6 @@ def delete_tick(tick_id):
 @app.route("/refresh-data/<username>", methods=['POST'])
 def refresh_data(username):
     try:
-        # Clear only non-pyramid related caches
-        cache.delete_memoized(userviz, username=username)
-        cache.delete_memoized(base_volume, username=username)
-        cache.delete_memoized(progression, username=username)
-        cache.delete_memoized(when_where, username=username)
-        
         DatabaseService.clear_user_data(username)
         
         # Prepare redirect response with header to clear localStorage
@@ -433,20 +417,10 @@ def health_check():
         }), 500
     
 @app.route("/api/support-count")
+@cache.cached(timeout=3600)  # Cache for one hour
 def get_support_count():
-    current_time = time()
-    
-    # Return cached value if it exists and hasn't expired
-    if _support_count_cache['count'] is not None and current_time - _support_count_cache['timestamp'] < CACHE_DURATION:
-        app.logger.info(f"Returning cached support count: {_support_count_cache['count']}")
-        return jsonify({"count": _support_count_cache['count']})
-    
-    # Cache miss or expired, query the database
+    # Query the database
     unique_users = db.session.query(UserTicks.username).distinct().count()
     
-    # Update cache
-    _support_count_cache['count'] = unique_users
-    _support_count_cache['timestamp'] = current_time
-    
-    app.logger.info(f"Updated cache with new support count: {unique_users}")
+    app.logger.info(f"Support count calculated: {unique_users}")
     return jsonify({"count": unique_users})
