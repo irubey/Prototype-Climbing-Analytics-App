@@ -159,6 +159,16 @@
               </div>
             </form>
           </div>
+
+          <div class="social-proof" aria-live="polite">
+            <div class="user-count-wrapper">
+              <span class="user-count-label"
+                >Join your
+                <span class="user-count" id="userCount">-</span> fellow climbers
+                analyzing their data</span
+              >
+            </div>
+          </div>
         </div>
       </main>
 
@@ -225,6 +235,21 @@
       let currentStage = 0;
       const stages = ["stage1", "stage2", "stage3", "stage4"];
       const stageDelay = 2000; // 2 seconds per stage
+
+      // Add function to fetch and display user count
+      async function fetchUserCount() {
+        try {
+          const response = await fetch("/api/support-count");
+          const data = await response.json();
+          const userCountElement = document.getElementById("userCount");
+          userCountElement.textContent = data.count.toLocaleString();
+        } catch (error) {
+          console.error("Error fetching user count:", error);
+        }
+      }
+
+      // Fetch user count when page loads
+      document.addEventListener("DOMContentLoaded", fetchUserCount);
 
       function setLoading(loading) {
         isLoading = loading;
