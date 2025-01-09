@@ -158,7 +158,6 @@ def userviz():
                          **metrics)
 
 @app.route("/performance-pyramid")
-@cache.memoize(timeout=300)  # Cache for 5 minutes
 def performance_pyramid():
     username = request.args.get('username')
     if not username:
@@ -244,7 +243,6 @@ def when_where():
 grade_processor = GradeProcessor()
 
 @app.route("/pyramid-input", methods=['GET', 'POST'])
-@cache.memoize(timeout=300, unless=lambda: request.method == 'POST')  # Only cache GET requests
 def pyramid_input():
     username = request.args.get('username')
     if not username:
@@ -262,14 +260,7 @@ def pyramid_input():
                 # Process the changes directly to pyramid tables
                 PyramidUpdateService.process_changes(username, changes)
                 
-                # Clear all caches for this user since data has changed
-                cache.delete_memoized(userviz, username=username)
-                cache.delete_memoized(base_volume, username=username)
-                cache.delete_memoized(progression, username=username)
-                cache.delete_memoized(when_where, username=username)
-                cache.delete_memoized(performance_pyramid, username=username)
-                cache.delete_memoized(performance_characteristics, username=username)
-                cache.delete_memoized(pyramid_input, username=username)
+    
                 
                 flash('Changes saved successfully!', 'success')
             else:
@@ -297,7 +288,6 @@ def pyramid_input():
                          boulders_grade_list=boulders_grade_list)
 
 @app.route("/performance-characteristics")
-@cache.memoize(timeout=300)  # Cache for 5 minutes
 def performance_characteristics():
     username = request.args.get('username')
     
@@ -392,13 +382,11 @@ def delete_tick(tick_id):
 @app.route("/refresh-data/<username>", methods=['POST'])
 def refresh_data(username):
     try:
-        # Clear all caches related to this user
+        # Clear only non-pyramid related caches
         cache.delete_memoized(userviz, username=username)
         cache.delete_memoized(base_volume, username=username)
         cache.delete_memoized(progression, username=username)
         cache.delete_memoized(when_where, username=username)
-        cache.delete_memoized(performance_pyramid, username=username)
-        cache.delete_memoized(performance_characteristics, username=username)
         
         DatabaseService.clear_user_data(username)
         
