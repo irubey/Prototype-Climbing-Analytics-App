@@ -358,11 +358,14 @@ document.addEventListener(
         const sendRate =
           totalAttempts > 0 ? Math.round((sends / totalAttempts) * 100) : 0;
 
-        // Get last send date
+        // Get last send date by finding the most recent tick_date
         const lastSend =
           sends > 0
-            ? pyramidData.find((d) => d.binned_code === binned_code)
-                ?.season_category || "-"
+            ? pyramidData
+                .filter((d) => d.binned_code === binned_code)
+                .sort(
+                  (a, b) => new Date(b.tick_date) - new Date(a.tick_date)
+                )[0]?.season_category || "-"
             : "-";
 
         return { totalAttempts, sends, sendRate, lastSend };
