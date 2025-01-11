@@ -64,7 +64,8 @@ psql "$CONN_STRING" -c "
 WITH hourly_stats AS (
     SELECT 
         date_trunc('hour', created_at) as hour,
-        COUNT(*) as records
+        COUNT(*) as records,
+        COUNT(DISTINCT username) as unique_users
     FROM user_ticks
     WHERE created_at >= NOW() - INTERVAL '24 hours'
     GROUP BY hour
@@ -73,33 +74,200 @@ WITH hourly_stats AS (
 SELECT 
     'Records Ingested (24h): ' || COALESCE(SUM(records), 0) as recent_ingestion,
     'Peak Hourly Ingestion: ' || COALESCE(MAX(records), 0) || ' records/hour' as peak_rate,
-    'Average Hourly Ingestion: ' || COALESCE(ROUND(AVG(records), 2), 0) || ' records/hour' as avg_rate
+    'Average Hourly Ingestion: ' || COALESCE(ROUND(AVG(records), 2), 0) || ' records/hour' as avg_rate,
+    'Unique Users (24h): ' || COUNT(DISTINCT unique_users) as active_users
 FROM hourly_stats;
+" >> "$OUTPUT_FILE"
+
+echo -e "\nMost Recent Ingestion Details:" >> "$OUTPUT_FILE"
+psql "$CONN_STRING" -c "
+WITH absolute_latest AS (
+    SELECT 
+        MAX(created_at) as latest_upload,
+        username as latest_user,
+        COUNT(*) as upload_size
+    FROM user_ticks
+    GROUP BY username
+    ORDER BY MAX(created_at) DESC
+    LIMIT 1
+),
+recent_ingestion AS (
+    SELECT 
+        username,
+        created_at,
+        COUNT(*) OVER (PARTITION BY username) as batch_size,
+        MIN(created_at) OVER (PARTITION BY username) as batch_start,
+        MAX(created_at) OVER (PARTITION BY username) as batch_end,
+        FIRST_VALUE(tick_date) OVER (PARTITION BY username ORDER BY created_at DESC) as most_recent_climb_date,
+        ROW_NUMBER() OVER (ORDER BY created_at DESC) as rn
+    FROM user_ticks
+    WHERE created_at >= NOW() - INTERVAL '1 hour'
+),
+latest_stats AS (
+    SELECT DISTINCT
+        username,
+        batch_size,
+        batch_start,
+        batch_end,
+        most_recent_climb_date,
+        EXTRACT(EPOCH FROM (batch_end - batch_start)) as batch_duration_seconds
+    FROM recent_ingestion
+    WHERE rn <= 50  -- Limit to most recent 50 records
+),
+summary_stats AS (
+    SELECT 
+        CASE 
+            WHEN COUNT(*) = 0 THEN 
+                (SELECT 'Latest Upload: ' || latest_user || ' (' || upload_size || ' records) ' || 
+                        NOW() - latest_upload || ' ago' 
+                 FROM absolute_latest)
+            ELSE 'Latest Upload: ' || NOW() - MAX(batch_end) || ' ago'
+        END as last_upload,
+        CASE 
+            WHEN COUNT(*) = 0 THEN 'No active upload sessions in the last hour'
+            ELSE 'Recent Upload Sessions: ' || COUNT(DISTINCT username) || ' users'
+        END as recent_users,
+        CASE 
+            WHEN COUNT(*) = 0 THEN NULL
+            ELSE 'Largest Recent Batch: ' || MAX(batch_size) || ' records'
+        END as max_batch,
+        CASE 
+            WHEN COUNT(*) = 0 THEN NULL
+            ELSE 'Average Batch Size: ' || ROUND(AVG(batch_size), 1) || ' records'
+        END as avg_batch,
+        CASE 
+            WHEN COUNT(*) = 0 THEN NULL
+            WHEN AVG(batch_duration_seconds) < 1 THEN 'Average Processing Time: sub-second'
+            ELSE 'Average Processing Time: ' || ROUND(AVG(batch_duration_seconds), 1) || ' seconds'
+        END as avg_processing_time
+    FROM latest_stats
+)
+SELECT 
+    last_upload,
+    recent_users,
+    COALESCE(max_batch, 'N/A') as max_batch,
+    COALESCE(avg_batch, 'N/A') as avg_batch,
+    COALESCE(avg_processing_time, 'N/A') as avg_processing_time
+FROM summary_stats;
+" >> "$OUTPUT_FILE"
+
+echo -e "\nRecent Upload Sessions (Last Hour):" >> "$OUTPUT_FILE"
+psql "$CONN_STRING" -c "
+WITH recent_uploads AS (
+    SELECT DISTINCT ON (username)
+        username,
+        COUNT(*) OVER (PARTITION BY username) as records_uploaded,
+        MIN(created_at) OVER (PARTITION BY username) as session_start,
+        MAX(created_at) OVER (PARTITION BY username) as session_end,
+        MIN(tick_date) OVER (PARTITION BY username) as earliest_climb,
+        MAX(tick_date) OVER (PARTITION BY username) as latest_climb,
+        (SELECT COUNT(DISTINCT discipline) 
+         FROM user_ticks t2 
+         WHERE t2.username = t1.username 
+         AND t2.created_at >= NOW() - INTERVAL '1 hour') as disciplines_count,
+        (SELECT STRING_AGG(DISTINCT discipline, ', ') 
+         FROM user_ticks t2 
+         WHERE t2.username = t1.username 
+         AND t2.created_at >= NOW() - INTERVAL '1 hour') as disciplines_list
+    FROM user_ticks t1
+    WHERE created_at >= NOW() - INTERVAL '1 hour'
+    ORDER BY username, created_at DESC
+),
+upload_summary AS (
+    SELECT 
+        COUNT(*) as total_sessions
+    FROM recent_uploads
+)
+SELECT 
+    CASE 
+        WHEN (SELECT total_sessions FROM upload_summary) = 0 THEN 'No upload sessions in the last hour'
+        ELSE r.username || ': ' || r.records_uploaded || ' records'
+    END as upload_session,
+    COALESCE(r.session_start::time(0) || ' to ' || r.session_end::time(0), 'N/A') as upload_time,
+    COALESCE(r.earliest_climb || ' to ' || r.latest_climb, 'N/A') as climb_date_range,
+    COALESCE(EXTRACT(EPOCH FROM (r.session_end - r.session_start))::integer || ' seconds', 'N/A') as processing_time,
+    COALESCE(r.disciplines_count || ' disciplines (' || r.disciplines_list || ')', 'N/A') as upload_composition
+FROM recent_uploads r
+ORDER BY r.session_end DESC
+LIMIT 5;
 " >> "$OUTPUT_FILE"
 echo "Done"
 
 echo -n "Calculating data analysis timing... "
-echo -e "\nData Analysis Timing:" >> "$OUTPUT_FILE"
+echo -e "\nTemporal Analysis:" >> "$OUTPUT_FILE"
 psql "$CONN_STRING" -c "
+WITH time_metrics AS (
+    SELECT 
+        -- Historical climbing metrics
+        MIN(tick_date) as earliest_climb,
+        MAX(tick_date) as latest_climb,
+        -- Ingestion metrics
+        MIN(created_at) as earliest_ingestion,
+        MAX(created_at) as latest_ingestion,
+        -- Upload delay analysis
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY created_at - tick_date) as median_upload_delay,
+        AVG(created_at - tick_date) as avg_upload_delay,
+        -- Recent activity
+        COUNT(*) FILTER (WHERE tick_date >= NOW() - INTERVAL '30 days') as recent_climbs,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as recent_uploads
+    FROM user_ticks
+)
 SELECT 
-    'Median Record Age: ' || 
-    COALESCE(ROUND(EXTRACT(EPOCH FROM (
-        percentile_cont(0.5) WITHIN GROUP (ORDER BY created_at - tick_date)
-    ))/86400, 2), 0) || ' days' as median_age,
-    'Average Record Age: ' || 
-    COALESCE(ROUND(EXTRACT(EPOCH FROM (
-        AVG(created_at - tick_date)
-    ))/86400, 2), 0) || ' days' as avg_age,
-    'Oldest Analyzed Record: ' ||
-    COALESCE(MAX(created_at - tick_date), INTERVAL '0') || ' old' as oldest_record,
-    'Most Recent Analysis: ' ||
-    COALESCE(NOW() - MIN(created_at), INTERVAL '0') || ' ago' as latest_analysis
-FROM user_ticks
-WHERE created_at >= NOW() - INTERVAL '7 days';
+    -- Historical Timeline
+    'Historical Range: ' || 
+    earliest_climb || ' to ' || latest_climb || 
+    ' (' || (latest_climb - earliest_climb) || ' span)' as climbing_history,
+    
+    -- Ingestion Timeline
+    'Data Ingestion Period: ' ||
+    earliest_ingestion || ' to ' || latest_ingestion ||
+    ' (' || (latest_ingestion - earliest_ingestion) || ' span)' as ingestion_period,
+    
+    -- Upload Patterns
+    'Typical Upload Delay: ' ||
+    ROUND(EXTRACT(EPOCH FROM median_upload_delay)/86400, 1) || ' days (median), ' ||
+    ROUND(EXTRACT(EPOCH FROM avg_upload_delay)/86400, 1) || ' days (mean)' as upload_patterns,
+    
+    -- Recent Activity
+    'Last 30 Days Activity: ' ||
+    recent_climbs || ' climbs logged, ' ||
+    recent_uploads || ' new uploads' as recent_activity
+FROM time_metrics;
 " >> "$OUTPUT_FILE"
-echo "Done"
 
-# User Adoption
+echo -e "\nUpload Delay Distribution:" >> "$OUTPUT_FILE"
+psql "$CONN_STRING" -c "
+WITH delay_buckets AS (
+    SELECT 
+        CASE 
+            WHEN created_at - tick_date < INTERVAL '1 day' THEN 'Same day'
+            WHEN created_at - tick_date < INTERVAL '7 days' THEN 'Within a week'
+            WHEN created_at - tick_date < INTERVAL '30 days' THEN 'Within a month'
+            WHEN created_at - tick_date < INTERVAL '90 days' THEN 'Within 3 months'
+            WHEN created_at - tick_date < INTERVAL '365 days' THEN 'Within a year'
+            ELSE 'Over a year'
+        END as delay_category,
+        COUNT(*) as count
+    FROM user_ticks
+    GROUP BY delay_category
+)
+SELECT 
+    delay_category,
+    count || ' records (' || 
+    ROUND(100.0 * count / SUM(count) OVER (), 1) || '%)' as distribution
+FROM delay_buckets
+ORDER BY 
+    CASE delay_category
+        WHEN 'Same day' THEN 1
+        WHEN 'Within a week' THEN 2
+        WHEN 'Within a month' THEN 3
+        WHEN 'Within 3 months' THEN 4
+        WHEN 'Within a year' THEN 5
+        ELSE 6
+    END;
+" >> "$OUTPUT_FILE"
+
+# User Adoption with Enhanced Metrics
 echo -n "Gathering user adoption metrics... "
 echo -e "\nUser Engagement Metrics:" >> "$OUTPUT_FILE"
 psql "$CONN_STRING" -c "
@@ -107,16 +275,83 @@ WITH user_stats AS (
     SELECT 
         COUNT(DISTINCT username) as total_users,
         COUNT(*) as total_records,
-        COUNT(DISTINCT username) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as active_users
+        COUNT(DISTINCT username) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as active_users,
+        COUNT(DISTINCT username) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') as daily_active_users,
+        COUNT(DISTINCT username) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as weekly_active_users
     FROM user_ticks
 )
 SELECT 
     'Total Users: ' || total_users as total_users,
-    'Monthly Active Users: ' || active_users as active_users,
+    'Daily Active Users: ' || daily_active_users as daily_active,
+    'Weekly Active Users: ' || weekly_active_users as weekly_active,
+    'Monthly Active Users: ' || active_users as monthly_active,
     'Average Records per User: ' || ROUND(total_records::numeric / NULLIF(total_users, 0), 2) as avg_records_per_user,
-    'User Retention Rate: ' || 
-    ROUND((active_users::numeric / NULLIF(total_users, 0)) * 100, 2) || '%' as retention_rate
+    'Monthly Retention Rate: ' || 
+    ROUND((active_users::numeric / NULLIF(total_users, 0)) * 100, 2) || '%' as monthly_retention,
+    'Daily/Monthly Ratio: ' ||
+    ROUND((daily_active_users::numeric / NULLIF(active_users, 0)) * 100, 2) || '%' as daily_engagement
 FROM user_stats;
+" >> "$OUTPUT_FILE"
+
+# Data Quality Metrics
+echo -e "\nData Quality Metrics:" >> "$OUTPUT_FILE"
+psql "$CONN_STRING" -c "
+WITH quality_metrics AS (
+    SELECT 
+        COUNT(*) as total_records,
+        COUNT(*) FILTER (WHERE 
+            route_name IS NOT NULL AND 
+            route_grade IS NOT NULL AND 
+            tick_date IS NOT NULL AND 
+            discipline IS NOT NULL AND
+            location IS NOT NULL
+        ) as complete_records,
+        COUNT(*) FILTER (WHERE notes IS NOT NULL AND LENGTH(TRIM(notes)) > 0) as records_with_notes,
+        COUNT(*) FILTER (WHERE length IS NOT NULL) as records_with_length,
+        COUNT(*) FILTER (WHERE pitches IS NOT NULL) as records_with_pitches
+    FROM user_ticks
+),
+recent_quality AS (
+    SELECT 
+        DATE_TRUNC('day', created_at) as upload_date,
+        COUNT(*) as daily_records,
+        ROUND(100.0 * COUNT(*) FILTER (WHERE 
+            route_name IS NOT NULL AND 
+            route_grade IS NOT NULL AND 
+            tick_date IS NOT NULL AND 
+            discipline IS NOT NULL AND
+            location IS NOT NULL
+        ) / NULLIF(COUNT(*), 0), 2) as daily_completeness
+    FROM user_ticks
+    WHERE created_at >= NOW() - INTERVAL '7 days'
+    GROUP BY DATE_TRUNC('day', created_at)
+),
+quality_summary AS (
+    SELECT 
+        'Overall Data Completeness: ' ||
+        ROUND(100.0 * complete_records / NULLIF(total_records, 0), 2) || '%' as completeness_rate,
+        'Records with Notes: ' ||
+        ROUND(100.0 * records_with_notes / NULLIF(total_records, 0), 2) || '%' as notes_rate,
+        'Length Data Coverage: ' ||
+        ROUND(100.0 * records_with_length / NULLIF(total_records, 0), 2) || '%' as length_coverage,
+        'Pitch Data Coverage: ' ||
+        ROUND(100.0 * records_with_pitches / NULLIF(total_records, 0), 2) || '%' as pitch_coverage
+    FROM quality_metrics
+),
+trend_summary AS (
+    SELECT 
+        'Recent Data Quality Trend (7 days): ' ||
+        STRING_AGG(daily_completeness::text || '%', ' → ' ORDER BY upload_date) as quality_trend
+    FROM recent_quality
+)
+SELECT 
+    completeness_rate,
+    notes_rate,
+    length_coverage,
+    pitch_coverage,
+    COALESCE(quality_trend, 'No data in the last 7 days') as quality_trend
+FROM quality_summary
+CROSS JOIN trend_summary;
 " >> "$OUTPUT_FILE"
 echo "Done"
 
