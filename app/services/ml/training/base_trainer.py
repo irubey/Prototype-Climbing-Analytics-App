@@ -72,37 +72,40 @@ class BaseTrainer:
         
         self.logger.info("Encoding notes in batches...")
         
-        # Process in smaller batches to manage memory
-        batch_size = min(32, len(df))  # Use smaller batch size
+        # Optimize batch size for RTX 3060 Ti
+        optimal_batch_size = 1024 if torch.cuda.is_available() else 32
+        batch_size = min(optimal_batch_size, len(df))
         features = []
         
         try:
             for i in range(0, len(df), batch_size):
-                # Clear memory before each batch
-                gc.collect()
+                # Clear GPU memory before each batch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                    # Set memory growth for better efficiency
+                    for device in range(torch.cuda.device_count()):
+                        torch.cuda.set_per_process_memory_fraction(0.9, device)
                 
                 batch_df = df.iloc[i:i + batch_size]
                 batch_encodings = self.encoder.encode_batch(
                     batch_df['notes'].values, 
-                    batch_size=4  # Use even smaller batches for encoding
+                    batch_size=16  # Larger encoding batch size for RTX 3060 Ti
                 )
                 features.append(batch_encodings)
                 
-                # Clear memory after each batch
+                # Clear encoder cache
                 if hasattr(self.encoder, 'clear_cache'):
                     self.encoder.clear_cache()
                 
                 # Log progress
-                if (i + 1) % (batch_size * 5) == 0:
+                if (i + 1) % (batch_size * 2) == 0:
                     self.logger.info(f"Processed {i + 1}/{len(df)} samples...")
             
             # Stack features and convert to float32
             X = np.vstack(features).astype(np.float32)
             y = self._prepare_labels(df)
             
-            # Save to cache
+            # Save to cache using memory-efficient approach
             self.logger.info("Saving encoded data to cache...")
             np.savez_compressed(cache_file, features=X, labels=y)
             
@@ -152,9 +155,19 @@ class BaseTrainer:
             metrics: Dictionary of metric names and values
             step: Training step/epoch
         """
-        metrics['step'] = step
-        metrics['timestamp'] = datetime.now().isoformat()
-        self.metrics_history.append(metrics)
+        # Convert numpy values to Python native types
+        processed_metrics = {}
+        for key, value in metrics.items():
+            if isinstance(value, (np.float32, np.float64)):
+                processed_metrics[key] = float(value)
+            elif isinstance(value, np.ndarray):
+                processed_metrics[key] = float(value.item())
+            else:
+                processed_metrics[key] = value
+        
+        processed_metrics['step'] = step
+        processed_metrics['timestamp'] = datetime.now().isoformat()
+        self.metrics_history.append(processed_metrics)
         
         # Save metrics
         metrics_file = self.model_dir / f"{self.__class__.__name__}_metrics.json"
@@ -168,8 +181,25 @@ class BaseTrainer:
             model: Trained model
             name: Model name
         """
-        model_file = self.model_dir / f"{name}.joblib"
-        joblib.dump(model, model_file)
+        model_file = self.model_dir / f"{name}.pt"
+        
+        # Handle PyTorch models differently from other models
+        if isinstance(model, torch.nn.Module):
+            # Save PyTorch model state
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'model_class': model.__class__,
+                'model_args': {
+                    'input_size': model.input_size,
+                    'hidden_size': model.hidden_size,
+                    'num_disciplines': model.num_disciplines,
+                    'num_lead_styles': model.num_lead_styles,
+                    'num_length_categories': model.num_length_categories
+                }
+            }, model_file)
+        else:
+            # For non-PyTorch models, use joblib
+            joblib.dump(model, str(model_file).replace('.pt', '.joblib'))
     
     def _prepare_labels(self, df: pd.DataFrame) -> Any:
         """Prepare labels from DataFrame

@@ -6,7 +6,6 @@ from pathlib import Path
 from .encoders.text_encoder import ClimbingNoteEncoder
 from .predictors.grade_predictor import GradePredictor
 from .predictors.style_predictor import StylePredictor
-from .predictors.send_predictor import SendPredictor
 
 class ClimbingNoteAnalyzer:
     """Analyzes climbing route notes to predict multiple climbing attributes"""
@@ -26,10 +25,7 @@ class ClimbingNoteAnalyzer:
             model_path=self.models_dir / 'grade_model.joblib'
         )
         self.style_predictor = StylePredictor(
-            model_path=self.models_dir / 'style_model.joblib'
-        )
-        self.send_predictor = SendPredictor(
-            model_path=self.models_dir / 'send_model.joblib'
+            model_path=self.models_dir / 'style_model.pt'
         )
     
     def predict(self, notes: Union[str, List[str]], 
@@ -54,14 +50,13 @@ class ClimbingNoteAnalyzer:
         """Make predictions for a single note"""
         self.logger.info(f"Analyzing note: {note[:100]}...")
         
-        # Encode text
-        encoded_text = self.text_encoder.encode(note)
+        # Encode text using encode_batch for single note
+        encoded_text = self.text_encoder.encode_batch([note])[0]
         
         # Get predictions
         predictions = {
             'grade': self.grade_predictor.predict(encoded_text),
-            'style': self.style_predictor.predict(encoded_text),
-            'send_probability': self.send_predictor.predict_proba(encoded_text)[1]
+            'style': self.style_predictor.predict(encoded_text)
         }
         
         # Add human-readable grade
@@ -73,8 +68,7 @@ class ClimbingNoteAnalyzer:
         if return_confidence:
             predictions['confidence'] = {
                 'grade': self.grade_predictor.get_confidence(encoded_text),
-                'style': self.style_predictor.get_confidence(encoded_text),
-                'send': self.send_predictor.get_confidence(encoded_text)
+                'style': self.style_predictor.get_confidence(encoded_text)
             }
         
         return predictions
@@ -84,7 +78,7 @@ class ClimbingNoteAnalyzer:
         """Make predictions for multiple notes"""
         self.logger.info(f"Analyzing batch of {len(notes)} notes...")
         
-        # Encode all notes
+        # Encode all notes using encode_batch
         encoded_texts = self.text_encoder.encode_batch(notes)
         
         # Get predictions for all notes
@@ -92,8 +86,7 @@ class ClimbingNoteAnalyzer:
         for i, encoded_text in enumerate(encoded_texts):
             pred = {
                 'grade': self.grade_predictor.predict(encoded_text),
-                'style': self.style_predictor.predict(encoded_text),
-                'send_probability': self.send_predictor.predict_proba(encoded_text)[1]
+                'style': self.style_predictor.predict(encoded_text)
             }
             
             # Add human-readable grade
@@ -105,8 +98,7 @@ class ClimbingNoteAnalyzer:
             if return_confidence:
                 pred['confidence'] = {
                     'grade': self.grade_predictor.get_confidence(encoded_text),
-                    'style': self.style_predictor.get_confidence(encoded_text),
-                    'send': self.send_predictor.get_confidence(encoded_text)
+                    'style': self.style_predictor.get_confidence(encoded_text)
                 }
             
             predictions.append(pred)
@@ -147,6 +139,5 @@ class ClimbingNoteAnalyzer:
         """
         return {
             'grade_model': self.grade_predictor.get_model_info(),
-            'style_model': self.style_predictor.get_model_info(),
-            'send_model': self.send_predictor.get_model_info()
+            'style_model': self.style_predictor.get_model_info()
         }

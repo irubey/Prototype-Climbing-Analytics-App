@@ -1,6 +1,13 @@
 from sqlalchemy import text
 import pandas as pd
+import numpy as np
 from app import db
+import torch
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+import logging
+
+logger = logging.getLogger(__name__)
 
 def analyze_data_quality():
     """Analyze data quality and distribution across all prediction targets"""
@@ -106,9 +113,7 @@ def validate_binned_codes():
                 ELSE FALSE
             END as valid_discipline_code,
             -- Check difficulty value range
-            RIGHT(binned_code::text, 2)::int as numeric_difficulty,
-            -- Basic statistics
-            AVG(CASE WHEN send_bool THEN 1 ELSE 0 END) as send_rate
+            RIGHT(binned_code::text, 2)::int as numeric_difficulty
         FROM user_ticks
         WHERE binned_code IS NOT NULL
         GROUP BY binned_code, discipline
@@ -120,41 +125,20 @@ def validate_binned_codes():
 def get_quality_training_data():
     """Get high-quality training data ensuring all fields are valid and have sufficient examples"""
     query = text("""
-        WITH grade_distribution AS (
-            SELECT 
-                binned_code,
-                discipline,
-                COUNT(*) as count
+        WITH valid_data AS (
+            SELECT *
             FROM user_ticks
-            WHERE binned_code IS NOT NULL
-            GROUP BY binned_code, discipline
-        ),
-        valid_grades AS (
-            SELECT binned_code
-            FROM grade_distribution
-            GROUP BY binned_code
-            HAVING COUNT(*) >= 3  -- Ensure at least 3 examples per grade
-        ),
-        valid_data AS (
-            SELECT t.*
-            FROM user_ticks t
-            INNER JOIN valid_grades vg ON t.binned_code = vg.binned_code
-            WHERE 
-                t.discipline IN ('sport', 'trad', 'boulder')
-                AND t.lead_style IN ('Redpoint', 'Flash', 'Onsight', 'Pinkpoint')
-                AND t.length_category IN ('short', 'medium', 'long', 'multipitch')
-                AND t.difficulty_category IN ('Project', 'Tier 2', 'Tier 3', 'Base Volume')
-                AND t.notes IS NOT NULL
-                AND LENGTH(t.notes) BETWEEN 20 AND 500  -- Limit note length for memory
-                AND t.binned_code IS NOT NULL
-                AND t.send_bool IS NOT NULL
+            WHERE notes IS NOT NULL
+                AND LENGTH(notes) >= 20
+                AND binned_code IS NOT NULL
+                AND discipline IN ('sport', 'trad', 'boulder')
+                AND lead_style IN ('Redpoint', 'Flash', 'Onsight', 'Pinkpoint')
+                AND length_category IN ('short', 'medium', 'long', 'multipitch')
         ),
         sampled_data AS (
-            SELECT 
-                v.*,
-                ROW_NUMBER() OVER (PARTITION BY v.binned_code ORDER BY RANDOM()) as rn,
-                COUNT(*) OVER (PARTITION BY v.binned_code) as grade_count
-            FROM valid_data v
+            SELECT *,
+                ROW_NUMBER() OVER (ORDER BY RANDOM()) as rn
+            FROM valid_data
         )
         SELECT 
             notes,
@@ -162,24 +146,26 @@ def get_quality_training_data():
             lead_style,
             length_category,
             difficulty_category,
-            binned_code,
-            send_bool
+            binned_code
         FROM sampled_data
-        WHERE 
-            -- Take at most 50 examples per grade, but ensure at least 3
-            rn <= LEAST(50, grade_count)
-            AND grade_count >= 3
+        WHERE rn <= 1000  -- Take up to 1000 examples
         ORDER BY RANDOM()
-        LIMIT 500  -- Keep total dataset size manageable
     """)
     
+    logger.info("Fetching quality training data from database...")
     df = pd.read_sql(query, db.engine)
     
-    # Double check we have enough examples per class
-    grade_counts = df['binned_code'].value_counts()
-    valid_grades = grade_counts[grade_counts >= 3].index
+    # Validate we have enough examples
+    if len(df) < 100:  # Minimum dataset size
+        raise ValueError(f"Insufficient training data: only {len(df)} examples found")
     
-    return df[df['binned_code'].isin(valid_grades)]
+    # Log distributions
+    logger.info(f"Final dataset size: {len(df)} examples")
+    logger.info(f"Discipline distribution: {df['discipline'].value_counts(normalize=True).to_dict()}")
+    logger.info(f"Lead style distribution: {df['lead_style'].value_counts(normalize=True).to_dict()}")
+    logger.info(f"Length distribution: {df['length_category'].value_counts(normalize=True).to_dict()}")
+    
+    return df
 
 def analyze_grade_distribution():
     """Analyze the distribution of grades in the training data"""

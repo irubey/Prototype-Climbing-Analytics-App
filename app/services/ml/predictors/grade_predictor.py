@@ -2,6 +2,10 @@ from xgboost import XGBRegressor
 import numpy as np
 from typing import Dict, Optional, Tuple, Union, List
 from enum import Enum
+import torch
+from ..config import get_device, clear_gpu_cache
+import joblib
+from pathlib import Path
 
 from .base_predictor import BasePredictor
 
@@ -28,7 +32,13 @@ class GradePredictor(BasePredictor):
         from app.services.grade_processor import GradeProcessor
         self.grade_processor = GradeProcessor()
         
+        # Get optimal device
+        self.device = get_device()
+        
         if not model_path:
+            # Configure XGBoost for optimal performance
+            tree_method = 'gpu_hist' if torch.cuda.is_available() else 'hist'
+            
             self.model = XGBRegressor(
                 objective='reg:squarederror',
                 max_depth=6,
@@ -38,8 +48,10 @@ class GradePredictor(BasePredictor):
                 subsample=0.8,
                 colsample_bytree=0.8,
                 gamma=1,
-                tree_method='hist',  # Use histogram method for better memory efficiency
-                max_bin=64  # Reduce memory usage
+                tree_method=tree_method,  # Use GPU if available
+                predictor='gpu_predictor' if torch.cuda.is_available() else 'cpu_predictor',
+                max_bin=256 if torch.cuda.is_available() else 64,  # Larger bins for GPU
+                n_jobs=6  # Use all CPU cores when on CPU
             )
         else:
             self.model = self.load_model(model_path)
@@ -53,6 +65,9 @@ class GradePredictor(BasePredictor):
         Returns:
             int: binned_code (e.g. 17 for 5.12-, 102 for V0)
         """
+        # Clear cache before prediction
+        clear_gpu_cache()
+        
         self._check_model_loaded()
         self.validate_input(encoded_text)
         
@@ -77,6 +92,9 @@ class GradePredictor(BasePredictor):
         Returns:
             np.ndarray: Raw model output before rounding
         """
+        # Clear cache before prediction
+        clear_gpu_cache()
+        
         self._check_model_loaded()
         self.validate_input(encoded_text)
         
@@ -145,3 +163,31 @@ class GradePredictor(BasePredictor):
             8: 'alpine'
         }
         return disciplines.get(discipline_code, 'unknown')
+    
+    def load_model(self, path: str) -> XGBRegressor:
+        """Load XGBoost model from disk
+        
+        Args:
+            path: Path to load model from
+        Returns:
+            XGBRegressor: Loaded model
+        """
+        if not Path(path).exists():
+            raise FileNotFoundError(f"Model file not found: {path}")
+            
+        booster = joblib.load(path)
+        
+        # Create new XGBRegressor and set its booster
+        model = XGBRegressor(
+            tree_method='gpu_hist' if torch.cuda.is_available() else 'hist',
+            predictor='gpu_predictor' if torch.cuda.is_available() else 'cpu_predictor',
+            gpu_id=0 if torch.cuda.is_available() else None
+        )
+        if hasattr(booster, 'get_booster'):
+            model._Booster = booster.get_booster()
+        else:
+            model._Booster = booster
+            
+        self.model = model
+        self.logger.info(f"Grade model loaded from {path}")
+        return model

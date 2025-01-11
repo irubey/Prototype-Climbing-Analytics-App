@@ -37,19 +37,13 @@ class GradeTrainer(BaseTrainer):
         return get_quality_training_data()
     
     def train(self) -> GradePredictor:
-        """Train grade prediction model using ultra-lightweight approach"""
+        """Train grade prediction model using GPU acceleration"""
         try:
             # Load quality data
             df = self.load_data()
             self.logger.info(f"Loaded {len(df)} quality training examples")
             
-            # Prepare data with aggressive subsampling
-            max_samples = 300  # Reduced from 498
-            if len(df) > max_samples:
-                df = df.sample(n=max_samples, random_state=self.random_state)
-                self.logger.info(f"Subsampled to {max_samples} examples for memory efficiency")
-            
-            # Prepare data
+            # Prepare data - no need for aggressive subsampling with RTX 3060 Ti
             X, y = self.prepare_data(df)
             X_train, X_val, y_train, y_val = self.split_data(X, y)
             
@@ -59,55 +53,46 @@ class GradeTrainer(BaseTrainer):
             y_train = np.ascontiguousarray(y_train.astype(np.float32))
             y_val = np.ascontiguousarray(y_val.astype(np.float32))
             
-            # Clear memory before training
-            self._check_memory(threshold_mb=250)  # Reduced threshold
-            
-            # Skip learning rate tuning, use conservative default
-            best_lr = 0.05
-            self.logger.info(f"Using conservative learning rate: {best_lr}")
-            
-            # Create DMatrix for training with minimal validation set
+            # Create DMatrix for training
             dtrain = xgb.DMatrix(X_train, label=y_train)
-            dval = xgb.DMatrix(X_val[:30], label=y_val[:30])  # Reduced validation set
+            dval = xgb.DMatrix(X_val, label=y_val)
             
-            # Ultra-minimal XGBoost parameters for MacBook Air
+            # Optimized XGBoost parameters for RTX 3060 Ti
             params = {
                 'objective': 'reg:squarederror',
-                'max_depth': 3,              # Reduced from 4
-                'learning_rate': best_lr,
+                'max_depth': 8,              # Increased for more complex patterns
+                'learning_rate': 0.05,
                 'subsample': 0.8,
                 'colsample_bytree': 0.8,
-                'tree_method': 'hist',       # Memory efficient
-                'max_bin': 16,               # Reduced from 32
+                'tree_method': 'hist',       # Use histogram method
+                'device': 'cuda',            # Use CUDA device
+                'max_bin': 256,              # Optimal for GPU
                 'grow_policy': 'lossguide',
-                'max_leaves': 16,            # Reduced from 32
+                'max_leaves': 64,            # Increased for better accuracy
                 'process_type': 'default',
-                'nthread': 2,                # Match your dual-core CPU
-                'predictor': 'cpu_predictor' # Force CPU prediction
+                'nthread': 6                 # Match i5-10600K cores
             }
             
-            # Train model with reduced number of trees
+            # Train model with early stopping
             model = xgb.train(
                 params,
                 dtrain,
-                num_boost_round=50,          # Reduced from 100
-                evals=[(dval, 'val')],
-                early_stopping_rounds=3,      # Reduced from 5
+                num_boost_round=200,         # Increased number of rounds
+                evals=[(dtrain, 'train'), (dval, 'val')],
+                early_stopping_rounds=10,
                 verbose_eval=10
             )
             
-            # Final evaluation on small validation set
+            # Final evaluation
             y_pred = model.predict(dval)
-            metrics = self._calculate_grade_metrics(y_val[:30], y_pred)
+            metrics = self._calculate_grade_metrics(y_val, y_pred)
             self.log_metrics(metrics, step=0)
             
             # Save model
             self.predictor.model = model
             self.save_model(model, 'grade_model')
             
-            # Aggressive cleanup
-            del dtrain, dval, X_train, X_val, y_train, y_val
-            gc.collect()
+            # Clean up GPU memory
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             
@@ -121,24 +106,19 @@ class GradeTrainer(BaseTrainer):
         """Convert grades to binned_codes"""
         return df['binned_code'].values
     
-    def _check_memory(self, threshold_mb: int = 1000):
+    def _check_memory(self, threshold_mb: int = 4000):
         """Check available memory and cleanup if needed
         
         Args:
             threshold_mb: Memory threshold in MB to trigger cleanup
         """
-        process = psutil.Process(os.getpid())
-        memory_mb = process.memory_info().rss / 1024 / 1024
-        
-        if memory_mb > threshold_mb:
-            self.logger.warning(f"Memory usage high ({memory_mb:.0f}MB). Cleaning up...")
-            gc.collect()
-            if torch.cuda.is_available():
+        if torch.cuda.is_available():
+            gpu_memory = torch.cuda.memory_allocated() / 1024 / 1024
+            if gpu_memory > threshold_mb:
+                self.logger.warning(f"GPU memory usage high ({gpu_memory:.0f}MB). Cleaning up...")
                 torch.cuda.empty_cache()
-            
-            # Log memory after cleanup
-            memory_mb = process.memory_info().rss / 1024 / 1024
-            self.logger.info(f"Memory after cleanup: {memory_mb:.0f}MB")
+                gpu_memory = torch.cuda.memory_allocated() / 1024 / 1024
+                self.logger.info(f"GPU memory after cleanup: {gpu_memory:.0f}MB")
     
     def _tune_learning_rate(self, X_train: np.ndarray, X_val: np.ndarray, 
                            y_train: np.ndarray, y_val: np.ndarray) -> float:

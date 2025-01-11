@@ -17,7 +17,10 @@ from ..data.data_quality import get_quality_training_data
 class StyleTrainer(BaseTrainer):
     """Trainer for style prediction model"""
     
-    def __init__(self, batch_size: int = 32, num_epochs: int = 10, 
+    # Define style categories as class attributes
+    STYLE_CATEGORIES = ['discipline', 'lead_style', 'length_category']
+    
+    def __init__(self, batch_size: int = 128, num_epochs: int = 20, 
                  learning_rate: float = 0.001, label_smoothing: float = 0.1, **kwargs):
         """Initialize style trainer
         
@@ -33,11 +36,17 @@ class StyleTrainer(BaseTrainer):
         self.learning_rate = learning_rate
         self.label_smoothing = label_smoothing
         self.predictor = StylePredictor()
+        
+        # Initialize style categories and label encoders
+        self.style_categories = self.STYLE_CATEGORIES
         self.label_encoders = {
-            'discipline': LabelEncoder(),
-            'lead_style': LabelEncoder(),
-            'length': LabelEncoder()
+            category: LabelEncoder() for category in self.style_categories
         }
+        
+        # Enable cuDNN benchmarking and deterministic mode
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cudnn.deterministic = True
         
         # Import db directly from app module
         from app import db
@@ -45,27 +54,109 @@ class StyleTrainer(BaseTrainer):
     
     def load_data(self) -> pd.DataFrame:
         """Load high-quality training data"""
-        return get_quality_training_data()
+        df = get_quality_training_data()
+        
+        # Log data info
+        logging.info(f"Loaded {len(df)} training examples")
+        logging.info(f"Available columns: {df.columns.tolist()}")
+        
+        # Verify required columns
+        required_columns = ['notes'] + self.style_categories
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+            
+        return df
     
-    def _prepare_labels(self, df: pd.DataFrame) -> Dict[str, np.ndarray]:
-        """Prepare categorical labels
+    def _prepare_labels(self, df: pd.DataFrame) -> Dict[str, torch.Tensor]:
+        """Prepare labels for training by encoding categorical variables
         
         Args:
-            df: DataFrame with style columns
+            df: DataFrame containing style labels
+            
         Returns:
-            Dict of encoded labels for each category
+            Dictionary mapping category names to encoded label tensors
         """
+        # Create copy to avoid modifying original
+        filled_df = df.copy()
         encoded_labels = {}
-        for category in self.label_encoders:
-            # Fit encoder on valid categories from StyleCategories
-            valid_categories = StyleCategories[category.upper()].value
-            self.label_encoders[category].fit(valid_categories)
-            # Transform data
-            encoded_labels[category] = self.label_encoders[category].transform(df[category])
+        
+        # Fill missing values with 'unknown' for each category
+        for category in self.style_categories:
+            # Log unique values before processing, handling None values
+            unique_vals = df[category].unique()
+            unique_before = sorted([str(x) for x in unique_vals if pd.notna(x)])
+            logging.info(f"Unique {category} values before processing: {unique_before}")
+            
+            # Convert values to strings and handle missing values
+            filled_df[category] = filled_df[category].fillna('unknown')
+            filled_df[category] = filled_df[category].astype(str)
+            
+            # Get unique values including 'unknown'
+            unique_values = pd.concat([
+                pd.Series(filled_df[category].unique()),
+                pd.Series(['unknown'])
+            ]).drop_duplicates()
+            
+            # Log unique values after processing
+            logging.info(f"Unique {category} values after processing: {sorted(unique_values)}")
+            
+            # Fit encoder on unique values
+            self.label_encoders[category].fit(unique_values)
+            
+            # Transform values and ensure they're within bounds
+            encoded = self.label_encoders[category].transform(filled_df[category].values)
+            n_classes = len(self.label_encoders[category].classes_)
+            
+            # Log mapping between classes and indices
+            class_mapping = dict(zip(self.label_encoders[category].classes_, range(n_classes)))
+            logging.info(f"{category} class mapping: {class_mapping}")
+            
+            # Validate and clip labels
+            encoded = np.clip(encoded, 0, n_classes - 1)
+            encoded = encoded.astype(np.int64)
+            
+            # Convert to tensor
+            encoded_labels[category] = torch.tensor(encoded, dtype=torch.int64)
+            
+            # Log category info
+            logging.info(f"Category {category} has {n_classes} classes")
+            logging.info(f"Label range: [{encoded_labels[category].min()}, {encoded_labels[category].max()}]")
+            logging.info(f"Label dtype: {encoded_labels[category].dtype}")
+            logging.info(f"Value counts: {pd.Series(encoded).value_counts().to_dict()}")
+            
+            # Double check tensor values
+            assert torch.all(encoded_labels[category] >= 0), f"Found negative labels in {category}"
+            assert torch.all(encoded_labels[category] < n_classes), f"Found labels >= {n_classes} in {category}"
+        
         return encoded_labels
     
+    def prepare_data(self, df: pd.DataFrame) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        """Prepare data for training
+        
+        Args:
+            df: DataFrame with notes and style labels
+            
+        Returns:
+            Tuple of (encoded notes, encoded style labels dict)
+        """
+        # Encode notes - ensure all notes are strings
+        notes = df['notes'].fillna('').astype(str).tolist()
+        logging.info(f"Encoding {len(notes)} notes for style prediction")
+        X = self.predictor.text_encoder.encode_batch(notes)
+        
+        # Encode style labels
+        y_dict = self._prepare_labels(df)
+        
+        # Log shape information
+        logging.info(f"Encoded features shape: {X.shape}")
+        for category, labels in y_dict.items():
+            logging.info(f"{category} labels shape: {labels.shape}")
+            
+        return X, y_dict
+    
     def train(self) -> StylePredictor:
-        """Train style prediction model
+        """Train style prediction model with GPU optimizations
         
         Returns:
             Trained StylePredictor
@@ -74,38 +165,63 @@ class StyleTrainer(BaseTrainer):
         df = self.load_data()
         X, y_dict = self.prepare_data(df)
         
-        # Convert to PyTorch tensors
+        # Convert to PyTorch tensors and move to GPU if available
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         X_tensor = torch.FloatTensor(X)
         y_tensors = {
-            k: torch.LongTensor(v) for k, v in y_dict.items()
+            k: v.to(device) for k, v in y_dict.items()
         }
         
-        # Create data loaders
-        dataset = TensorDataset(X_tensor, *y_tensors.values())
+        # Create data loaders with pin memory for faster GPU transfer
+        dataset = TensorDataset(X_tensor.cpu(), *[t.cpu() for t in y_dict.values()])
         train_size = int(0.8 * len(dataset))
         val_size = len(dataset) - train_size
         train_dataset, val_dataset = torch.utils.data.random_split(
             dataset, [train_size, val_size]
         )
         
-        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=self.batch_size)
+        train_loader = DataLoader(
+            train_dataset, 
+            batch_size=self.batch_size, 
+            shuffle=True,
+            pin_memory=True,
+            num_workers=3,
+            persistent_workers=True
+        )
+        val_loader = DataLoader(
+            val_dataset, 
+            batch_size=self.batch_size,
+            pin_memory=True,
+            num_workers=3,
+            persistent_workers=True
+        )
         
-        # Initialize model and optimizer
-        model = self.predictor.model
-        optimizer = torch.optim.AdamW(model.parameters(), lr=self.learning_rate, 
-                                    weight_decay=0.01)
+        # Initialize model and move to GPU
+        model = self.predictor.model.to(device)
+        model.train()  # Ensure model is in training mode
         
-        # Learning rate scheduler
+        # Use AdamW with weight decay
+        optimizer = torch.optim.AdamW(
+            model.parameters(), 
+            lr=self.learning_rate,
+            weight_decay=0.01,
+            betas=(0.9, 0.999)
+        )
+        
+        # Learning rate scheduler with warmup
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=self.learning_rate,
             epochs=self.num_epochs,
-            steps_per_epoch=len(train_loader)
+            steps_per_epoch=len(train_loader),
+            pct_start=0.1  # 10% warmup
         )
         
         # Loss function with label smoothing
         criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
+        
+        # Initialize mixed precision training
+        scaler = torch.amp.GradScaler()
         
         # Training loop
         best_val_loss = float('inf')
@@ -113,23 +229,35 @@ class StyleTrainer(BaseTrainer):
             # Training phase
             model.train()
             train_losses = []
+            
             for batch in train_loader:
-                X_batch = batch[0]
-                y_batch = batch[1:]
+                # Move batch to GPU
+                X = batch[0].to(device)
+                y_dict = {
+                    category: batch[i+1].to(device)
+                    for i, category in enumerate(self.style_categories)
+                }
                 
-                optimizer.zero_grad()
-                outputs = model(X_batch)
+                optimizer.zero_grad(set_to_none=True)  # More efficient than zero_grad()
                 
-                # Calculate loss for each head
-                loss = sum(criterion(output, target) 
-                          for output, target in zip(outputs, y_batch))
+                # Use automatic mixed precision
+                with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
+                    outputs = model(X)
+                    loss = sum(
+                        criterion(outputs[category], y_dict[category])
+                        for category in self.style_categories
+                    )
                 
-                loss.backward()
+                # Scale loss and compute gradients
+                scaler.scale(loss).backward()
                 
-                # Gradient clipping
+                # Update weights with gradient clipping
+                scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                scaler.step(optimizer)
+                scaler.update()
                 
-                optimizer.step()
+                # Step the learning rate scheduler after optimizer
                 scheduler.step()
                 
                 train_losses.append(loss.item())
@@ -137,23 +265,31 @@ class StyleTrainer(BaseTrainer):
             # Validation phase
             model.eval()
             val_losses = []
-            all_preds = {k: [] for k in y_dict.keys()}
-            all_targets = {k: [] for k in y_dict.keys()}
+            all_preds = {k: [] for k in self.style_categories}
+            all_targets = {k: [] for k in self.style_categories}
             
             with torch.no_grad():
                 for batch in val_loader:
-                    X_batch = batch[0]
-                    y_batch = batch[1:]
+                    X_val = batch[0].to(device)
+                    y_val = {
+                        category: batch[i+1].to(device)
+                        for i, category in enumerate(self.style_categories)
+                    }
                     
-                    outputs = model(X_batch)
-                    loss = sum(criterion(output, target) 
-                             for output, target in zip(outputs, y_batch))
+                    with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
+                        outputs = model(X_val)
+                        loss = sum(
+                            criterion(outputs[category], y_val[category])
+                            for category in self.style_categories
+                        )
                     val_losses.append(loss.item())
                     
                     # Store predictions and targets
-                    for i, k in enumerate(y_dict.keys()):
-                        all_preds[k].extend(outputs[i].argmax(1).cpu().numpy())
-                        all_targets[k].extend(y_batch[i].cpu().numpy())
+                    for category in self.style_categories:
+                        preds = outputs[category].argmax(1).cpu()
+                        targets = y_val[category].cpu()
+                        all_preds[category].extend(preds.numpy())
+                        all_targets[category].extend(targets.numpy())
             
             # Calculate metrics
             metrics = self._calculate_style_metrics(all_targets, all_preds)
@@ -165,7 +301,25 @@ class StyleTrainer(BaseTrainer):
             # Save best model
             if np.mean(val_losses) < best_val_loss:
                 best_val_loss = np.mean(val_losses)
-                self.save_model(model, 'style_model')
+                model.cpu()  # Move to CPU for saving
+                
+                # Save model config and state
+                model_config = {
+                    'input_size': model.input_size,
+                    'hidden_size': model.hidden_size,
+                    'num_disciplines': model.num_disciplines,
+                    'num_lead_styles': model.num_lead_styles,
+                    'num_length_categories': model.num_length_categories
+                }
+                
+                save_path = self.model_dir / 'style_model.pt'
+                torch.save({
+                    'model_config': model_config,
+                    'model_state_dict': model.state_dict()
+                }, save_path, _use_new_zipfile_serialization=True)
+                
+                self.logger.info(f"Model saved to {save_path}")
+                model.to(device)  # Move back to GPU
                 
                 # Generate and save confusion matrices
                 self._save_confusion_matrices(all_targets, all_preds)
