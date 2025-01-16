@@ -1,9 +1,10 @@
 from flask import render_template, request, redirect, url_for, jsonify, flash, make_response
 from app import app, db, cache
-from app.models import BinnedCodeDict, UserTicks
+from app.models import BinnedCodeDict, UserTicks, ClimberSummary
 from app.services import DataProcessor
 from app.services.database_service import DatabaseService
 from app.services.analytics_service import AnalyticsService
+from app.services.climber_summary import ClimberSummaryService
 from datetime import date
 import json
 from app.services.grade_processor import GradeProcessor
@@ -18,78 +19,99 @@ class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, date):
             return obj.strftime('%Y-%m-%d')
+        if hasattr(obj, 'value'):  # Handle enum objects
+            return obj.value
         return super(CustomJSONEncoder, self).default(obj)
 
 
 @app.route("/", methods=['GET', 'POST']) 
 def index():
     if request.method == 'POST':
-        first_input = request.form.get('first_input')
-        app.logger.info(f"Received form data - first_input: {first_input}")
+        profile_url = request.form.get('profile_url')
+        app.logger.info(f"Received form data - profile_url: {profile_url}")
         
         # Log memory usage at start of request
         process = psutil.Process(os.getpid())
         start_memory = process.memory_info().rss / 1024 / 1024
         app.logger.info(f"Memory usage at start: {start_memory:.2f} MB")
         
-        if not first_input:
-            app.logger.error("No first_input provided")
+        if not profile_url:
+            app.logger.error("No profile_url provided")
             return jsonify({
                 'error': 'Please provide a Mountain Project profile URL'
             }), 400
             
         try:
             # Clean the input URL
-            first_input = first_input.strip()
-            app.logger.info(f"Processing URL after strip: '{first_input}'")
+            profile_url = profile_url.strip()
+            app.logger.info(f"Processing URL after strip: '{profile_url}'")
             
             # More flexible URL validation
-            if 'mountainproject.com/user/' not in first_input:
-                app.logger.error(f"URL validation failed for: '{first_input}'")
+            if 'mountainproject.com/user/' not in profile_url:
+                app.logger.error(f"URL validation failed for: '{profile_url}'")
                 return jsonify({
                     'error': 'Please provide a valid Mountain Project profile URL'
                 }), 400
 
-            # Clean and encode the URL
-            first_input = first_input.replace(' ', '%20')
-            app.logger.info(f"URL after encoding: '{first_input}'")
+            # Extract userId from URL
+            try:
+                # URL format: mountainproject.com/user/{userId}/{username}
+                url_parts = profile_url.split('/')
+                userId = int(url_parts[-2])  # Convert to int to validate it's a number
+                app.logger.info(f"Extracted userId: {userId}")
+            except (IndexError, ValueError):
+                app.logger.error(f"Failed to extract valid userId from URL: {profile_url}")
+                return jsonify({
+                    'error': 'Invalid Mountain Project URL format'
+                }), 400
 
-            # Extract username from URL
-            username = first_input.split('/')[-1]
+            # Clean and encode the URL
+            profile_url = profile_url.replace(' ', '%20')
+            app.logger.info(f"URL after encoding: '{profile_url}'")
 
             # Check if user data exists
-            existing_ticks = UserTicks.query.filter_by(username=username).first()
+            existing_ticks = UserTicks.query.filter_by(userId=int(userId)).first()
             if existing_ticks:
-                app.logger.info(f"Found existing data for user: {username}")
-                response = make_response(redirect(url_for('userviz', username=username)))
-                # Add header to set username (optional if handled client-side)
-                response.headers['X-Set-User'] = username
-                return response
+                app.logger.info(f"Found existing data for userId: {userId}")
+                return redirect(url_for('userviz', userId=int(userId)))
 
             # If no existing data, process the profile
             processor = DataProcessor(db.session)
-            sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username = processor.process_profile(first_input)
+            sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username, extracted_userId = processor.process_profile(profile_url)
+
+            # Verify userId matches
+            if int(extracted_userId) != int(userId):
+                app.logger.error(f"URL userId ({userId}) doesn't match extracted userId ({extracted_userId})")
+                return jsonify({
+                    'error': 'Invalid user profile URL'
+                }), 400
 
             # Log memory usage before database operations
             current_memory = process.memory_info().rss / 1024 / 1024
             app.logger.info(f"Memory usage before DB ops: {current_memory:.2f} MB (Change: {current_memory - start_memory:.2f} MB)")
 
-            # Clear existing data for this username
-            DatabaseService.clear_user_data(username)
+            try:
+                # Clear existing data for this userId
+                DatabaseService.clear_user_data(userId=int(userId))
 
-            # Update the calculated data using DatabaseService
-            DatabaseService.save_calculated_data({
-                'sport_pyramid': sport_pyramid,
-                'trad_pyramid': trad_pyramid,
-                'boulder_pyramid': boulder_pyramid,
-                'user_ticks': user_ticks
-            })
+                # Update the calculated data using DatabaseService
+                DatabaseService.save_calculated_data({
+                    'sport_pyramid': sport_pyramid,
+                    'trad_pyramid': trad_pyramid,
+                    'boulder_pyramid': boulder_pyramid,
+                    'user_ticks': user_ticks
+                })
+            except Exception as db_error:
+                app.logger.error(f"Database operation failed: {str(db_error)}")
+                return jsonify({
+                    'error': 'Database operation failed. Please try again.'
+                }), 500
             
             # Log final memory usage
             end_memory = process.memory_info().rss / 1024 / 1024
             app.logger.info(f"Final memory usage: {end_memory:.2f} MB (Total change: {end_memory - start_memory:.2f} MB)")
             
-            return redirect(url_for('userviz', username=username))
+            return redirect(url_for('userviz', userId=int(userId)))
             
         except Exception as e:
             app.logger.error(f"Error processing request: {str(e)}")
@@ -110,70 +132,79 @@ def terms_and_privacy():
 
 @app.route("/userviz")
 def userviz():
-    username = request.args.get('username')
-    if not username:
-        return "Username is required", 400
+    userId = request.args.get('userId')
+
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        return "User not found", 404
         
     # Get pyramids from database
-    pyramids = DatabaseService.get_pyramids_by_username(username)
+    pyramids = DatabaseService.get_pyramids_by_user_id(userId)
     binned_code_dict = BinnedCodeDict.query.all()
-    user_ticks = DatabaseService.get_user_ticks(username)
+    user_ticks = DatabaseService.get_user_ticks_by_id(userId)
 
     # Get analytics metrics
     analytics_service = AnalyticsService(db)
-    metrics = analytics_service.get_all_metrics(username)
+    metrics = analytics_service.get_all_metrics(userId=userId)
 
-    # Prepare data for rendering
+    # Convert to dictionaries and handle serialization
     sport_pyramid_data = [r.as_dict() for r in pyramids['sport']]
     trad_pyramid_data = [r.as_dict() for r in pyramids['trad']]
     boulder_pyramid_data = [r.as_dict() for r in pyramids['boulder']]
     binned_code_dict_data = [r.as_dict() for r in binned_code_dict]
     user_ticks_data = [r.as_dict() for r in user_ticks]
 
-    # Serialize dates
-    for item in sport_pyramid_data + trad_pyramid_data + boulder_pyramid_data + user_ticks_data:
-        if 'tick_date' in item:
-            item['tick_date'] = item['tick_date'].strftime('%Y-%m-%d')
+    # Pre-serialize the data using the custom encoder
+    encoder = CustomJSONEncoder()
+    sport_pyramid_json = json.loads(encoder.encode(sport_pyramid_data))
+    trad_pyramid_json = json.loads(encoder.encode(trad_pyramid_data))
+    boulder_pyramid_json = json.loads(encoder.encode(boulder_pyramid_data))
+    user_ticks_json = json.loads(encoder.encode(user_ticks_data))
+    binned_code_dict_json = json.loads(encoder.encode(binned_code_dict_data))
     
     return render_template('userViz.html', 
-                         username=username,
-                         sport_pyramid=sport_pyramid_data,
-                         trad_pyramid=trad_pyramid_data,
-                         boulder_pyramid=boulder_pyramid_data,
-                         user_ticks=user_ticks_data,
-                         binned_code_dict=binned_code_dict_data,
+                         userId=userId,
+                         username=user.username,
+                         sport_pyramid=sport_pyramid_json,
+                         trad_pyramid=trad_pyramid_json,
+                         boulder_pyramid=boulder_pyramid_json,
+                         user_ticks=user_ticks_json,
+                         binned_code_dict=binned_code_dict_json,
                          **metrics)
 
 @app.route("/performance-pyramid")
 def performance_pyramid():
-    username = request.args.get('username')
-    if not username:
-        return "Username is required", 400
+    userId = request.args.get('userId')
+
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        return "User not found", 404
 
     # Get pyramids directly from database
-    pyramids = DatabaseService.get_pyramids_by_username(username)
+    pyramids = DatabaseService.get_pyramids_by_user_id(userId)
     binned_code_dict = BinnedCodeDict.query.all()
-    user_ticks = DatabaseService.get_user_ticks(username)
+    user_ticks = DatabaseService.get_user_ticks_by_id(userId)
 
-    # Convert to JSON and handle date serialization
-    sport_pyramid_json = [r.as_dict() for r in pyramids['sport']]
-    trad_pyramid_json = [r.as_dict() for r in pyramids['trad']]
-    boulder_pyramid_json = [r.as_dict() for r in pyramids['boulder']]
-    user_ticks_json = [r.as_dict() for r in user_ticks]
-    binned_code_dict_json = [r.as_dict() for r in binned_code_dict]
+    # Convert to dictionaries and handle serialization
+    sport_pyramid_data = [r.as_dict() for r in pyramids['sport']]
+    trad_pyramid_data = [r.as_dict() for r in pyramids['trad']]
+    boulder_pyramid_data = [r.as_dict() for r in pyramids['boulder']]
+    user_ticks_data = [r.as_dict() for r in user_ticks]
+    binned_code_dict_data = [r.as_dict() for r in binned_code_dict]
 
-    # Convert dates to strings in user_ticks
-    for tick in user_ticks_json:
-        if 'tick_date' in tick:
-            tick['tick_date'] = tick['tick_date'].strftime('%Y-%m-%d')
-
-    # Convert dates in pyramid data
-    for item in sport_pyramid_json + trad_pyramid_json + boulder_pyramid_json:
-        if 'tick_date' in item:
-            item['tick_date'] = item['tick_date'].strftime('%Y-%m-%d')
+    # Pre-serialize the data using the custom encoder
+    encoder = CustomJSONEncoder()
+    sport_pyramid_json = json.loads(encoder.encode(sport_pyramid_data))
+    trad_pyramid_json = json.loads(encoder.encode(trad_pyramid_data))
+    boulder_pyramid_json = json.loads(encoder.encode(boulder_pyramid_data))
+    user_ticks_json = json.loads(encoder.encode(user_ticks_data))
+    binned_code_dict_json = json.loads(encoder.encode(binned_code_dict_data))
 
     return render_template('performancePyramid.html',
-                         username=username,
+                         userId=userId,
+                         username=user.username,
                          sport_pyramid=sport_pyramid_json,
                          trad_pyramid=trad_pyramid_json,
                          boulder_pyramid=boulder_pyramid_json,
@@ -182,61 +213,112 @@ def performance_pyramid():
 
 @app.route("/base-volume")
 def base_volume():
-    username = request.args.get('username')
-    if not username:
-        return "Username is required", 400
+    userId = request.args.get('userId')
 
-    user_ticks = DatabaseService.get_user_ticks(username)
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        return "User not found", 404
+
+    user_ticks = DatabaseService.get_user_ticks_by_id(userId)
     binned_code_dict = BinnedCodeDict.query.all()
 
-    # Convert to dicts and handle date serialization
+    # Convert to dictionaries and handle serialization
     user_ticks_data = [r.as_dict() for r in user_ticks]
     binned_code_dict_data = [r.as_dict() for r in binned_code_dict]
 
-    # Convert dates to strings
-    for tick in user_ticks_data:
-        if 'tick_date' in tick:
-            tick['tick_date'] = tick['tick_date'].strftime('%Y-%m-%d')
+    # Pre-serialize the data using the custom encoder
+    encoder = CustomJSONEncoder()
+    user_ticks_json = json.loads(encoder.encode(user_ticks_data))
+    binned_code_dict_json = json.loads(encoder.encode(binned_code_dict_data))
 
     return render_template('baseVolume.html',
-                         username=username,
-                         user_ticks=user_ticks_data,
-                         binned_code_dict=binned_code_dict_data)
+                         userId=userId,
+                         username=user.username,
+                         user_ticks=user_ticks_json,
+                         binned_code_dict=binned_code_dict_json)
 
 @app.route("/progression")
 def progression():
-    username = request.args.get('username')
-    if not username:
-        return "Username is required", 400
+    userId = request.args.get('userId')
 
-    user_ticks = DatabaseService.get_user_ticks(username)
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        return "User not found", 404
+
+    user_ticks = DatabaseService.get_user_ticks_by_id(userId)
     binned_code_dict = BinnedCodeDict.query.all()
 
     return render_template('progression.html',
-                         username=username,
+                         userId=userId,
+                         username=user.username,
                          user_ticks=json.dumps([r.as_dict() for r in user_ticks], cls=CustomJSONEncoder),
                          binned_code_dict=json.dumps([r.as_dict() for r in binned_code_dict], cls=CustomJSONEncoder))
 
 @app.route("/when-where")
 def when_where():
-    username = request.args.get('username')
-    if not username:
-        return "Username is required", 400
+    userId = request.args.get('userId')
 
-    user_ticks = DatabaseService.get_user_ticks(username)
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        return "User not found", 404
+
+    user_ticks = DatabaseService.get_user_ticks_by_id(userId)
 
     return render_template('whenWhere.html',
-                         username=username,
+                         userId=userId,
+                         username=user.username,
                          user_ticks=json.dumps([r.as_dict() for r in user_ticks], cls=CustomJSONEncoder))
 
 # Initialize grade processor
 grade_processor = GradeProcessor()
 
+@app.route("/chat-onboarding")
+def chat_onboarding():
+    userId = request.args.get('userId')
+
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        return "User not found", 404
+    
+    # Check if user has a climber summary
+    climber_summary = ClimberSummary.query.get(userId)
+    
+    # If no summary exists, create initial summary
+    if not climber_summary:
+        service = ClimberSummaryService(user_id=userId, username=user.username)
+        climber_summary = service.update_summary()
+    
+    # Convert climber summary to dict and handle enum serialization
+    summary_dict = climber_summary.as_dict()
+    encoder = CustomJSONEncoder()
+    summary_json = json.loads(encoder.encode(summary_dict))
+    
+    # Check if onboarding is complete by verifying user input fields
+    onboarding_complete = all([
+        summary_json.get('training_frequency'),
+        summary_json.get('typical_session_length'),
+        summary_json.get('climbing_goals'),
+        summary_json.get('willing_to_train_indoors') is not None
+    ])
+    
+    return render_template('chatOnboarding.html',
+                         userId=userId,
+                         username=user.username,
+                         climber_summary=summary_json,
+                         onboarding_complete=onboarding_complete)
+
 @app.route("/pyramid-input", methods=['GET', 'POST'])
 def pyramid_input():
-    username = request.args.get('username')
-    if not username:
-        flash('Username is required.')
+    userId = request.args.get('userId')
+
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        flash('User not found.')
         return redirect(url_for('index'))
         
     if request.method == 'POST':
@@ -249,27 +331,26 @@ def pyramid_input():
                 
                 # Process the changes directly to pyramid tables
                 update_service = PyramidUpdateService()
-                update_service.process_changes(username, changes)
+                update_service.process_changes(userId=userId, changes=changes)
                 
-    
+                return redirect(url_for('performance_characteristics', userId=userId))
             else:
                 flash('No changes were submitted.', 'warning')
-            
-            app.logger.info(f"Redirecting to performance characteristics for username: {username}")
-            return redirect(url_for('performance_characteristics', username=username))
+                return redirect(url_for('pyramid_input', userId=userId))
             
         except Exception as e:
             app.logger.error(f"Error processing changes: {str(e)}")
             flash('An error occurred while saving changes.', 'error')
-            return redirect(url_for('pyramid_input', username=username))
-            
+            return redirect(url_for('pyramid_input', userId=userId))
+
     # GET request - show the form
-    pyramids = DatabaseService.get_pyramids_by_username(username)
+    pyramids = DatabaseService.get_pyramids_by_user_id(userId)
     routes_grade_list = grade_processor.routes_grade_list
     boulders_grade_list = grade_processor.boulders_grade_list
     
     return render_template('pyramidInputs.html',
-                         username=username,
+                         userId=userId,
+                         username=user.username,
                          sport_pyramid=pyramids['sport'],
                          trad_pyramid=pyramids['trad'],
                          boulder_pyramid=pyramids['boulder'],
@@ -278,47 +359,42 @@ def pyramid_input():
 
 @app.route("/performance-characteristics")
 def performance_characteristics():
-    username = request.args.get('username')
-    
-    # Initialize binned code dict if empty
-    app.logger.info("Checking binned code dict...")
-    first_entry = BinnedCodeDict.query.first()
-    app.logger.info(f"First entry found: {first_entry}")
-    
-    if not first_entry:
-        app.logger.info("Initializing binned code dict...")
-        grade_processor = GradeProcessor()
-        DatabaseService.init_binned_code_dict(grade_processor.binned_code_dict)
-        app.logger.info("Initialization complete")
-    
-    pyramids = DatabaseService.get_pyramids_by_username(username)
-    binned_code_dict = BinnedCodeDict.query.all()
-    app.logger.info(f"Retrieved {len(binned_code_dict)} binned code entries")
+    userId = request.args.get('userId')
 
-    # Convert to list of dicts and handle date serialization
+    # Get user data
+    user = UserTicks.query.filter_by(userId=userId).first()
+    if not user:
+        return "User not found", 404
+
+    # Get pyramids directly from database
+    pyramids = DatabaseService.get_pyramids_by_user_id(userId)
+    binned_code_dict = BinnedCodeDict.query.all()
+
+    # Convert to dictionaries and handle serialization
     sport_pyramid_data = [r.as_dict() for r in pyramids['sport']]
     trad_pyramid_data = [r.as_dict() for r in pyramids['trad']]
     boulder_pyramid_data = [r.as_dict() for r in pyramids['boulder']]
     binned_code_dict_data = [r.as_dict() for r in binned_code_dict]
-    app.logger.info(f"Converted binned code dict data length: {len(binned_code_dict_data)}")
-    app.logger.info(f"Sample of binned code dict data: {binned_code_dict_data[:2] if binned_code_dict_data else 'Empty'}")
 
-    # Convert dates to strings
-    for item in sport_pyramid_data + trad_pyramid_data + boulder_pyramid_data:
-        if 'tick_date' in item:
-            item['tick_date'] = item['tick_date'].strftime('%Y-%m-%d')
+    # Pre-serialize the data using the custom encoder
+    encoder = CustomJSONEncoder()
+    sport_pyramid_json = json.loads(encoder.encode(sport_pyramid_data))
+    trad_pyramid_json = json.loads(encoder.encode(trad_pyramid_data))
+    boulder_pyramid_json = json.loads(encoder.encode(boulder_pyramid_data))
+    binned_code_dict_json = json.loads(encoder.encode(binned_code_dict_data))
 
     return render_template('performanceCharacteristics.html',
-                         username=username,
-                         sport_pyramid=sport_pyramid_data,
-                         trad_pyramid=trad_pyramid_data,
-                         boulder_pyramid=boulder_pyramid_data,
-                         binned_code_dict=binned_code_dict_data)
+                         userId=userId,
+                         username=user.username,
+                         sport_pyramid=sport_pyramid_json,
+                         trad_pyramid=trad_pyramid_json,
+                         boulder_pyramid=boulder_pyramid_json,
+                         binned_code_dict=binned_code_dict_json)
 
 @app.route("/delete-tick/<int:tick_id>", methods=['DELETE'])
 def delete_tick(tick_id):
     try:
-        # Get username before deletion for pyramid rebuild
+        # Get user info before deletion for pyramid rebuild
         user_tick = UserTicks.query.get(tick_id)
         if not user_tick:
             return jsonify({
@@ -326,15 +402,15 @@ def delete_tick(tick_id):
                 'error': 'Tick not found'
             }), 404
             
-        username = user_tick.username
-        app.logger.info(f"Deleting tick {tick_id} for user {username}")
+        userId = user_tick.userId
+        app.logger.info(f"Deleting tick {tick_id} for user {userId}")
         
         # Delete the tick and rebuild pyramids
         success = DatabaseService.delete_user_tick(tick_id)
         
         if success:
             # Get the fresh pyramid data to return
-            pyramids = DatabaseService.get_pyramids_by_username(username)
+            pyramids = DatabaseService.get_pyramids_by_user_id(userId)
             pyramid_data = {
                 'sport': [r.as_dict() for r in pyramids['sport']],
                 'trad': [r.as_dict() for r in pyramids['trad']],
@@ -368,17 +444,48 @@ def delete_tick(tick_id):
             'error': 'Server error while deleting tick'
         }), 500
 
-@app.route("/refresh-data/<username>", methods=['POST'])
-def refresh_data(username):
+@app.route("/refresh-data/<int:userId>", methods=['POST'])
+def refresh_data(userId):
     try:
-        DatabaseService.clear_user_data(username)
+        # Get user data
+        user = UserTicks.query.filter_by(userId=userId).first()
+        if not user:
+            return jsonify({
+                'error': 'User not found'
+            }), 404
+
+        # Get the profile URL from user data
+        profile_url = user.user_profile_url
+        if not profile_url:
+            return jsonify({
+                'error': 'Profile URL not found'
+            }), 404
+
+        # Clear existing data
+        DatabaseService.clear_user_data(userId=userId)
         
-        # Prepare redirect response with header to clear localStorage
-        response = make_response(redirect(url_for('index')))
-        response.headers['X-Clear-User'] = 'true'
-        return response
+        # Process the profile
+        processor = DataProcessor(db.session)
+        sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username, extracted_userId = processor.process_profile(profile_url)
+
+        # Verify userId matches
+        if int(extracted_userId) != userId:
+            return jsonify({
+                'error': 'User ID mismatch during refresh'
+            }), 400
+
+        # Update the calculated data using DatabaseService
+        DatabaseService.save_calculated_data({
+            'sport_pyramid': sport_pyramid,
+            'trad_pyramid': trad_pyramid,
+            'boulder_pyramid': boulder_pyramid,
+            'user_ticks': user_ticks
+        })
+
+        return redirect(url_for('userviz', userId=userId))
+
     except Exception as e:
-        app.logger.error(f"Error refreshing data for {username}: {str(e)}")
+        app.logger.error(f"Error refreshing data for user {userId}: {str(e)}")
         return jsonify({
             'error': 'An error occurred while refreshing your data. Please try again.'
         }), 500
@@ -423,3 +530,4 @@ def get_support_count():
     
     app.logger.info(f"Support count calculated: {unique_users}")
     return jsonify({"count": unique_users})
+

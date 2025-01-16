@@ -64,7 +64,7 @@
       <h1>{{ username }}</h1>
       <div class="header-buttons">
         <form
-          action="{{ url_for('refresh_data', username=username) }}"
+          action="{{ url_for('refresh_data', userId=userId) }}"
           method="POST"
           style="display: inline"
         >
@@ -119,7 +119,7 @@
           <div class="links-row">
             <div class="card">
               <a
-                href="{{ url_for('base_volume', username=username) }}"
+                href="{{ url_for('base_volume', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -137,7 +137,7 @@
 
             <div class="card">
               <a
-                href="{{ url_for('progression', username=username) }}"
+                href="{{ url_for('progression', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -155,7 +155,7 @@
 
             <div class="card">
               <a
-                href="{{ url_for('when_where', username=username) }}"
+                href="{{ url_for('when_where', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -211,7 +211,7 @@
                   >{{ send.binned_grade }}</span
                 >
                 <span class="send-location">{{ send.location }}</span>
-                <span class="send-attempts">{{ send.num_attempts }}</span>
+                <span class="send-date">{{ send.tick_date }}</span>
                 <span class="send-discipline {{ send.discipline.lower() }}"
                   >{{ send.discipline }}</span
                 >
@@ -242,7 +242,7 @@
                   data before viewing the visualizations below.
                 </p>
                 <a
-                  href="{{ url_for('pyramid_input', username=username)}}"
+                  href="{{ url_for('pyramid_input', userId=userId)}}"
                   class="accent-button"
                 >
                   <i class="fas fa-edit"></i> Edit Performance Data
@@ -252,7 +252,7 @@
 
             <div class="card performance-card">
               <a
-                href="{{ url_for('performance_pyramid', username=username) }}"
+                href="{{ url_for('performance_pyramid', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -269,7 +269,7 @@
 
             <div class="card performance-card">
               <a
-                href="{{ url_for('performance_characteristics', username=username) }}"
+                href="{{ url_for('performance_characteristics', userId=userId) }}"
                 class="card-link"
               >
                 <h3>

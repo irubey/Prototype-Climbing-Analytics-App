@@ -9,11 +9,14 @@ class Config:
     # Generate a secure random secret key
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
     
-    # Database configuration - prioritize production URL if available
-    database_url = os.environ.get('PRODUCTION_DATABASE_URL') or os.environ.get('LOCAL_DATABASE_URL')
+    # Database configuration - prioritize local URL in development
+    if os.environ.get('FLASK_ENV') == 'development':
+        database_url = os.environ.get('LOCAL_DATABASE_URL') or os.environ.get('DATABASE_URL')
+    else:
+        database_url = os.environ.get('PRODUCTION_DATABASE_URL') or os.environ.get('LOCAL_DATABASE_URL')
     
     if not database_url:
-        raise ValueError("No database URL configured. Set PRODUCTION_DATABASE_URL or LOCAL_DATABASE_URL in .env")
+        raise ValueError("No database URL configured. Set DATABASE_URL or LOCAL_DATABASE_URL in .env")
     
     # Convert postgres:// to postgresql:// if needed
     if database_url.startswith("postgres://"):

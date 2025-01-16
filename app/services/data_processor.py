@@ -5,6 +5,7 @@ from typing import Tuple, Dict
 from .grade_processor import GradeProcessor
 from .climb_classifier import ClimbClassifier
 from .pyramid_builder import PyramidBuilder
+from app.models import ClimbingDiscipline
 
 class DataProcessor:
     """Main class that orchestrates the processing of climbing data"""
@@ -14,25 +15,25 @@ class DataProcessor:
         self.classifier = ClimbClassifier()
         self.db_session = db_session
     
-    def process_profile(self, profile_url: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, str]:
+    def process_profile(self, profile_url: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, str, int]:
         """Process a Mountain Project profile URL and return the processed data."""
-        # Extract username from URL
+        # Extract username and userId from URL
         username = profile_url.split('/')[-1]
+        
+        # Convert userId to Python int immediately
+        user_id = int(profile_url.split('/')[-2])  # Explicit conversion to Python int
         
         # Download and parse CSV data
         df = self.download_and_parse_csv(profile_url)
         
         # Process raw climbing data
-        processed_df = self.process_raw_data(df, username)
-        
-        # Calculate max grades
-        self.calculate_max_grades(processed_df)
+        processed_df = self.process_raw_data(df, username, user_id)
         
         # Build pyramids with db_session for initial predictions
         pyramid_builder = PyramidBuilder()
         sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(processed_df, self.db_session)
         
-        return sport_pyramid, trad_pyramid, boulder_pyramid, processed_df, username
+        return sport_pyramid, trad_pyramid, boulder_pyramid, processed_df, username, user_id
     
     def download_and_parse_csv(self, profile_url: str) -> pd.DataFrame:
         """Download and parse the CSV data"""
@@ -78,7 +79,7 @@ class DataProcessor:
         except Exception as e:
             raise ValueError(f"Error parsing CSV data: {str(e)}")
     
-    def process_raw_data(self, df: pd.DataFrame, username: str) -> pd.DataFrame:
+    def process_raw_data(self, df: pd.DataFrame, username: str, user_id: int) -> pd.DataFrame:
         """Process the raw climbing data"""
         # Convert grades to codes
         df['binned_code'] = self.grade_processor.convert_grades_to_codes(df['route_grade'])
@@ -107,8 +108,16 @@ class DataProcessor:
         df['location'] = df['location'].apply(lambda x: x.split('>')).apply(lambda x: x[:3])
         df['location'] = df['location'].apply(lambda x: f"{x[-1]}, {x[0]}")
         
-        # Add username
+        # Add username and userId
         df['username'] = username
+        df['userId'] = user_id
+        df['user_profile_url'] = f"https://www.mountainproject.com/user/{user_id}/{username}"
+        
+        # Add route_stars
+        df['route_stars'] = df['route_stars'].fillna(0) + 1
+        
+        # Add user_stars
+        df['user_stars'] = df['user_stars'].fillna(0) + 1
         
         # Calculate max grades
         df = self.calculate_max_grades(df)
@@ -185,18 +194,31 @@ class DataProcessor:
     
     def set_data_types(self, df: pd.DataFrame) -> pd.DataFrame:
         """Set appropriate data types for columns"""
+        # String types
         df['route_name'] = df['route_name'].astype(str)
         df['route_grade'] = df['route_grade'].astype(str)
-        df['pitches'] = df['pitches'].astype(int)
-        df['lead_style'] = df['lead_style'].astype('category')
+        df['notes'] = df['notes'].fillna('').astype(str).str.strip()
+        
+        # Integer types - using standard Python int
+        df['userId'] = df['userId'].astype('int64').astype(int)  # Convert to Python int
+        df['pitches'] = df['pitches'].astype('int64').astype(int)
+        df['binned_code'] = df['binned_code'].astype('int64').astype(int)
+        df['cur_max_rp_sport'] = df['cur_max_rp_sport'].astype('int64').astype(int)
+        df['cur_max_rp_trad'] = df['cur_max_rp_trad'].astype('int64').astype(int)
+        df['cur_max_boulder'] = df['cur_max_boulder'].astype('int64').astype(int)
+        
+        # Nullable integer
         df['length'] = df['length'].astype('Int64')
-        df['binned_code'] = df['binned_code'].astype(int)
-        df['cur_max_rp_sport'] = df['cur_max_rp_sport'].astype(int)
-        df['cur_max_rp_trad'] = df['cur_max_rp_trad'].astype(int)
-        df['cur_max_boulder'] = df['cur_max_boulder'].astype(int)
+        
+        # Enum types - ensure values match database enums
+        df['discipline'] = df['discipline'].str.lower()  # Keep lowercase for enum names
+        
+        # Convert lead_style to match enum names
+        df['lead_style'] = df['lead_style'].str.title()
+
+        
+        # Category types
         df['length_category'] = df['length_category'].astype('category')
         df['season_category'] = df['season_category'].astype('category')
-        df['discipline'] = df['discipline'].astype('category')
-        df['notes'] = df['notes'].fillna('').astype(str).str.strip()
         
         return df 

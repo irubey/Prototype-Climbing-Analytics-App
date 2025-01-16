@@ -13,8 +13,15 @@ class PyramidUpdateService:
         self.grade_processor = GradeProcessor()
         self.classifier = ClimbClassifier()
 
-    def process_changes(self, username: str, changes_data: Dict[str, Any]) -> bool:
+    def process_changes(self, userId: int = None, changes_data: Dict[str, Any] = None) -> bool:
         """Process changes to pyramid data."""
+        if not changes_data:
+            return False
+            
+        if not userId:
+            raise ValueError("userId must be provided")
+            
+
         try:
             for discipline, changes in changes_data.items():
                 model_class = {
@@ -27,7 +34,7 @@ class PyramidUpdateService:
                     continue
 
                 # Get the valid grade range for this discipline's pyramid
-                existing_entries = model_class.query.filter_by(username=username).all()
+                existing_entries = model_class.query.filter_by(userId=userId).all()
                 if existing_entries:
                     valid_codes = [entry.binned_code for entry in existing_entries]
                     min_valid_code = min(valid_codes)
@@ -46,7 +53,7 @@ class PyramidUpdateService:
                             continue
                     
                     if valid_ids:
-                        PyramidUpdateService._remove_routes(discipline, username, valid_ids)
+                        PyramidUpdateService._remove_routes(discipline, userId=userId, tick_ids=valid_ids)
 
                 # Process updates and additions
                 for route_id, updates in changes.get('updated', {}).items():
@@ -61,13 +68,18 @@ class PyramidUpdateService:
                             continue
                         
                     if str(route_id).startswith('8'):  # New routes
-                        updates['username'] = username
+                        # Get username from user_ticks if not provided
+                        if 'username' not in updates:
+                            user = UserTicks.query.filter_by(userId=userId).first()
+                            updates['username'] = user.username if user else None
+                            
+                        updates['userId'] = userId
                         updates['discipline'] = discipline
                         updates['tick_date'] = updates.get('tick_date', datetime.now().date())
                         updates['tick_id'] = int(route_id)
                         
                         self._add_new_route(
-                            username=username,
+                            userId=userId,
                             model_class=model_class,
                             route_data=updates,
                             new_id=route_id
@@ -76,10 +88,10 @@ class PyramidUpdateService:
                         try:
                             # Update existing route
                             pyramid_entry = model_class.query.filter_by(
-                                username=username,
+                                userId=userId,
                                 tick_id=route_id
                             ).first()
-                            
+
                             if pyramid_entry:
                                 # Debug logging for num_attempts updates
                                 if 'num_attempts' in updates:
@@ -106,10 +118,10 @@ class PyramidUpdateService:
                                     binned_grade = grade_processor.get_grade_from_code(new_binned_code)
                                     pyramid_entry.binned_grade = binned_grade
                                     pyramid_entry.binned_code = new_binned_code
-                                
+
                                 # Ensure critical fields are set
-                                if not pyramid_entry.username:
-                                    pyramid_entry.username = username
+                                if not pyramid_entry.userId:
+                                    pyramid_entry.userId = userId
                                 if not pyramid_entry.discipline:
                                     pyramid_entry.discipline = discipline
                                 if not pyramid_entry.tick_date:
@@ -127,24 +139,28 @@ class PyramidUpdateService:
             raise e
 
     @staticmethod
-    def _remove_routes(discipline, username, tick_ids):
+    def _remove_routes(discipline, userId=None, tick_ids=None):
         if not tick_ids:  # Don't attempt deletion if no valid IDs
             return
             
+        if not userId:
+            raise ValueError("userId must be provided")
+            
+
         model = PyramidUpdateService._get_model(discipline)
         model.query.filter(
-            model.username == username,
+            model.userId == userId,
             model.tick_id.in_(tick_ids)
         ).delete(synchronize_session=False)
 
     @staticmethod
-    def _update_routes(discipline, username, updates):
+    def _update_routes(discipline, userId, updates):
         model = PyramidUpdateService._get_model(discipline)
         for route_id, data in updates.items():
             if not route_id.startswith('new_'):  # Only update existing routes
                 try:
                     route = model.query.filter_by(
-                        username=username,
+                        userId=userId,
                         id=int(route_id)
                     ).first()
                     
@@ -156,7 +172,7 @@ class PyramidUpdateService:
                     continue
 
     @staticmethod
-    def _add_routes(discipline, username, added_ids, updates):
+    def _add_routes(discipline, userId, added_ids, updates):
         model = PyramidUpdateService._get_model(discipline)
         for route_id in added_ids:
             if route_id.startswith('new_'):
@@ -164,7 +180,7 @@ class PyramidUpdateService:
                 if data:
                     try:
                         new_route = model(
-                            username=username,
+                            userId=userId,
                             route_name=data.get('route_name'),
                             route_grade=data.get('route_grade'),
                             num_attempts=int(data.get('num_attempts', 1)),
@@ -205,7 +221,7 @@ class PyramidUpdateService:
         
         return grade, binned_code
 
-    def _add_new_route(self, username: str, model_class: Any, route_data: Dict[str, Any], new_id: str) -> None:
+    def _add_new_route(self, userId: int, model_class: Any, route_data: Dict[str, Any], new_id: str) -> None:
         """Add a new route to the pyramid"""
         try:
             # Handle tick_date - if it's a string, parse it, otherwise use it as is
@@ -241,8 +257,16 @@ class PyramidUpdateService:
             })
             season_category = self.classifier.classify_season(date_df).iloc[0]
 
+            # Get username if not provided
+            if 'username' not in route_data:
+                user = UserTicks.query.filter_by(userId=userId).first()
+                username = user.username if user else None
+            else:
+                username = route_data['username']
+
             # Create new pyramid entry with user-provided data
             new_entry = model_class(
+                userId=userId,
                 username=username,
                 route_name=route_data.get('route_name', 'Unknown Route'),
                 route_grade=route_grade,

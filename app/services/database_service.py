@@ -41,20 +41,25 @@ class DatabaseService:
     @retry_on_db_error()
     def save_calculated_data(calculated_data: Dict[str, pd.DataFrame]) -> None:
         """Save calculated pyramid and tick data to database"""
-        # Get username from any of the dataframes
-        username = None
+        # Get userId from any of the dataframes
+        userId = None
         for df in calculated_data.values():
-            if not df.empty and 'username' in df.columns:
-                username = df.iloc[0]['username']
+            if not df.empty and 'userId' in df.columns:
+                userId = int(df.iloc[0]['userId'])  # Explicitly convert to int
                 break
         
-        if username:
+        if userId is not None:
             # Clear existing data first
-            DatabaseService.clear_user_data(username)
+            DatabaseService.clear_user_data(userId=userId)
+        else:
+            raise ValueError("No userId found in calculated data")
         
         # Batch insert new data
         for table_name, df in calculated_data.items():
             if not df.empty:
+                # Ensure userId is int in the DataFrame
+                if 'userId' in df.columns:
+                    df['userId'] = df['userId'].astype('int64').astype(int)
                 DatabaseService._batch_save_dataframe(df, table_name)
         
         # Reset sequences if using PostgreSQL
@@ -113,6 +118,10 @@ class DatabaseService:
             data_dict = {k: v for k, v in row.where(pd.notnull(row), None).to_dict().items() 
                         if k in model_columns}
             
+            # Ensure userId is int if present
+            if 'userId' in data_dict:
+                data_dict['userId'] = int(data_dict['userId'])
+            
             # For pyramid tables, add the tick_id if not already present
             if table_name != 'user_ticks' and 'tick_id' not in data_dict:
                 key = (data_dict['username'], data_dict['route_name'], data_dict['tick_date'])
@@ -137,12 +146,11 @@ class DatabaseService:
         
         db.session.commit()
 
-    # User Ticks Operations
     @staticmethod
     @retry_on_db_error(max_retries=3)
-    def get_user_ticks(username: str) -> List[UserTicks]:
-        """Get all ticks for a user with retry logic"""
-        return UserTicks.query.filter_by(username=username).all()
+    def get_user_ticks_by_id(userId: int) -> List[UserTicks]:
+        """Get all ticks for a user by userId"""
+        return UserTicks.query.filter_by(userId=userId).all()
 
     @staticmethod
     def update_user_tick(tick_id: int, **kwargs) -> Optional[UserTicks]:
@@ -167,14 +175,14 @@ class DatabaseService:
             if not user_tick:
                 return False
                 
-            username = user_tick.username
+            userId = user_tick.userId
             
             # Delete the user tick
             db.session.delete(user_tick)
             db.session.commit()
             
             # Get remaining ticks for pyramid rebuild
-            remaining_ticks = DatabaseService.get_user_ticks(username)
+            remaining_ticks = DatabaseService.get_user_ticks_by_id(userId)
             
             # Convert to DataFrame for pyramid building
             df = pd.DataFrame([r.as_dict() for r in remaining_ticks])
@@ -184,7 +192,7 @@ class DatabaseService:
             sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(df, db.session)
             
             # Clear existing pyramids and save new ones
-            DatabaseService.clear_pyramids(username)
+            DatabaseService.clear_pyramids(userId=userId)
             DatabaseService.save_calculated_data({
                 'sport_pyramid': sport_pyramid,
                 'trad_pyramid': trad_pyramid,
@@ -200,12 +208,12 @@ class DatabaseService:
     # Pyramid Operations
     @staticmethod
     @retry_on_db_error()
-    def get_pyramids_by_username(username: str) -> Dict[str, List[Any]]:
-        """Get all pyramids for a user, sorted by difficulty (binned_code)"""
+    def get_pyramids_by_user_id(userId: int) -> Dict[str, List[Any]]:
+        """Get all pyramids for a user by userId"""
         return {
-            'sport': SportPyramid.query.filter_by(username=username).order_by(SportPyramid.binned_code.desc()).all(),
-            'trad': TradPyramid.query.filter_by(username=username).order_by(TradPyramid.binned_code.desc()).all(),
-            'boulder': BoulderPyramid.query.filter_by(username=username).order_by(BoulderPyramid.binned_code.desc()).all()
+            'sport': SportPyramid.query.filter_by(userId=userId).order_by(SportPyramid.binned_code.desc()).all(),
+            'trad': TradPyramid.query.filter_by(userId=userId).order_by(TradPyramid.binned_code.desc()).all(),
+            'boulder': BoulderPyramid.query.filter_by(userId=userId).order_by(BoulderPyramid.binned_code.desc()).all()
         }
 
     @staticmethod
@@ -257,16 +265,22 @@ class DatabaseService:
             raise e
 
     @staticmethod
-    def user_data_exists(username: str) -> bool:
-        """Check if user data exists in the database"""
+    def user_data_exists(userId: int = None) -> bool:
+        """Check if user data exists in the database by userId"""
         try:
+            # Build the filter conditions
+            if userId is not None:
+                user_filter = {'userId': userId}
+            else:
+                raise ValueError("userId must be provided")
+
             # Check for any user ticks
-            has_ticks = db.session.query(UserTicks.query.filter_by(username=username).exists()).scalar()
+            has_ticks = db.session.query(UserTicks.query.filter_by(**user_filter).exists()).scalar()
             
             # Check for pyramids
-            has_sport = db.session.query(SportPyramid.query.filter_by(username=username).exists()).scalar()
-            has_trad = db.session.query(TradPyramid.query.filter_by(username=username).exists()).scalar()
-            has_boulder = db.session.query(BoulderPyramid.query.filter_by(username=username).exists()).scalar()
+            has_sport = db.session.query(SportPyramid.query.filter_by(**user_filter).exists()).scalar()
+            has_trad = db.session.query(TradPyramid.query.filter_by(**user_filter).exists()).scalar()
+            has_boulder = db.session.query(BoulderPyramid.query.filter_by(**user_filter).exists()).scalar()
             
             # Return True if user has ticks and at least one type of pyramid
             return has_ticks and (has_sport or has_trad or has_boulder)
@@ -274,12 +288,13 @@ class DatabaseService:
             raise e
 
     @staticmethod
-    def clear_pyramids(username: str) -> None:
-        """Clear all pyramids for a user"""
+    def clear_pyramids(userId: int = None) -> None:
+        """Clear all pyramids for a user by userId"""
         try:
-            SportPyramid.query.filter_by(username=username).delete()
-            TradPyramid.query.filter_by(username=username).delete()
-            BoulderPyramid.query.filter_by(username=username).delete()
+            if userId is not None:
+                SportPyramid.query.filter_by(userId=userId).delete()
+                TradPyramid.query.filter_by(userId=userId).delete()
+                BoulderPyramid.query.filter_by(userId=userId).delete()
             db.session.commit()
         except SQLAlchemyError as e:
             db.session.rollback()
@@ -287,27 +302,37 @@ class DatabaseService:
 
     @staticmethod
     @retry_on_db_error()
-    def clear_user_data(username: str) -> None:
+    def clear_user_data(userId: int = None) -> None:
         """Clear all data for a user (ticks and pyramids) and reset sequences"""
-        # Delete all related data in correct order
-        BoulderPyramid.query.filter_by(username=username).delete(synchronize_session=False)
-        SportPyramid.query.filter_by(username=username).delete(synchronize_session=False)
-        TradPyramid.query.filter_by(username=username).delete(synchronize_session=False)
-        UserTicks.query.filter_by(username=username).delete(synchronize_session=False)
-        
-        # Commit the deletions
-        db.session.commit()
-        
-        # Reset sequences
-        db.session.execute(text("""
-            SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
-                COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
-            SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
-                COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
-            SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
-                COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
-            SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
-                COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
-        """))
-        
-        db.session.commit()
+        try:
+            # Build the filter conditions
+            if userId is not None:
+                user_filter = {'userId': userId}
+            else:
+                raise ValueError("userId must be provided")
+
+            # Delete all related data in correct order
+            BoulderPyramid.query.filter_by(**user_filter).delete(synchronize_session=False)
+            SportPyramid.query.filter_by(**user_filter).delete(synchronize_session=False)
+            TradPyramid.query.filter_by(**user_filter).delete(synchronize_session=False)
+            UserTicks.query.filter_by(**user_filter).delete(synchronize_session=False)
+            
+            # Commit the deletions
+            db.session.commit()
+            
+            # Reset sequences
+            db.session.execute(text("""
+                SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
+                    COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
+                SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
+                    COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
+                SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
+                    COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
+                SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
+                    COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
+            """))
+            
+            db.session.commit()
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            raise e  # Re-raise the exception after rollback

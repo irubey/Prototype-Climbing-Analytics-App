@@ -132,7 +132,7 @@
             >
               <input
                 type="url"
-                name="first_input"
+                name="profile_url"
                 placeholder="Paste Mtn. Project Profile URL"
                 aria-label="Mountain Project Profile URL"
                 id="profileInput"
@@ -325,36 +325,43 @@
             body: formData,
           });
 
-          if (!response.ok) {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            // Handle JSON response (usually error)
             const data = await response.json();
-            throw new Error(
-              data.error || "An error occurred. Please try again."
-            );
+            if (!response.ok) {
+              throw new Error(data.error || "An error occurred. Please try again.");
+            }
+            // Handle successful JSON response if any
+            if (data.redirect) {
+              window.location.href = data.redirect;
+              return;
+            }
+          } else {
+            // Handle redirect
+            const redirectedURL = response.url;
+            const urlParams = new URLSearchParams(new URL(redirectedURL).search);
+            const userId = urlParams.get("userId");
+
+            // Set the userId in localStorage if needed
+            if (userId) {
+              localStorage.setItem('currentUserId', userId);
+            }
+
+            // Stage 2: Processing routes
+            updateLoadingStages();
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Stage 3: Building metrics
+            updateLoadingStages();
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Stage 4: Preparing visualizations
+            updateLoadingStages();
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            window.location.href = redirectedURL;
           }
-
-          // Extract the redirected URL
-          const redirectedURL = response.url;
-          const urlParams = new URLSearchParams(new URL(redirectedURL).search);
-          const username = urlParams.get("username");
-
-          // Set the username in localStorage
-          if (username) {
-            setCurrentUser(username);
-          }
-
-          // Stage 2: Processing routes
-          updateLoadingStages();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          // Stage 3: Building metrics
-          updateLoadingStages();
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          // Stage 4: Preparing visualizations
-          updateLoadingStages();
-          await new Promise((resolve) => setTimeout(resolve, 500));
-
-          window.location.href = redirectedURL;
         } catch (error) {
           hideLoadingScreen();
           setLoading(false);
@@ -367,9 +374,10 @@
         errorElement.textContent = message;
         errorElement.style.display = "block";
         document.getElementById("profileInput").classList.add("error");
-        document
-          .getElementById("profileInput")
-          .setAttribute("aria-invalid", "true");
+        document.getElementById("profileInput").setAttribute("aria-invalid", "true");
+        
+        // Ensure the error is visible
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
 
       function clearError() {
@@ -396,15 +404,26 @@
         }
 
         if (!value.includes("mountainproject.com/user/")) {
-          showError(
-            "Please enter valid URL: mountainproject.com/user/#########"
-          );
+          showError("Please enter valid URL: mountainproject.com/user/#########");
+          return false;
+        }
+
+        // Validate URL format
+        try {
+          const urlParts = value.split('/');
+          const userId = urlParts[urlParts.indexOf('user') + 1];
+          if (!userId || isNaN(parseInt(userId))) {
+            showError("Invalid Mountain Project URL format. Please check the URL.");
+            return false;
+          }
+        } catch (e) {
+          showError("Invalid URL format. Please check the URL.");
           return false;
         }
 
         setLoading(true);
         const formData = new FormData();
-        formData.append("first_input", value);
+        formData.append("profile_url", value);
         await submitForm(formData);
 
         return false;
