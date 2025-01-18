@@ -220,6 +220,7 @@
       <div class="container">
         <script>
           const climberSummary = {{ climber_summary|tojson|safe }};
+          console.log(climberSummary);
         </script>
 
         <!-- Core Progression Section -->
@@ -439,20 +440,6 @@
                   onchange="updateFormValue('preferred_climbing_days', this.value)"
                 >
               </div>
-            </div>
-            <div class="metric-item editable" onclick="toggleEdit(this, 'travel')">
-              <div class="metric-label">Max Travel Distance (miles)</div>
-              <div class="metric-value" id="maxTravel"></div>
-              <div class="edit-form">
-                <input 
-                  type="number" 
-                  min="0" 
-                  step="1"
-                  placeholder="Enter distance in miles"
-                  onchange="updateFormValue('max_travel_distance', this.value)"
-                >
-              </div>
-            </div>
           </div>
         </section>
 
@@ -473,7 +460,6 @@
           <input type="hidden" name="physical_limitations" id="form_physical_limitations">
           <input type="hidden" name="climbing_goals" id="form_climbing_goals">
           <input type="hidden" name="preferred_climbing_days" id="form_preferred_climbing_days">
-          <input type="hidden" name="max_travel_distance" id="form_max_travel_distance">
         </form>
 
         <!-- Favorite Routes Section -->
@@ -684,7 +670,6 @@
           'physical_limitations',
           'climbing_goals',
           'preferred_climbing_days',
-          'max_travel_distance'
         ];
         
         fields.forEach(field => {

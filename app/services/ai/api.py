@@ -48,12 +48,12 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
                 typical_session_length,
                 has_hangboard,
                 has_home_wall,
+                goes_to_gym,
                 
                 -- Performance metrics
                 highest_grade_sport_sent_clean_on_lead,
-                highest_grade_sport_sent_clean_on_top,
+                highest_grade_tr_sent_clean,
                 highest_grade_trad_sent_clean_on_lead,
-                highest_grade_trad_sent_clean_on_top,
                 highest_grade_boulder_sent_clean,
                 onsight_grade_sport,
                 onsight_grade_trad,
@@ -71,8 +71,6 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
                 
                 -- Goals and preferences
                 climbing_goals,
-                preferred_climbing_days,
-                max_travel_distance,
                 willing_to_train_indoors,
                 
                 -- Recent activity
@@ -84,12 +82,21 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
                 favorite_hold_types,
                 weakest_style,
                 strongest_style,
+                favorite_energy_type,
+                
+                -- Lifestyle
+                sleep_score,
+                nutrition_score,
                 
                 -- Favorite Routes
-                recent_favorite_routes
+                recent_favorite_routes,
+                
+                -- Metadata
+                created_at,
+                current_info_as_of
                 
             FROM climber_summary 
-            WHERE climber_id = :climber_id
+            WHERE "userId" = :climber_id
         """)
         result = session.execute(query, {"climber_id": climber_id}).first()
         
@@ -117,7 +124,8 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
                 "training_frequency": result.training_frequency,
                 "typical_session_length": result.typical_session_length,
                 "has_hangboard": result.has_hangboard,
-                "has_home_wall": result.has_home_wall
+                "has_home_wall": result.has_home_wall,
+                "goes_to_gym": result.goes_to_gym
             })
             
         # Performance metrics
@@ -125,11 +133,10 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
             "highest_clean_sends": {
                 "sport": {
                     "on_lead": result.highest_grade_sport_sent_clean_on_lead,
-                    "on_top": result.highest_grade_sport_sent_clean_on_top
+                    "on_tr": result.highest_grade_tr_sent_clean
                 },
                 "trad": {
-                    "on_lead": result.highest_grade_trad_sent_clean_on_lead,
-                    "on_top": result.highest_grade_trad_sent_clean_on_top
+                    "on_lead": result.highest_grade_trad_sent_clean_on_lead
                 },
                 "boulder": result.highest_grade_boulder_sent_clean
             },
@@ -160,8 +167,6 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
         if result.climbing_goals:
             context["goals_and_preferences"] = {
                 "stated_goals": result.climbing_goals,
-                "preferred_climbing_days": result.preferred_climbing_days,
-                "max_travel_distance": result.max_travel_distance,
                 "willing_to_train_indoors": result.willing_to_train_indoors
             }
             
@@ -176,46 +181,70 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
             "favorite_angle": result.favorite_angle,
             "favorite_hold_types": result.favorite_hold_types,
             "weakest_style": result.weakest_style,
-            "strongest_style": result.strongest_style
+            "strongest_style": result.strongest_style,
+            "favorite_energy_type": result.favorite_energy_type
         }
+        
+        # Lifestyle
+        if result.sleep_score or result.nutrition_score:
+            context["lifestyle"] = {
+                "sleep_score": result.sleep_score,
+                "nutrition_score": result.nutrition_score
+            }
         
         # Favorite Routes
-        context["recent_favorite_routes"] = {
-            "recent_favorite_routes": result.recent_favorite_routes
+        if result.recent_favorite_routes:
+            context["recent_favorite_routes"] = result.recent_favorite_routes
+            
+        # Metadata
+        context["metadata"] = {
+            "created_at": result.created_at,
+            "current_info_as_of": result.current_info_as_of
         }
         
-
         return context
 
-DEFAULT_SYSTEM_MESSAGE = """You are an experienced climbing coach with deep knowledge of training principles, injury prevention, and performance optimization.
+DEFAULT_SYSTEM_MESSAGE = """You are an elite climbing coach with 20+ years of experience in training athletes from beginner to professional level. 
+You have deep expertise in sports science, biomechanics, training periodization, injury prevention, and performance optimization specifically for rock climbing.
 
-You must:
-- Provide personalized advice based on the climber's context
-- Consider injury history and physical limitations when making recommendations
-- Balance progression with injury prevention
-- Use precise climbing terminology and grading systems
-- Base recommendations on the climber's available time and resources
-- Consider their current projects and recent activity
-- Account for their style preferences and weaknesses
-- Be curious about the climber's goals and preferences
+CORE RESPONSIBILITIES:
+1. Analyze climber data comprehensively to provide highly personalized training advice
+2. Prioritize injury prevention and sustainable progression above short-term gains
+3. Deliver actionable recommendations based on available time, equipment, and resources
+4. Use precise climbing terminology and standardized grading systems
+5. Maintain a supportive, encouraging tone while being direct and specific
 
+MANDATORY PROTOCOLS:
+1. Always check injury history and physical limitations before making any recommendations
+2. Always consider the climber's current projects and recent activity patterns
+3. Always factor in their style preferences, strengths, and weaknesses
+4. Always respect their stated time constraints and equipment access
+5. Always validate recommendations against their current capacity level
 
-You must never:
-- Recommend training that exceeds their current capacity
-- Ignore stated injuries or limitations
-- Make up statistics or data
-- Provide dangerous climbing advice
-- Discuss non-climbing topics
-- Advise loosing weight
-- Advise on how to lose weight
+STRICT PROHIBITIONS:
+1. Never recommend training that could aggravate existing injuries
+2. Never ignore stated physical limitations or health concerns
+3. Never make assumptions about statistics or fabricate data
+4. Never provide potentially dangerous climbing advice
+5. Never discuss weight management or dietary restrictions
+6. Never deviate from climbing-specific topics
 
-When giving advice:
-- Start with their relevent stated goals
-- Consider their available training equipment and access to outdoor rock
-- Factor in their preferred climbing schedule
-- Account for their strongest and weakest styles
-- Reference their current projects and recent activity
-- Adapt to their preferred climbing locations"""
+COACHING METHODOLOGY:
+1. Begin by acknowledging stated goals and current progression metrics
+2. Analyze recent climbing patterns and project selection
+3. Evaluate available training resources and time constraints
+4. Consider environmental factors (indoor/outdoor access, local climbing areas)
+5. Factor in lifestyle elements (sleep, recovery, training frequency)
+6. Develop recommendations that align with their preferred climbing style
+
+RESPONSE STRUCTURE:
+1. Start with goal acknowledgment and context summary
+2. Present specific, actionable recommendations
+3. Include progression metrics and success indicators
+4. Address potential limitations or concerns
+5. Provide clear next steps and progression timeline
+
+Remember: Your advice should be evidence-based, practical, and tailored to each climber's unique context while maintaining the highest standards of safety and progression."""
 
 def get_completion(
     prompt: str,
@@ -261,13 +290,3 @@ def get_completion(
         return response.choices[0].message.content
     except Exception as e:
         return f"Error: {str(e)}"
-
-if __name__ == "__main__":
-    # Test the functionality with a climber ID
-    test_prompt = "What should my next climbing goals be?"
-    result = get_completion(
-        test_prompt,
-        climber_id=1  # Example climber ID
-    )
-    print(f"Test prompt: {test_prompt}")
-    print(f"Response: {result}")

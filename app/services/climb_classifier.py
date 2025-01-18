@@ -117,9 +117,15 @@ class ClimbClassifier:
         
         # Handle roped climbs with standard lead_sends classification
         roped_sends = is_roped & (df['lead_style'].isin(self.lead_sends))
+
+        # Handle TR sends - only count if notes contain send indicators
+        send_keywords = {'sent', 'clean', 'rp', 'redpoint', 'flash', 'onsight', 'os', 's'}
+        tr_sends = (df['discipline'] == 'tr') & df['notes'].fillna('').str.lower().apply(
+            lambda x: any(keyword in x.split() for keyword in send_keywords)
+        )
         
         # Combine all conditions
-        return (boulder_sends | roped_sends & ~boulder_attempts).fillna(False)
+        return (boulder_sends | roped_sends & ~boulder_attempts | tr_sends).fillna(False)
     
     def _is_multipitch_from_notes(self, notes: str) -> bool:
         """Check if route is multipitch based on note content"""

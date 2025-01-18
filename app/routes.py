@@ -1,10 +1,15 @@
 from flask import render_template, request, redirect, url_for, jsonify, flash, make_response
 from app import app, db, cache
-from app.models import BinnedCodeDict, UserTicks, ClimberSummary
+from app.models import (
+    BinnedCodeDict, 
+    UserTicks, 
+    ClimberSummary,
+)
 from app.services import DataProcessor
 from app.services.database_service import DatabaseService
 from app.services.analytics_service import AnalyticsService
-from app.services.climber_summary import ClimberSummaryService
+from app.services.climber_summary import ClimberSummaryService, UserInputData
+from app.services.ai.api import get_completion
 from datetime import date
 import json
 from app.services.grade_processor import GradeProcessor
@@ -13,7 +18,6 @@ import psutil
 import os
 from sqlalchemy.sql import text
 from datetime import datetime
-from time import time
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -272,44 +276,144 @@ def when_where():
                          username=user.username,
                          user_ticks=json.dumps([r.as_dict() for r in user_ticks], cls=CustomJSONEncoder))
 
-# Initialize grade processor
-grade_processor = GradeProcessor()
 
-@app.route("/chat-onboarding")
-def chat_onboarding():
-    userId = request.args.get('userId')
+REQUIRED_FIELDS = ['climbing_goals']
 
-    # Get user data
-    user = UserTicks.query.filter_by(userId=userId).first()
+@app.route("/sage-chat")
+def sage_chat():
+    user_id = request.args.get('userId')
+    app.logger.info(f"Sage chat request for userId: {user_id}")
+    
+    # First check if user exists in UserTicks
+    user = UserTicks.query.filter_by(userId=user_id).first()
     if not user:
+        app.logger.error(f"User not found in UserTicks: {user_id}")
         return "User not found", 404
+
+    try:
+        # Get or create ClimberSummary using the service
+        summary_service = ClimberSummaryService(user_id=user_id, username=user.username)
+        summary = ClimberSummary.query.get(user_id)
+        
+        if not summary:
+            app.logger.info(f"Creating new ClimberSummary for user: {user_id}")
+            # This will create a complete summary with all available data
+            summary = summary_service.update_summary()
+        else:
+            # Update existing summary to ensure all fields are populated
+            summary = summary_service.update_summary()
+        
+        app.logger.info(f"Found/created climber summary for user: {summary.username}")
+        data_complete = check_data_completeness(summary)
+        app.logger.info(f"Data completeness check: {data_complete}")
+        
+        # Initialize grade processor for grade lists
+        grade_processor = GradeProcessor()
+        routes_grade_list = grade_processor.routes_grade_list
+        boulders_grade_list = grade_processor.boulders_grade_list
+        
+        return render_template('sageChat.html', 
+                             summary=summary, 
+                             data_complete=data_complete, 
+                             required_fields=REQUIRED_FIELDS,
+                             routes_grade_list=routes_grade_list,
+                             boulders_grade_list=boulders_grade_list)
+    except Exception as e:
+        app.logger.error(f"Error in sage_chat route: {str(e)}")
+        db.session.rollback()
+        raise
+
+@app.route("/sage-chat/onboard", methods=['POST'])
+def sage_chat_onboard():
+    user_id = request.args.get('userId')
+    summary = ClimberSummary.query.get_or_404(user_id)
     
-    # Check if user has a climber summary
-    climber_summary = ClimberSummary.query.get(userId)
+    try:
+        # Create UserInputData from form data
+        user_input = UserInputData(
+            # Core progression metrics
+            highest_sport_grade_tried=request.form.get('highest_sport_grade_tried'),
+            highest_trad_grade_tried=request.form.get('highest_trad_grade_tried'),
+            highest_boulder_grade_tried=request.form.get('highest_boulder_grade_tried'),
+            total_climbs=int(request.form.get('total_climbs')) if request.form.get('total_climbs') else None,
+            favorite_discipline=request.form.get('favorite_discipline'),
+            years_climbing_outside=int(request.form.get('years_climbing_outside')) if request.form.get('years_climbing_outside') else None,
+            preferred_crag_last_year=request.form.get('preferred_crag_last_year'),
+            
+            # Training context
+            training_frequency=request.form.get('training_frequency'),
+            typical_session_length=request.form.get('typical_session_length'),
+            has_hangboard=request.form.get('has_hangboard', '').lower() == 'true',
+            has_home_wall=request.form.get('has_home_wall', '').lower() == 'true',
+            goes_to_gym=request.form.get('goes_to_gym', '').lower() == 'true',
+            
+            # Performance metrics
+            highest_grade_sport_sent_clean_on_lead=request.form.get('highest_grade_sport_sent_clean_on_lead'),
+            highest_grade_tr_sent_clean=request.form.get('highest_grade_tr_sent_clean'),
+            highest_grade_trad_sent_clean_on_lead=request.form.get('highest_grade_trad_sent_clean_on_lead'),
+            highest_grade_boulder_sent_clean=request.form.get('highest_grade_boulder_sent_clean'),
+            onsight_grade_sport=request.form.get('onsight_grade_sport'),
+            onsight_grade_trad=request.form.get('onsight_grade_trad'),
+            flash_grade_boulder=request.form.get('flash_grade_boulder'),
+            
+            # Injury history and limitations
+            current_injuries=request.form.get('current_injuries'),
+            injury_history=request.form.get('injury_history'),
+            physical_limitations=request.form.get('physical_limitations'),
+            
+            # Goals and preferences
+            climbing_goals=request.form.get('climbing_goals'),
+            willing_to_train_indoors=request.form.get('willing_to_train_indoors', '').lower() == 'true',
+            
+            # Recent activity
+            sends_last_30_days=int(request.form.get('sends_last_30_days')) if request.form.get('sends_last_30_days') else None,
+            
+            # Style preferences
+            favorite_angle=request.form.get('favorite_angle'),
+            favorite_hold_types=request.form.get('favorite_hold_types'),
+            weakest_style=request.form.get('weakest_style'),
+            strongest_style=request.form.get('strongest_style'),
+            favorite_energy_type=request.form.get('favorite_energy_type'),
+            
+            # Lifestyle
+            sleep_score=request.form.get('sleep_score'),
+            nutrition_score=request.form.get('nutrition_score')
+        )
+        
+        # Validate required fields
+        if not user_input.climbing_goals:
+            return jsonify({"error": "climbing_goals is required"}), 400
+            
+        # Use service to update summary
+        summary_service = ClimberSummaryService(user_id=user_id, username=summary.username)
+        summary = summary_service.update_summary(user_input=user_input)
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        app.logger.error(f"Error in sage_chat_onboard: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": "Failed to update profile"}), 400
+
+@app.route("/sage-chat/message", methods=['POST'])
+def sage_chat_message():
+    user_id = request.args.get('userId')
+    summary = ClimberSummary.query.get_or_404(user_id)
     
-    # If no summary exists, create initial summary
-    if not climber_summary:
-        service = ClimberSummaryService(user_id=userId, username=user.username)
-        climber_summary = service.update_summary()
-    
-    # Convert climber summary to dict and handle enum serialization
-    summary_dict = climber_summary.as_dict()
-    encoder = CustomJSONEncoder()
-    summary_json = json.loads(encoder.encode(summary_dict))
-    
-    # Check if onboarding is complete by verifying user input fields
-    onboarding_complete = all([
-        summary_json.get('training_frequency'),
-        summary_json.get('typical_session_length'),
-        summary_json.get('climbing_goals'),
-        summary_json.get('willing_to_train_indoors') is not None
-    ])
-    
-    return render_template('chatOnboarding.html',
-                         userId=userId,
-                         username=user.username,
-                         climber_summary=summary_json,
-                         onboarding_complete=onboarding_complete)
+    user_prompt = request.form.get('user_prompt')
+    if not user_prompt:
+        return jsonify({"error": "Message cannot be empty"}), 400
+        
+    ai_response = get_completion(user_prompt, climber_id=user_id)
+    return jsonify({"response": ai_response})
+
+def check_data_completeness(summary):
+    required_fields = [
+        'climbing_goals'
+    ]
+    for field in required_fields:
+        if getattr(summary, field) in [None, '']:
+            return False
+    return True
 
 @app.route("/pyramid-input", methods=['GET', 'POST'])
 def pyramid_input():
@@ -320,7 +424,8 @@ def pyramid_input():
     if not user:
         flash('User not found.')
         return redirect(url_for('index'))
-        
+    # Initialize grade processor
+    grade_processor = GradeProcessor()
     if request.method == 'POST':
         try:
             # Get the changes data from the form

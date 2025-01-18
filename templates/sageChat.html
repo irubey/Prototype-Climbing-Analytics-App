@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SendSage - Chat with Sage</title>
+    
+    <!-- Styles -->
+    <style>
+        /* Layout Containers */
+        .chat-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Onboarding Form Styles */
+        .onboarding-container {
+            width: 100%;
+            padding: 20px;
+        }
+
+        .onboarding-container[data-visible="false"] {
+            display: none;
+        }
+
+        .onboarding-container[data-visible="true"] {
+            display: block;
+        }
+
+        /* Chat Interface Styles */
+        .chat-interface {
+            width: 100%;
+            flex-direction: column;
+        }
+
+        .chat-interface[data-visible="false"] {
+            display: none;
+        }
+
+        .chat-interface[data-visible="true"] {
+            display: flex;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            border-top: 1px solid #ccc;
+        }
+
+        /* Message Styles */
+        .message {
+            margin: 10px 0;
+            max-width: 80%;
+        }
+
+        .user-message {
+            margin-left: auto;
+        }
+
+        .sage-message {
+            margin-right: auto;
+        }
+
+        .form-group.required label:after {
+            content: " *";
+            color: red;
+        }
+        
+        h4 {
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        
+        .field-display {
+            margin-bottom: 10px;
+        }
+        
+        .field-display label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-container">
+        <!-- Onboarding Section -->
+        <div class="onboarding-container" id="onboarding_container">
+            <h2>Welcome to Sage - Your Climbing Coach</h2>
+            
+            <!-- Context Display -->
+            <div class="context-display">
+                <h3>Your Current Profile</h3>
+                <!-- Display current climbing data -->
+                <div class="field-display">
+                    <label>Climbing Goals (Required):</label>
+                    <span>{{ summary.climbing_goals or 'Not set' }}</span>
+                </div>
+                
+                <!-- Core progression metrics -->
+                <h4>Core Progression</h4>
+                <div class="field-display">
+                    <label>Highest Sport Grade Tried:</label>
+                    <span>{{ summary.highest_sport_grade_tried or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Highest Trad Grade Tried:</label>
+                    <span>{{ summary.highest_trad_grade_tried or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Highest Boulder Grade Tried:</label>
+                    <span>{{ summary.highest_boulder_grade_tried or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Years Climbing Outside:</label>
+                    <span>{{ summary.years_climbing_outside or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Favorite Discipline:</label>
+                    <span>{{ summary.favorite_discipline.value if summary.favorite_discipline else 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Preferred Crag Last Year:</label>
+                    <span>{{ summary.preferred_crag_last_year or 'Not set' }}</span>
+                </div>
+
+                <!-- Training context -->
+                <h4>Training Context</h4>
+                <div class="field-display">
+                    <label>Training Frequency:</label>
+                    <span>{{ summary.training_frequency or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Typical Session Length:</label>
+                    <span>{{ summary.typical_session_length.value if summary.typical_session_length else 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Has Hangboard:</label>
+                    <span>{{ 'Yes' if summary.has_hangboard else 'No' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Has Home Wall:</label>
+                    <span>{{ 'Yes' if summary.has_home_wall else 'No' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Goes to Gym:</label>
+                    <span>{{ 'Yes' if summary.goes_to_gym else 'No' }}</span>
+                </div>
+
+                <!-- Performance metrics -->
+                <h4>Performance Metrics</h4>
+                <div class="field-display">
+                    <label>Highest Sport Lead:</label>
+                    <span>{{ summary.highest_grade_sport_sent_clean_on_lead or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Highest Trad Lead:</label>
+                    <span>{{ summary.highest_grade_trad_sent_clean_on_lead or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Highest Boulder:</label>
+                    <span>{{ summary.highest_grade_boulder_sent_clean or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Sport Onsight Level:</label>
+                    <span>{{ summary.onsight_grade_sport or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Trad Onsight Level:</label>
+                    <span>{{ summary.onsight_grade_trad or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Boulder Flash Level:</label>
+                    <span>{{ summary.flash_grade_boulder or 'Not set' }}</span>
+                </div>
+
+                <!-- Injury history -->
+                <h4>Health & Injuries</h4>
+                <div class="field-display">
+                    <label>Current Injuries:</label>
+                    <span>{{ summary.current_injuries or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Injury History:</label>
+                    <span>{{ summary.injury_history or 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Physical Limitations:</label>
+                    <span>{{ summary.physical_limitations or 'Not set' }}</span>
+                </div>
+
+                <!-- Style preferences -->
+                <h4>Style Preferences</h4>
+                <div class="field-display">
+                    <label>Favorite Angle:</label>
+                    <span>{{ summary.favorite_angle.value if summary.favorite_angle else 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Favorite Hold Types:</label>
+                    <span>{{ summary.favorite_hold_types.value if summary.favorite_hold_types else 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Weakest Style:</label>
+                    <span>{{ summary.weakest_style.value if summary.weakest_style else 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Strongest Style:</label>
+                    <span>{{ summary.strongest_style.value if summary.strongest_style else 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Favorite Energy Type:</label>
+                    <span>{{ summary.favorite_energy_type.value if summary.favorite_energy_type else 'Not set' }}</span>
+                </div>
+
+                <!-- Lifestyle -->
+                <h4>Lifestyle</h4>
+                <div class="field-display">
+                    <label>Sleep Score:</label>
+                    <span>{{ summary.sleep_score.value if summary.sleep_score else 'Not set' }}</span>
+                </div>
+                <div class="field-display">
+                    <label>Nutrition Score:</label>
+                    <span>{{ summary.nutrition_score.value if summary.nutrition_score else 'Not set' }}</span>
+                </div>
+            </div>
+
+            <!-- Onboarding Form -->
+            <form id="onboarding_form">
+                <!-- Goals and preferences -->
+                <h4>Goals and Preferences</h4>
+                <div class="form-group required">
+                    <label for="climbing_goals">Climbing Goals (Required)</label>
+                    <textarea id="climbing_goals" 
+                              name="climbing_goals" 
+                              class="form-control" 
+                              required>{{ summary.climbing_goals or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="willing_to_train_indoors">Willing to Train Indoors</label>
+                    <select id="willing_to_train_indoors" 
+                            name="willing_to_train_indoors" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        <option value="true" {% if summary.willing_to_train_indoors %}selected{% endif %}>Yes</option>
+                        <option value="false" {% if summary.willing_to_train_indoors == false %}selected{% endif %}>No</option>
+                    </select>
+                </div>
+
+                <!-- Core progression metrics -->
+                <h4>Core Progression</h4>
+                <div class="form-group">
+                    <label for="favorite_discipline">Favorite Discipline</label>
+                    <select id="favorite_discipline" 
+                            name="favorite_discipline" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% set disciplines = [
+                            ("Top Rope", "tr"),
+                            ("Boulder", "boulder"),
+                            ("Sport", "sport"),
+                            ("Trad", "trad"),
+                            ("Mixed", "mixed"),
+                            ("Winter/Ice", "winter_ice"),
+                            ("Aid", "aid")
+                        ] %}
+                        {% for display, value in disciplines %}
+                            <option value="{{ value }}" {% if summary.favorite_discipline and summary.favorite_discipline.name == value %}selected{% endif %}>
+                                {{ display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="highest_sport_grade_tried">Highest Sport Grade Tried</label>
+                    <select id="highest_sport_grade_tried" 
+                            name="highest_sport_grade_tried" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in routes_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.highest_sport_grade_tried %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="highest_trad_grade_tried">Highest Trad Grade Tried</label>
+                    <select id="highest_trad_grade_tried" 
+                            name="highest_trad_grade_tried" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in routes_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.highest_trad_grade_tried %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="highest_boulder_grade_tried">Highest Boulder Grade Tried</label>
+                    <select id="highest_boulder_grade_tried" 
+                            name="highest_boulder_grade_tried" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in boulders_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.highest_boulder_grade_tried %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="total_climbs">Total Climbs</label>
+                    <input type="number" 
+                           id="total_climbs" 
+                           name="total_climbs" 
+                           value="{{ summary.total_climbs or '' }}"
+                           class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label for="years_climbing_outside">Years Climbing Outside</label>
+                    <input type="number" 
+                           id="years_climbing_outside" 
+                           name="years_climbing_outside" 
+                           value="{{ summary.years_climbing_outside or '' }}"
+                           class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label for="preferred_crag_last_year">Preferred Crag Last Year</label>
+                    <input type="text" 
+                           id="preferred_crag_last_year" 
+                           name="preferred_crag_last_year" 
+                           value="{{ summary.preferred_crag_last_year or '' }}"
+                           class="form-control">
+                </div>
+
+                <!-- Training context -->
+                <h4>Training Context</h4>
+                <div class="form-group">
+                    <label for="training_frequency">Training Frequency</label>
+                    <input type="text" 
+                           id="training_frequency" 
+                           name="training_frequency" 
+                           value="{{ summary.training_frequency or '' }}"
+                           class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label for="typical_session_length">Typical Session Length</label>
+                    <select id="typical_session_length" 
+                            name="typical_session_length" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% set session_lengths = [
+                            ("Less than 1 hour", "LESS_THAN_1_HOUR"),
+                            ("1-2 hours", "ONE_TO_TWO_HOURS"),
+                            ("2-3 hours", "TWO_TO_THREE_HOURS"),
+                            ("3-4 hours", "THREE_TO_FOUR_HOURS"),
+                            ("4+ hours", "FOUR_PLUS_HOURS")
+                        ] %}
+                        {% for display, value in session_lengths %}
+                            <option value="{{ value }}" {% if summary.typical_session_length and summary.typical_session_length.name == value %}selected{% endif %}>
+                                {{ display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Training Equipment</label>
+                    <div class="form-check">
+                        <input type="checkbox" 
+                               id="has_hangboard" 
+                               name="has_hangboard" 
+                               class="form-check-input"
+                               {% if summary.has_hangboard %}checked{% endif %}>
+                        <label class="form-check-label" for="has_hangboard">Has Hangboard</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" 
+                               id="has_home_wall" 
+                               name="has_home_wall" 
+                               class="form-check-input"
+                               {% if summary.has_home_wall %}checked{% endif %}>
+                        <label class="form-check-label" for="has_home_wall">Has Home Wall</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" 
+                               id="goes_to_gym" 
+                               name="goes_to_gym" 
+                               class="form-check-input"
+                               {% if summary.goes_to_gym %}checked{% endif %}>
+                        <label class="form-check-label" for="goes_to_gym">Goes to Gym</label>
+                    </div>
+                </div>
+
+                <!-- Performance metrics -->
+                <h4>Performance Metrics</h4>
+                <div class="form-group">
+                    <label for="highest_grade_sport_sent_clean_on_lead">Highest Sport Lead</label>
+                    <select id="highest_grade_sport_sent_clean_on_lead" 
+                            name="highest_grade_sport_sent_clean_on_lead" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in routes_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.highest_grade_sport_sent_clean_on_lead %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="highest_grade_tr_sent_clean">Highest Top Rope</label>
+                    <select id="highest_grade_tr_sent_clean" 
+                            name="highest_grade_tr_sent_clean" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in routes_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.highest_grade_tr_sent_clean %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="highest_grade_trad_sent_clean_on_lead">Highest Trad Lead</label>
+                    <select id="highest_grade_trad_sent_clean_on_lead" 
+                            name="highest_grade_trad_sent_clean_on_lead" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in routes_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.highest_grade_trad_sent_clean_on_lead %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="highest_grade_boulder_sent_clean">Highest Boulder</label>
+                    <select id="highest_grade_boulder_sent_clean" 
+                            name="highest_grade_boulder_sent_clean" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in boulders_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.highest_grade_boulder_sent_clean %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="onsight_grade_sport">Sport Onsight Level</label>
+                    <select id="onsight_grade_sport" 
+                            name="onsight_grade_sport" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in routes_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.onsight_grade_sport %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="onsight_grade_trad">Trad Onsight Level</label>
+                    <select id="onsight_grade_trad" 
+                            name="onsight_grade_trad" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in routes_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.onsight_grade_trad %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="flash_grade_boulder">Boulder Flash Level</label>
+                    <select id="flash_grade_boulder" 
+                            name="flash_grade_boulder" 
+                            class="form-control grade-select">
+                        <option value="">Select...</option>
+                        {% for grade in boulders_grade_list %}
+                            <option value="{{ grade }}" {% if grade == summary.flash_grade_boulder %}selected{% endif %}>
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Recent activity -->
+                <h4>Recent Activity</h4>
+                <div class="form-group">
+                    <label for="sends_last_30_days">Sends Last 30 Days</label>
+                    <input type="number" 
+                           id="sends_last_30_days" 
+                           name="sends_last_30_days" 
+                           value="{{ summary.sends_last_30_days or '' }}"
+                           min="0"
+                           class="form-control">
+                </div>
+
+                <!-- Injury history -->
+                <h4>Health & Injuries</h4>
+                <div class="form-group">
+                    <label for="current_injuries">Current Injuries</label>
+                    <textarea id="current_injuries" 
+                              name="current_injuries" 
+                              class="form-control">{{ summary.current_injuries or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="injury_history">Injury History</label>
+                    <textarea id="injury_history" 
+                              name="injury_history" 
+                              class="form-control">{{ summary.injury_history or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="physical_limitations">Physical Limitations</label>
+                    <textarea id="physical_limitations" 
+                              name="physical_limitations" 
+                              class="form-control">{{ summary.physical_limitations or '' }}</textarea>
+                </div>
+
+                <!-- Style preferences -->
+                <h4>Style Preferences</h4>
+                <div class="form-group">
+                    <label for="favorite_angle">Favorite Angle</label>
+                    <select id="favorite_angle" 
+                            name="favorite_angle" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% set climbing_styles = [
+                            ("Slab", "Slab"),
+                            ("Vertical", "Vertical"),
+                            ("Overhang", "Overhang"),
+                            ("Roof", "Roof")
+                        ] %}
+                        {% for display, value in climbing_styles %}
+                            <option value="{{ value }}" {% if summary.favorite_angle and summary.favorite_angle.name == value %}selected{% endif %}>
+                                {{ display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="favorite_hold_types">Favorite Hold Types</label>
+                    <select id="favorite_hold_types" 
+                            name="favorite_hold_types" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% set hold_types = [
+                            ("Crimps", "Crimps"),
+                            ("Slopers", "Slopers"),
+                            ("Pockets", "Pockets"),
+                            ("Pinches", "Pinches"),
+                            ("Cracks", "Cracks")
+                        ] %}
+                        {% for display, value in hold_types %}
+                            <option value="{{ value }}" {% if summary.favorite_hold_types and summary.favorite_hold_types.name == value %}selected{% endif %}>
+                                {{ display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="weakest_style">Weakest Style</label>
+                    <select id="weakest_style" 
+                            name="weakest_style" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% for display, value in climbing_styles %}
+                            <option value="{{ value }}" {% if summary.weakest_style and summary.weakest_style.name == value %}selected{% endif %}>
+                                {{ display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="strongest_style">Strongest Style</label>
+                    <select id="strongest_style" 
+                            name="strongest_style" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% for display, value in climbing_styles %}
+                            <option value="{{ value }}" {% if summary.strongest_style and summary.strongest_style.name == value %}selected{% endif %}>
+                                {{ display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="favorite_energy_type">Favorite Energy Type</label>
+                    <select id="favorite_energy_type" 
+                            name="favorite_energy_type" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% set energy_types = [
+                            ("Power", "Power"),
+                            ("Power Endurance", "Power_Endurance"),
+                            ("Endurance", "Endurance"),
+                            ("Technique", "Technique")
+                        ] %}
+                        {% for display, value in energy_types %}
+                            <option value="{{ value }}" {% if summary.favorite_energy_type and summary.favorite_energy_type.name == value %}selected{% endif %}>
+                                {{ display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Lifestyle -->
+                <h4>Lifestyle</h4>
+                <div class="form-group">
+                    <label for="sleep_score">Sleep Score</label>
+                    <select id="sleep_score" 
+                            name="sleep_score" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% for score in ['Poor', 'Fair', 'Good', 'Excellent'] %}
+                            <option value="{{ score }}" {% if summary.sleep_score and summary.sleep_score.name == score %}selected{% endif %}>
+                                {{ score }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="nutrition_score">Nutrition Score</label>
+                    <select id="nutrition_score" 
+                            name="nutrition_score" 
+                            class="form-control">
+                        <option value="">Select...</option>
+                        {% for score in ['Poor', 'Fair', 'Good', 'Excellent'] %}
+                            <option value="{{ score }}" {% if summary.nutrition_score and summary.nutrition_score.name == score %}selected{% endif %}>
+                                {{ score }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Context</button>
+                    <button type="button" 
+                            onclick="skipOnboarding()" 
+                            class="btn btn-secondary">
+                        Skip - Chat Without Context
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Chat Interface Section -->
+        <div class="chat-interface" id="chat_interface">
+            <!-- Chat Messages Container -->
+            <div class="chat-messages" id="chat_messages">
+                <!-- Initial greeting will be inserted here -->
+            </div>
+
+            <!-- Chat Input Form -->
+            <div class="chat-input-container">
+                <form id="chat_form">
+                    <div class="input-group">
+                        <input type="text" 
+                               id="user_prompt" 
+                               name="user_prompt" 
+                               class="form-control" 
+                               placeholder="Ask Sage anything about climbing...">
+                        <button type="submit" class="btn btn-primary">Send</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Add console log at the start of the script to show context
+        console.log('Current Context:', {
+            summary: {{ summary.as_dict() | tojson if summary else 'null' }},
+            data_complete: {{ data_complete | tojson }},
+            routes_grade_list: {{ routes_grade_list | tojson if routes_grade_list else '[]' }},
+            boulders_grade_list: {{ boulders_grade_list | tojson if boulders_grade_list else '[]' }}
+        });
+
+        // Initialize visibility based on data_complete
+        document.addEventListener('DOMContentLoaded', function() {
+            const isDataComplete = {% if data_complete %}true{% else %}false{% endif %};
+            document.getElementById('onboarding_container').setAttribute('data-visible', !isDataComplete);
+            document.getElementById('chat_interface').setAttribute('data-visible', isDataComplete);
+            
+            if (isDataComplete) {
+                appendMessage('Sage', 'Hello! How can I help you with your climbing today?');
+            }
+        });
+
+        // Utility Functions
+        function appendMessage(sender, content) {
+            const messagesContainer = document.getElementById('chat_messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender.toLowerCase()}-message`;
+            messageDiv.innerHTML = `
+                <strong>${sender}:</strong>
+                <div class="message-content">${content}</div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function skipOnboarding() {
+            document.getElementById('onboarding_container').setAttribute('data-visible', 'false');
+            document.getElementById('chat_interface').setAttribute('data-visible', 'true');
+            // Add initial greeting
+            appendMessage('Sage', 'Hello! How can I help you with your climbing today?');
+        }
+
+        // Form Handlers
+        document.getElementById('onboarding_form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            // Convert enum values before sending
+            const sessionLength = formData.get('typical_session_length');
+            if (sessionLength) {
+                formData.set('typical_session_length', sessionLength);
+            }
+            
+            try {
+                const response = await fetch('/sage-chat/onboard?userId={{ summary.userId }}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    skipOnboarding();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        document.getElementById('chat_form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userPrompt = document.getElementById('user_prompt').value;
+            if (!userPrompt.trim()) return;
+
+            // Display user message immediately
+            appendMessage('You', userPrompt);
+            document.getElementById('user_prompt').value = '';
+
+            try {
+                const response = await fetch('/sage-chat/message?userId={{ summary.userId }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'user_prompt': userPrompt
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.response) {
+                    appendMessage('Sage', data.response);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('System', 'Sorry, there was an error processing your message.');
+            }
+        });
+
+        // Initial greeting if data is complete
+        {% if data_complete %}
+            document.addEventListener('DOMContentLoaded', () => {
+                appendMessage('Sage', 'Hello! How can I help you with your climbing today?');
+            });
+        {% endif %}
+    </script>
+</body>
+</html>

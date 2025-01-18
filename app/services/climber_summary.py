@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, case, and_, exists
 from datetime import datetime, timedelta
 from app.models import (
     UserTicks, 
@@ -11,9 +11,10 @@ from app.models import (
     ClimbingStyle,
     RouteCharacteristic,
     HoldType,
-    TrainingFrequency,
     SessionLength,
-    db
+    db,
+    SleepScore,
+    NutritionScore
 )
 from app.services.grade_processor import GradeProcessor
 
@@ -21,33 +22,113 @@ class UserInputData:
     """Data class for user input fields"""
     def __init__(
         self,
-        training_frequency: Optional[TrainingFrequency] = None,
-        typical_session_length: Optional[SessionLength] = None,
+        # Core progression metrics
+        highest_sport_grade_tried: Optional[str] = None,
+        highest_trad_grade_tried: Optional[str] = None,
+        highest_boulder_grade_tried: Optional[str] = None,
+        total_climbs: Optional[int] = None,
+        favorite_discipline: Optional[str] = None,
+        years_climbing_outside: Optional[int] = None,
+        preferred_crag_last_year: Optional[str] = None,
+        
+        # Training context
+        training_frequency: Optional[str] = None,
+        typical_session_length: Optional[str] = None,
         has_hangboard: Optional[bool] = None,
         has_home_wall: Optional[bool] = None,
+        goes_to_gym: Optional[bool] = None,
+        
+        # Performance metrics
+        highest_grade_sport_sent_clean_on_lead: Optional[str] = None,
+        highest_grade_tr_sent_clean: Optional[str] = None,
+        highest_grade_trad_sent_clean_on_lead: Optional[str] = None,
+        highest_grade_boulder_sent_clean: Optional[str] = None,
+        onsight_grade_sport: Optional[str] = None,
+        onsight_grade_trad: Optional[str] = None,
+        flash_grade_boulder: Optional[str] = None,
+        
+        # Injury history and limitations
         current_injuries: Optional[str] = None,
         injury_history: Optional[str] = None,
         physical_limitations: Optional[str] = None,
+        
+        # Goals and preferences
         climbing_goals: Optional[str] = None,
-        preferred_climbing_days: Optional[str] = None,
-        max_travel_distance: Optional[int] = None,
-        willing_to_train_indoors: Optional[bool] = None
+        willing_to_train_indoors: Optional[bool] = None,
+        
+        # Recent activity
+        sends_last_30_days: Optional[int] = None,
+        
+        # Style preferences
+        favorite_angle: Optional[str] = None,
+        favorite_hold_types: Optional[str] = None,
+        weakest_style: Optional[str] = None,
+        strongest_style: Optional[str] = None,
+        favorite_energy_type: Optional[str] = None,
+        
+        # Lifestyle
+        sleep_score: Optional[str] = None,
+        nutrition_score: Optional[str] = None
     ):
+        # Core progression metrics
+        self.highest_sport_grade_tried = highest_sport_grade_tried
+        self.highest_trad_grade_tried = highest_trad_grade_tried
+        self.highest_boulder_grade_tried = highest_boulder_grade_tried
+        self.total_climbs = total_climbs
+        self.favorite_discipline = getattr(ClimbingDiscipline, favorite_discipline) if favorite_discipline else None
+        self.years_climbing_outside = years_climbing_outside
+        self.preferred_crag_last_year = preferred_crag_last_year
+        
+        # Training context
         self.training_frequency = training_frequency
-        self.typical_session_length = typical_session_length
+        self.typical_session_length = getattr(SessionLength, typical_session_length) if typical_session_length else None
         self.has_hangboard = has_hangboard
         self.has_home_wall = has_home_wall
+        self.goes_to_gym = goes_to_gym
+        
+        # Performance metrics
+        self.highest_grade_sport_sent_clean_on_lead = highest_grade_sport_sent_clean_on_lead
+        self.highest_grade_tr_sent_clean = highest_grade_tr_sent_clean
+        self.highest_grade_trad_sent_clean_on_lead = highest_grade_trad_sent_clean_on_lead
+        self.highest_grade_boulder_sent_clean = highest_grade_boulder_sent_clean
+        self.onsight_grade_sport = onsight_grade_sport
+        self.onsight_grade_trad = onsight_grade_trad
+        self.flash_grade_boulder = flash_grade_boulder
+        
+        # Injury history and limitations
         self.current_injuries = current_injuries
         self.injury_history = injury_history
         self.physical_limitations = physical_limitations
+        
+        # Goals and preferences
         self.climbing_goals = climbing_goals
-        self.preferred_climbing_days = preferred_climbing_days
-        self.max_travel_distance = max_travel_distance
         self.willing_to_train_indoors = willing_to_train_indoors
+        
+        # Recent activity
+        self.sends_last_30_days = sends_last_30_days
+        
+        # Style preferences
+        self.favorite_angle = getattr(ClimbingStyle, favorite_angle) if favorite_angle else None
+        self.favorite_hold_types = getattr(HoldType, favorite_hold_types) if favorite_hold_types else None
+        self.weakest_style = getattr(ClimbingStyle, weakest_style) if weakest_style else None
+        self.strongest_style = getattr(ClimbingStyle, strongest_style) if strongest_style else None
+        self.favorite_energy_type = getattr(RouteCharacteristic, favorite_energy_type) if favorite_energy_type else None
+        
+        # Lifestyle
+        self.sleep_score = getattr(SleepScore, sleep_score) if sleep_score else None
+        self.nutrition_score = getattr(NutritionScore, nutrition_score) if nutrition_score else None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert user input to dictionary, excluding None values"""
-        return {k: v for k, v in self.__dict__.items() if v is not None}
+        """Convert user input to dictionary, excluding None values and converting enums to their values"""
+        result = {}
+        for k, v in self.__dict__.items():
+            if v is not None:
+                # Convert enum to its value if it's an enum
+                if hasattr(v, 'value'):
+                    result[k] = v.value
+                else:
+                    result[k] = v
+        return result
 
 class ClimberSummaryService:
     def __init__(self, user_id: int, username: str):
@@ -125,7 +206,8 @@ class ClimberSummaryService:
             'Pinkpoint'
         ])).order_by(desc(UserTicks.binned_code)).first()
         
-        highest_sport_top = sport_sends.filter_by(discipline='trad').order_by(desc(UserTicks.binned_code)).first()
+        tr_sends = clean_sends.filter_by(discipline='trad')
+        highest_tr = tr_sends.order_by(desc(UserTicks.binned_code)).first()
         
         # Trad clean sends
         trad_sends = clean_sends.filter_by(discipline='trad')
@@ -153,9 +235,8 @@ class ClimberSummaryService:
         
         return {
             "highest_grade_sport_sent_clean_on_lead": self.get_grade_from_tick(highest_sport_lead),
-            "highest_grade_sport_sent_clean_on_top": self.get_grade_from_tick(highest_sport_top),
+            "highest_grade_tr_sent_clean": self.get_grade_from_tick(highest_tr),
             "highest_grade_trad_sent_clean_on_lead": self.get_grade_from_tick(highest_trad_lead),
-            "highest_grade_trad_sent_clean_on_top": self.get_grade_from_tick(highest_trad_top),
             "highest_grade_boulder_sent_clean": self.get_grade_from_tick(highest_boulder),
             "onsight_grade_sport": self.get_grade_from_tick(sport_onsight),
             "onsight_grade_trad": self.get_grade_from_tick(trad_onsight),
@@ -185,30 +266,41 @@ class ClimberSummaryService:
             func.count().label('count')
         ).filter_by(userId=self.user_id).group_by(BoulderPyramid.route_style)
         
-        # Combine all style counts
+        # Calculate completeness ratio for each discipline
+        def calculate_style_completeness(style_counts_query):
+            style_counts = style_counts_query.all()
+            routes_with_style = sum(count.count for count in style_counts if count.route_style is not None)
+            total_routes = sum(count.count for count in style_counts)
+            return routes_with_style / total_routes if total_routes > 0 else 0
+            
+        sport_completeness = calculate_style_completeness(style_counts_sport)
+        trad_completeness = calculate_style_completeness(style_counts_trad)
+        boulder_completeness = calculate_style_completeness(style_counts_boulder)
+        
+        # Only include disciplines with >80% completeness
         combined_style_counts = {}
         for style_count in style_counts_sport.all():
-            if style_count.route_style:
+            if style_count.route_style and sport_completeness > 0.8:
                 combined_style_counts[style_count.route_style] = style_count.count
                 
         for style_count in style_counts_trad.all():
-            if style_count.route_style:
+            if style_count.route_style and trad_completeness > 0.8:
                 combined_style_counts[style_count.route_style] = combined_style_counts.get(style_count.route_style, 0) + style_count.count
                 
         for style_count in style_counts_boulder.all():
-            if style_count.route_style:
+            if style_count.route_style and boulder_completeness > 0.8:
                 combined_style_counts[style_count.route_style] = combined_style_counts.get(style_count.route_style, 0) + style_count.count
         
-        # Get the most frequent style
+        # Get the most frequent style if we have enough data
         favorite_style = max(combined_style_counts.items(), key=lambda x: x[1])[0] if combined_style_counts else None
         
         # Analyze strongest style (highest grade by style)
         style_grades = {}
         for style in ClimbingStyle:
             # Check each discipline for the highest grade in this style
-            highest_sport = sport_sends.filter_by(route_style=style).order_by(desc(SportPyramid.binned_code)).first()
-            highest_trad = trad_sends.filter_by(route_style=style).order_by(desc(TradPyramid.binned_code)).first()
-            highest_boulder = boulder_sends.filter_by(route_style=style).order_by(desc(BoulderPyramid.binned_code)).first()
+            highest_sport = sport_sends.filter_by(route_style=style).order_by(desc(SportPyramid.binned_code)).first() if sport_completeness > 0.8 else None
+            highest_trad = trad_sends.filter_by(route_style=style).order_by(desc(TradPyramid.binned_code)).first() if trad_completeness > 0.8 else None
+            highest_boulder = boulder_sends.filter_by(route_style=style).order_by(desc(BoulderPyramid.binned_code)).first() if boulder_completeness > 0.8 else None
             
             # Get the highest grade across all disciplines
             highest_codes = [
@@ -255,9 +347,16 @@ class ClimberSummaryService:
             if "crack" in route_name_lower or "splitter" in route_name_lower:
                 hold_type_counts[HoldType.Cracks] += 1
                     
-        # Get favorite hold type - return the enum value, not the enum itself
-        favorite_hold_type = max(hold_type_counts.items(), key=lambda x: x[1])[0].value if hold_type_counts else None
-        
+        # Calculate hold type completeness ratio
+        filled_hold_types = sum(1 for count in hold_type_counts.values() if count > 0)
+        total_hold_types = len(HoldType)
+        ratio = filled_hold_types / total_hold_types if total_hold_types > 0 else 0
+
+        if ratio > 0.5:
+            favorite_hold_type = max(hold_type_counts.items(), key=lambda x: x[1])[0].value
+        else:
+            favorite_hold_type = None
+
         return {
             "favorite_angle": favorite_style.value if favorite_style else None,
             "strongest_style": strongest_style.value if strongest_style else None,
@@ -272,7 +371,8 @@ class ClimberSummaryService:
             """Helper to process pyramid data for a discipline."""
             pyramid_data = db.session.query(
                 pyramid_table.binned_code,
-                func.count(pyramid_table.id).label('count')
+                func.count(pyramid_table.id).label('count'),
+                func.max(pyramid_table.tick_date).label('last_sent')
             ).filter_by(
                 userId=self.user_id
             ).group_by(
@@ -283,7 +383,8 @@ class ClimberSummaryService:
             
             return [{
                 "grade": self.grade_processor.get_grade_from_code(entry.binned_code),
-                "count": entry.count
+                "num_sends": entry.count,
+                "last_sent": entry.last_sent.strftime('%Y-%m-%d') if entry.last_sent else None
             } for entry in pyramid_data]
         
         return {
@@ -303,35 +404,56 @@ class ClimberSummaryService:
             UserTicks.send_bool == True
         ).count()
         
-        # Get current projects (routes attempted but not sent in last 90 days)
-        ninety_days_ago = datetime.now() - timedelta(days=90)
-        projects = UserTicks.query.filter(
-            UserTicks.userId == self.user_id,
-            UserTicks.tick_date >= ninety_days_ago,
-            UserTicks.send_bool == False
-        ).with_entities(
+        # Get current projects using subquery for routes with sends
+        sent_routes = db.session.query(
             UserTicks.route_name,
-            UserTicks.route_grade,
-            UserTicks.discipline,
+            UserTicks.location
+        ).filter(
+            UserTicks.userId == self.user_id,
+            UserTicks.send_bool == True
+        ).subquery()
+
+        # Main query for current projects
+        projects = db.session.query(
+            UserTicks.route_name,
             UserTicks.location,
-            UserTicks.binned_code,
-            func.count(UserTicks.id).label('attempts')
+            UserTicks.discipline,
+            UserTicks.route_grade,
+            func.count(func.distinct(UserTicks.tick_date)).label('days_tried'),
+            func.sum(
+                case(
+                    (UserTicks.length_category != 'multipitch', UserTicks.pitches),
+                    else_=1
+                )
+            ).label('attempts'),
+            func.max(UserTicks.tick_date).label('last_tried')
+        ).filter(
+            UserTicks.userId == self.user_id,
+            ~exists().where(and_(
+                sent_routes.c.route_name == UserTicks.route_name,
+                sent_routes.c.location == UserTicks.location
+            ))
         ).group_by(
             UserTicks.route_name,
-            UserTicks.route_grade,
-            UserTicks.discipline,
             UserTicks.location,
-            UserTicks.binned_code
-        ).all()
+            UserTicks.discipline,
+            UserTicks.route_grade
+        ).having(
+            func.count(func.distinct(UserTicks.tick_date)) >= 2
+        ).order_by(
+            desc(func.max(UserTicks.tick_date))
+        ).limit(5).all()
         
         project_list = [{
             "name": p.route_name,
-            "grade": self.grade_processor.get_grade_from_code(p.binned_code),
-            "discipline": p.discipline.value,
+            "grade": p.route_grade,
+            "discipline": p.discipline.value if p.discipline else None,
             "location": p.location,
-            "attempts": p.attempts
+            "attempts": p.attempts,
+            "days_tried": p.days_tried,
+            "last_tried": p.last_tried.strftime('%Y-%m-%d') if p.last_tried else None
         } for p in projects]
-        
+
         return {
             "sends_last_30_days": recent_sends,
             "current_projects": project_list
@@ -404,9 +526,9 @@ class ClimberSummaryService:
                     'injury_history': summary.injury_history,
                     'physical_limitations': summary.physical_limitations,
                     'climbing_goals': summary.climbing_goals,
-                    'preferred_climbing_days': summary.preferred_climbing_days,
-                    'max_travel_distance': summary.max_travel_distance,
-                    'willing_to_train_indoors': summary.willing_to_train_indoors
+                    'willing_to_train_indoors': summary.willing_to_train_indoors,
+                    'sleep_score': summary.sleep_score,
+                    'nutrition_score': summary.nutrition_score
                 }
                 summary_data.update({k: v for k, v in existing_user_data.items() if v is not None})
             

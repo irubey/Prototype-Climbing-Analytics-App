@@ -12,14 +12,18 @@ class ClimbingDiscipline(enum.Enum):
     winter_ice = 'winter_ice'
     aid = 'aid'
     
+class SleepScore(enum.Enum):
+    Poor = "Poor"
+    Fair = "Fair"
+    Good = "Good"
+    Excellent = "Excellent"
 
-class TrainingFrequency(enum.Enum):
-    NEVER = "Never"
-    OCCASIONALLY = "Occasionally"
-    ONCE_WEEK = "Once a week"
-    TWICE_WEEK = "Twice a week"
-    THREE_PLUS_WEEK = "Three or more times a week"
-    
+class NutritionScore(enum.Enum):
+    Poor = "Poor"
+    Fair = "Fair"
+    Good = "Good"
+    Excellent = "Excellent"
+
 class SessionLength(enum.Enum):
     LESS_THAN_1_HOUR = "Less than 1 hour"
     ONE_TO_TWO_HOURS = "1-2 hours"
@@ -52,7 +56,15 @@ class BaseModel(db.Model):
     __abstract__ = True  
 
     def as_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        result = {}
+        for c in self.__table__.columns:
+            value = getattr(self, c.name)
+            # Handle enum values
+            if hasattr(value, 'value'):  # Check if it's an enum
+                result[c.name] = value.value
+            else:
+                result[c.name] = value
+        return result
 
 class BinnedCodeDict(BaseModel):
     __tablename__ = 'binned_code_dict'
@@ -197,16 +209,16 @@ class ClimberSummary(BaseModel):
     preferred_crag_last_year = db.Column(db.String(255))
     
     # Training context
-    training_frequency = db.Column(Enum(TrainingFrequency))
-    typical_session_length = db.Column(Enum(SessionLength))
+    training_frequency = db.Column(db.String(255))
+    typical_session_length = db.Column(Enum(SessionLength, values_callable=lambda x: [e.value for e in x]))
     has_hangboard = db.Column(db.Boolean)
     has_home_wall = db.Column(db.Boolean)
+    goes_to_gym = db.Column(db.Boolean)
     
     # Performance metrics
     highest_grade_sport_sent_clean_on_lead = db.Column(db.String(255))
-    highest_grade_sport_sent_clean_on_top = db.Column(db.String(255))
+    highest_grade_tr_sent_clean = db.Column(db.String(255))
     highest_grade_trad_sent_clean_on_lead = db.Column(db.String(255))
-    highest_grade_trad_sent_clean_on_top = db.Column(db.String(255))
     highest_grade_boulder_sent_clean = db.Column(db.String(255))
     onsight_grade_sport = db.Column(db.String(255))
     onsight_grade_trad = db.Column(db.String(255))
@@ -224,8 +236,6 @@ class ClimberSummary(BaseModel):
     
     # Goals and preferences
     climbing_goals = db.Column(db.Text)
-    preferred_climbing_days = db.Column(db.String(255))
-    max_travel_distance = db.Column(db.Integer)  # in miles/kilometers
     willing_to_train_indoors = db.Column(db.Boolean)
     
     # Recent activity
@@ -233,18 +243,20 @@ class ClimberSummary(BaseModel):
     current_projects = db.Column(db.JSON)  # List of current projects stored as JSON
     
     # Style preferences
-    favorite_angle = db.Column(Enum(ClimbingStyle))
-    favorite_hold_types = db.Column(Enum(HoldType))
-    weakest_style = db.Column(Enum(ClimbingStyle))
-    strongest_style = db.Column(Enum(ClimbingStyle))
-    favorite_energy_type = db.Column(Enum(RouteCharacteristic))
+    favorite_angle = db.Column(Enum(ClimbingStyle, values_callable=lambda x: [e.value for e in x]))
+    favorite_hold_types = db.Column(Enum(HoldType, values_callable=lambda x: [e.value for e in x]))
+    weakest_style = db.Column(Enum(ClimbingStyle, values_callable=lambda x: [e.value for e in x]))
+    strongest_style = db.Column(Enum(ClimbingStyle, values_callable=lambda x: [e.value for e in x]))
+    favorite_energy_type = db.Column(Enum(RouteCharacteristic, values_callable=lambda x: [e.value for e in x]))
+
+    #Lifestyle
+    sleep_score = db.Column(Enum(SleepScore, values_callable=lambda x: [e.value for e in x]))
+    nutrition_score = db.Column(Enum(NutritionScore, values_callable=lambda x: [e.value for e in x]))
 
     #Favorite Routes
     recent_favorite_routes = db.Column(db.JSON) #List of latest 10 routes with 5 stars and notes
 
-
-    
     # Metadata
     created_at = db.Column(db.DateTime, server_default=db.func.current_timestamp())
-    updated_at = db.Column(db.DateTime, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    current_info_as_of = db.Column(db.DateTime, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
     
