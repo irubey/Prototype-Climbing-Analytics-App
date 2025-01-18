@@ -9,7 +9,7 @@ from app.services import DataProcessor
 from app.services.database_service import DatabaseService
 from app.services.analytics_service import AnalyticsService
 from app.services.climber_summary import ClimberSummaryService, UserInputData
-from app.services.ai.api import get_completion
+from app.services.ai.api import get_completion, get_climber_context
 from datetime import date
 import json
 from app.services.grade_processor import GradeProcessor
@@ -377,7 +377,10 @@ def sage_chat_onboard():
             
             # Lifestyle
             sleep_score=request.form.get('sleep_score'),
-            nutrition_score=request.form.get('nutrition_score')
+            nutrition_score=request.form.get('nutrition_score'),
+            
+            # Additional notes
+            additional_notes=request.form.get('additional_notes')
         )
         
         # Validate required fields
@@ -388,7 +391,11 @@ def sage_chat_onboard():
         summary_service = ClimberSummaryService(user_id=user_id, username=summary.username)
         summary = summary_service.update_summary(user_input=user_input)
         
-        return jsonify({"success": True})
+        # Return success with reset_chat flag to trigger frontend reset
+        return jsonify({
+            "success": True,
+            "reset_chat": True  # Add this flag to indicate chat should be reset
+        })
     except Exception as e:
         app.logger.error(f"Error in sage_chat_onboard: {str(e)}")
         db.session.rollback()
@@ -399,12 +406,29 @@ def sage_chat_message():
     user_id = request.args.get('userId')
     summary = ClimberSummary.query.get_or_404(user_id)
     
-    user_prompt = request.form.get('user_prompt')
+    data = request.get_json()
+    user_prompt = data.get('user_prompt')
     if not user_prompt:
         return jsonify({"error": "Message cannot be empty"}), 400
         
-    ai_response = get_completion(user_prompt, climber_id=user_id)
-    return jsonify({"response": ai_response})
+    is_first_message = data.get('is_first_message', False)
+    conversation_history = data.get('conversation_history', [])
+    
+    ai_response = get_completion(
+        user_prompt, 
+        climber_id=user_id, 
+        is_first_message=is_first_message,
+        messages=conversation_history
+    )
+
+    # For first message, get the context to send back
+    response_data = {"response": ai_response}
+    if is_first_message:
+        additional_context = get_climber_context(user_id)
+        context_str = "\n".join(f"- {k}: {v}" for k, v in additional_context.items())
+        response_data["context"] = f"Here is your climbing context that I'll reference throughout our conversation:\n\n{context_str}"
+    
+    return jsonify(response_data)
 
 def check_data_completeness(summary):
     required_fields = [

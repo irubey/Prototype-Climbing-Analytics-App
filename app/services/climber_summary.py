@@ -68,7 +68,10 @@ class UserInputData:
         
         # Lifestyle
         sleep_score: Optional[str] = None,
-        nutrition_score: Optional[str] = None
+        nutrition_score: Optional[str] = None,
+
+        # Additional notes
+        additional_notes: Optional[str] = None
     ):
         # Core progression metrics
         self.highest_sport_grade_tried = highest_sport_grade_tried
@@ -117,6 +120,9 @@ class UserInputData:
         # Lifestyle
         self.sleep_score = getattr(SleepScore, sleep_score) if sleep_score else None
         self.nutrition_score = getattr(NutritionScore, nutrition_score) if nutrition_score else None
+
+        # Additional notes
+        self.additional_notes = additional_notes
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert user input to dictionary, excluding None values and converting enums to their values"""
@@ -528,7 +534,8 @@ class ClimberSummaryService:
                     'climbing_goals': summary.climbing_goals,
                     'willing_to_train_indoors': summary.willing_to_train_indoors,
                     'sleep_score': summary.sleep_score,
-                    'nutrition_score': summary.nutrition_score
+                    'nutrition_score': summary.nutrition_score,
+                    'additional_notes': summary.additional_notes
                 }
                 summary_data.update({k: v for k, v in existing_user_data.items() if v is not None})
             

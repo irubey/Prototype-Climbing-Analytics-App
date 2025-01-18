@@ -256,6 +256,9 @@ class ClimberSummary(BaseModel):
     #Favorite Routes
     recent_favorite_routes = db.Column(db.JSON) #List of latest 10 routes with 5 stars and notes
 
+    #additional notes
+    additional_notes = db.Column(db.Text)
+
     # Metadata
     created_at = db.Column(db.DateTime, server_default=db.func.current_timestamp())
     current_info_as_of = db.Column(db.DateTime, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
