@@ -432,7 +432,16 @@ def sage_chat_message():
 
 def check_data_completeness(summary):
     required_fields = [
-        'climbing_goals'
+        'climbing_goals',  # Goals and preferences
+        'favorite_discipline',  # Core progression
+        'typical_session_length',  # Training context
+        'favorite_angle',  # Style preferences
+        'favorite_hold_types',  # Style preferences
+        'weakest_style',  # Style preferences
+        'strongest_style',  # Style preferences
+        'favorite_energy_type',  # Style preferences
+        'sleep_score',  # Lifestyle
+        'nutrition_score'  # Lifestyle
     ]
     for field in required_fields:
         if getattr(summary, field) in [None, '']:
