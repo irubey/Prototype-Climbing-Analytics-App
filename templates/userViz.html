@@ -63,6 +63,14 @@
       </a>
       <h1>{{ username }}</h1>
       <div class="header-buttons">
+        <a
+          href="{{ url_for('sage_chat', userId=userId) }}"
+          class="sage-chat-button"
+          title="Chat with Sage"
+        >
+          <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Sage" class="sage-icon">
+          Chat with Sage
+        </a>
         <form
           action="{{ url_for('refresh_data', userId=userId) }}"
           method="POST"
@@ -83,13 +91,6 @@
     </header>
 
     <main class="main-content">
-      <a
-        href="{{ url_for('sage_chat', userId=userId) }}"
-        title="sage chat"
-    >
-      <i class="fas fa-info-circle"></i>
-    </a>
-      
       <div class="container">
         <!-- Quick Stats Card -->
         <div class="dashboard-quick-stats">
@@ -431,5 +432,40 @@
     </script>
 
     <script src="{{ url_for('static', filename='js/supportPopup.js') }}"></script>
+
+    <style>
+      .sage-chat-button {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--primary);
+        color: var(--color-white);
+        padding: 0.75rem 1.25rem;
+        border-radius: var(--border-radius-md);
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        box-shadow: var(--shadow-sm);
+        margin: 0;
+      }
+
+      .header-buttons {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .sage-chat-button:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+        background: var(--accent-dark-teal);
+      }
+
+      .sage-chat-button .sage-icon {
+        width: 24px;
+        height: 24px;
+        filter: brightness(0) invert(1);
+      }
+    </style>
   </body>
 </html>

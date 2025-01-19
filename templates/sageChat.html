@@ -1229,11 +1229,6 @@
 
 
                 <div class="form-actions">
-                    <button type="button" 
-                            onclick="skipOnboarding()" 
-                            class="btn btn-secondary">
-                        Skip - Chat Without Context
-                    </button>
                     <button type="submit" class="btn btn-primary">Save Context</button>
                 </div>
             </form>
@@ -1295,54 +1290,23 @@
             const onboardingContainer = document.getElementById('onboarding_container');
             const chatInterface = document.getElementById('chat_interface');
             
-            // Set initial visibility immediately when DOM loads
+            // Set initial visibility
             if (isDataComplete) {
-                message_view = true;
                 onboardingContainer.style.display = 'none';
                 chatInterface.style.display = 'flex';
                 onboardingContainer.setAttribute('data-visible', 'false');
                 chatInterface.setAttribute('data-visible', 'true');
-                
-                // Make API call for initial greeting
-                try {
-                    const response = await fetch('/sage-chat/message?userId={{ summary.userId }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            user_prompt: 'Please introduce yourself and describe what you know about me, end with an open ended question allowing me to specify what I want to do with this chat session. Also mention that I can click the sage icon to change my settings, or update context at any time',
-                            is_first_message: true,
-                            conversation_history: []
-                        })
-                    });
-                    const data = await response.json();
-                    
-                    if (data.response) {
-                        appendMessage('Sage', data.response);
-                        if (data.context) {
-                            conversationHistory.push({
-                                role: 'assistant',
-                                content: data.context
-                            });
-                        }
-                        conversationHistory.push({
-                            role: 'assistant',
-                            content: data.response
-                        });
-                        isFirstMessage = false;
-                    }
-                } catch (error) {
-                    console.error('Error fetching initial greeting:', error);
-                    appendMessage('System', 'Sorry, there was an error loading the initial greeting. Please try refreshing the page.');
-                }
             } else {
-                message_view = false;
                 onboardingContainer.style.display = 'block';
                 chatInterface.style.display = 'none';
                 onboardingContainer.setAttribute('data-visible', 'true');
                 chatInterface.setAttribute('data-visible', 'false');
             }
+            
+            // Set initial button label
+            updateButtonLabel();
+            
+            // Rest of the initialization code...
         });
 
         // Utility Functions
@@ -1409,25 +1373,31 @@
             }
         }
 
+        function updateButtonLabel() {
+            const onboardingContainer = document.getElementById('onboarding_container');
+            const iconButtons = document.querySelectorAll('.icon-button .label');
+            const isOnboardingVisible = onboardingContainer.style.display !== 'none';
+            
+            iconButtons.forEach(label => {
+                label.textContent = isOnboardingVisible ? 'Chat' : 'Settings';
+            });
+        }
+
         function toggleView() {
             const onboardingContainer = document.getElementById('onboarding_container');
             const chatInterface = document.getElementById('chat_interface');
-            const iconButton = document.querySelector('.icon-button');
-            const buttonLabel = iconButton.querySelector('.label');
             const chatMessages = document.getElementById('chat_messages');
             const loadingSpinner = document.getElementById('loading_spinner');
             
             if (onboardingContainer.style.display === 'none') {
                 // Switching to onboarding view
-                message_view = false;
-                buttonLabel.textContent = 'Chat';
                 onboardingContainer.style.display = 'block';
                 chatInterface.style.display = 'none';
                 onboardingContainer.setAttribute('data-visible', 'true');
                 chatInterface.setAttribute('data-visible', 'false');
+                updateButtonLabel();
             } else {
                 // Switching to chat view (if validation passes)
-                message_view = true;
                 const form = document.getElementById('onboarding_form');
                 const climbingGoals = form.querySelector('#climbing_goals').value.trim();
                 
@@ -1449,11 +1419,11 @@
                 .then(response => response.json())
                 .then(async data => {
                     if (data.success) {
-                        buttonLabel.textContent = 'Settings';
                         onboardingContainer.style.display = 'none';
                         chatInterface.style.display = 'flex';
                         onboardingContainer.setAttribute('data-visible', 'false');
                         chatInterface.setAttribute('data-visible', 'true');
+                        updateButtonLabel();
                         
                         // Reset chat state
                         isFirstMessage = true;
@@ -1506,11 +1476,6 @@
             }
         }
 
-        // Modify skipOnboarding to be more generic for switching views
-        function skipOnboarding() {
-            message_view = true;
-            showChatInterface();
-        }
 
         // Update the chat form submission handler
         document.addEventListener('DOMContentLoaded', function() {
