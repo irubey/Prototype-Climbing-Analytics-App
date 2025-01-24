@@ -1,3 +1,12 @@
+{% block content %}
+{# Template variables #}
+{% set template_vars = {
+    'userId': user_id,
+    'data_complete': initial_data_complete,
+    'routes_grade_list': routes_grade_list if routes_grade_list is defined else [],
+    'boulders_grade_list': boulders_grade_list if boulders_grade_list is defined else []
+} %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -61,6 +70,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 1rem;
         }
 
         .chat-header h3 {
@@ -647,6 +657,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 1rem;
         }
 
         .chat-header h3 {
@@ -776,6 +787,73 @@
             line-height: 1.6;
             opacity: 0.8;
         }
+
+        /* Model Toggle Styles */
+        .model-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-right: auto;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 28px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--surface-background);
+            border: 1px solid var(--border-color);
+            transition: .4s;
+            border-radius: 28px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 3px;
+            background-color: var(--primary);
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(32px);
+            background-color: white;
+        }
+
+        .toggle-label {
+            font-size: 0.875rem;
+            color: var(--text);
+            transition: .4s;
+        }
+
+        .toggle-label.active {
+            color: var(--primary);
+            font-weight: 500;
+        }
     </style>
     <!-- Add marked.js for markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -785,7 +863,7 @@
     
     <div class="chat-container">
         <!-- Onboarding Section -->
-        <div class="onboarding-container" id="onboarding_container">
+        <div class="onboarding-container" id="onboarding_container" style="display: {{ 'block' if not initial_data_complete else 'none' }}">
             <div class="form-header">
                 <h2 style="display: flex; align-items: center; gap: 0.5rem;">
                     Welcome to Sage
@@ -811,7 +889,7 @@
                               name="climbing_goals" 
                               class="form-control" 
                                 required 
-                                placeholder="What are your main climbing goals? Be specific about what you want to achieve. &#10;'I want to climb the most badass aesthetic 5.12 sport route in Colorado within 9 months' &#10;'I want to climb the naked edge without holding up every other party on the wall'">{{ summary.climbing_goals or '' }}</textarea>
+                                placeholder="What are your main climbing goals? Be specific about what you want to achieve. &#10;'I want to climb the most badass aesthetic 5.12 sport route in Colorado within 9 months' &#10;'I want to climb the naked edge without holding up every other party on the wall'">{{ initial_summary.climbing_goals or '' }}</textarea>
                 </div>
 
                 <div class="form-group">
@@ -819,7 +897,7 @@
                         <textarea id="additional_notes" 
                                     name="additional_notes" 
                                     class="form-control"
-                                    placeholder="Personalize your Sage, get creative with it!&#10;'I live in Denver and have a 9-5 job with a family, so I'm time constrained' &#10;'Format training plan, recipies, and other lists as tables' &#10;'I'm vegan, so don't suggest any meat or dairy products'&#10;'Respond as if you are Alex Honnold writing only in haikus' &#10;'My favorite rock type is steep sandstone, only suggest these routes' ">{{ summary.additional_notes or '' }}</textarea>
+                                    placeholder="Personalize your Sage, get creative with it!&#10;'I live in Denver and have a 9-5 job with a family, so I'm time constrained' &#10;'Format training plan, recipies, and other lists as tables' &#10;'I'm vegan, so don't suggest any meat or dairy products'&#10;'Respond as if you are Alex Honnold writing only in haikus' &#10;'My favorite rock type is steep sandstone, only suggest these routes' ">{{ initial_summary.additional_notes or '' }}</textarea>
                 </div>
                 </div>
 
@@ -833,7 +911,7 @@
                                    id="willing_to_train_indoors" 
                                    name="willing_to_train_indoors" 
                                    class="form-check-input"
-                                   {% if summary.willing_to_train_indoors %}checked{% endif %}>
+                                   {% if initial_summary.willing_to_train_indoors %}checked{% endif %}>
                             <label class="form-check-label" for="willing_to_train_indoors">Willing to Train Indoors</label>
                 </div>
                 </div>
@@ -843,7 +921,7 @@
                     <input type="text" 
                            id="training_frequency" 
                            name="training_frequency" 
-                           value="{{ summary.training_frequency or '' }}"
+                           value="{{ initial_summary.training_frequency or '' }}"
                                class="form-control"
                                placeholder="Example: I lead climb 2x / week at the gym or outdoors, yoga once a week, and boulder once a week on my 30deg home wall">
                 </div>
@@ -863,7 +941,7 @@
                                     <input type="radio" 
                                            name="typical_session_length" 
                                            value="{{ value }}" 
-                                           {% if summary.typical_session_length and summary.typical_session_length.name == value %}checked{% endif %}>
+                                           {% if initial_summary.typical_session_length and initial_summary.typical_session_length.name == value %}checked{% endif %}>
                                     <span>{{ display }}</span>
                                 </label>
                         {% endfor %}
@@ -877,7 +955,7 @@
                                id="has_hangboard" 
                                name="has_hangboard" 
                                class="form-check-input"
-                               {% if summary.has_hangboard %}checked{% endif %}>
+                               {% if initial_summary.has_hangboard %}checked{% endif %}>
                             <label class="form-check-label" for="has_hangboard">Do you have a hangboard?</label>
                     </div>
                     <div class="form-check">
@@ -885,7 +963,7 @@
                                id="has_home_wall" 
                                name="has_home_wall" 
                                class="form-check-input"
-                               {% if summary.has_home_wall %}checked{% endif %}>
+                               {% if initial_summary.has_home_wall %}checked{% endif %}>
                             <label class="form-check-label" for="has_home_wall">Do you have a home wall?</label>
                     </div>
                     <div class="form-check">
@@ -893,7 +971,7 @@
                                id="goes_to_gym" 
                                name="goes_to_gym" 
                                class="form-check-input"
-                               {% if summary.goes_to_gym %}checked{% endif %}>
+                               {% if initial_summary.goes_to_gym %}checked{% endif %}>
                             <label class="form-check-label" for="goes_to_gym">Do you go to a climbing gym?</label>
                         </div>
                     </div>
@@ -919,7 +997,7 @@
                                     <input type="radio" 
                                            name="favorite_discipline" 
                                            value="{{ value }}" 
-                                           {% if summary.favorite_discipline and summary.favorite_discipline.name == value %}checked{% endif %}>
+                                           {% if initial_summary.favorite_discipline and initial_summary.favorite_discipline.name == value %}checked{% endif %}>
                                     <span>{{ display }}</span>
                                 </label>
                             {% endfor %}
@@ -931,7 +1009,7 @@
                         <input type="number" 
                                id="years_climbing_outside" 
                                name="years_climbing_outside" 
-                               value="{{ summary.years_climbing_outside or '' }}"
+                               value="{{ initial_summary.years_climbing_outside or '' }}"
                                class="form-control"
                                min="0"
                                step="0.5"
@@ -943,7 +1021,7 @@
                         <input type="number" 
                                id="total_climbs" 
                                name="total_climbs" 
-                               value="{{ summary.total_climbs or '' }}"
+                               value="{{ initial_summary.total_climbs or '' }}"
                                class="form-control"
                                min="0"
                                placeholder="Approximate number of climbs completed">
@@ -960,7 +1038,7 @@
                             class="form-control grade-select">
                         <option value="">Select...</option>
                         {% for grade in routes_grade_list %}
-                            <option value="{{ grade }}" {% if grade == summary.highest_grade_sport_sent_clean_on_lead %}selected{% endif %}>
+                            <option value="{{ grade }}" {% if grade == initial_summary.highest_grade_sport_sent_clean_on_lead %}selected{% endif %}>
                                 {{ grade }}
                             </option>
                         {% endfor %}
@@ -974,7 +1052,7 @@
                             class="form-control grade-select">
                         <option value="">Select...</option>
                         {% for grade in routes_grade_list %}
-                            <option value="{{ grade }}" {% if grade == summary.highest_grade_tr_sent_clean %}selected{% endif %}>
+                            <option value="{{ grade }}" {% if grade == initial_summary.highest_grade_tr_sent_clean %}selected{% endif %}>
                                 {{ grade }}
                             </option>
                         {% endfor %}
@@ -988,7 +1066,7 @@
                             class="form-control grade-select">
                         <option value="">Select...</option>
                         {% for grade in routes_grade_list %}
-                            <option value="{{ grade }}" {% if grade == summary.highest_grade_trad_sent_clean_on_lead %}selected{% endif %}>
+                            <option value="{{ grade }}" {% if grade == initial_summary.highest_grade_trad_sent_clean_on_lead %}selected{% endif %}>
                                 {{ grade }}
                             </option>
                         {% endfor %}
@@ -1002,7 +1080,7 @@
                             class="form-control grade-select">
                         <option value="">Select...</option>
                         {% for grade in boulders_grade_list %}
-                            <option value="{{ grade }}" {% if grade == summary.highest_grade_boulder_sent_clean %}selected{% endif %}>
+                            <option value="{{ grade }}" {% if grade == initial_summary.highest_grade_boulder_sent_clean %}selected{% endif %}>
                                 {{ grade }}
                             </option>
                         {% endfor %}
@@ -1016,7 +1094,7 @@
                             class="form-control grade-select">
                         <option value="">Select...</option>
                         {% for grade in routes_grade_list %}
-                            <option value="{{ grade }}" {% if grade == summary.onsight_grade_sport %}selected{% endif %}>
+                            <option value="{{ grade }}" {% if grade == initial_summary.onsight_grade_sport %}selected{% endif %}>
                                 {{ grade }}
                             </option>
                         {% endfor %}
@@ -1030,7 +1108,7 @@
                             class="form-control grade-select">
                         <option value="">Select...</option>
                         {% for grade in routes_grade_list %}
-                            <option value="{{ grade }}" {% if grade == summary.onsight_grade_trad %}selected{% endif %}>
+                            <option value="{{ grade }}" {% if grade == initial_summary.onsight_grade_trad %}selected{% endif %}>
                                 {{ grade }}
                             </option>
                         {% endfor %}
@@ -1044,7 +1122,7 @@
                             class="form-control grade-select">
                         <option value="">Select...</option>
                         {% for grade in boulders_grade_list %}
-                            <option value="{{ grade }}" {% if grade == summary.flash_grade_boulder %}selected{% endif %}>
+                            <option value="{{ grade }}" {% if grade == initial_summary.flash_grade_boulder %}selected{% endif %}>
                                 {{ grade }}
                             </option>
                         {% endfor %}
@@ -1060,7 +1138,7 @@
                     <input type="number" 
                            id="sends_last_30_days" 
                            name="sends_last_30_days" 
-                           value="{{ summary.sends_last_30_days or '' }}"
+                           value="{{ initial_summary.sends_last_30_days or '' }}"
                            min="0"
                            class="form-control">
                     </div>
@@ -1074,7 +1152,7 @@
                     <textarea id="current_injuries" 
                               name="current_injuries" 
                                   class="form-control"
-                                  placeholder="List any current injuries or pain you're experiencing. Include location, severity, and how long you've had them. &#10;Example: 'Mild finger pain in left ring finger A2 pulley for 2 weeks' or 'Shoulder impingement in right shoulder for 1 month'">{{ summary.current_injuries or '' }}</textarea>
+                                  placeholder="List any current injuries or pain you're experiencing. Include location, severity, and how long you've had them. &#10;Example: 'Mild finger pain in left ring finger A2 pulley for 2 weeks' or 'Shoulder impingement in right shoulder for 1 month'">{{ initial_summary.current_injuries or '' }}</textarea>
                 </div>
 
                 <div class="form-group">
@@ -1082,7 +1160,7 @@
                     <textarea id="injury_history" 
                               name="injury_history" 
                                   class="form-control"
-                                  placeholder="List past injuries that have healed but might be relevant. Include when they occurred and how they were treated. &#10;Example: 'A2 pulley tear in right middle finger 2 years ago, treated with 3 months rest and gradual return' or 'Ankle sprain from bouldering fall 1 year ago, did PT for 6 weeks'">{{ summary.injury_history or '' }}</textarea>
+                                  placeholder="List past injuries that have healed but might be relevant. Include when they occurred and how they were treated. &#10;Example: 'A2 pulley tear in right middle finger 2 years ago, treated with 3 months rest and gradual return' or 'Ankle sprain from bouldering fall 1 year ago, did PT for 6 weeks'">{{ initial_summary.injury_history or '' }}</textarea>
                 </div>
 
                 <div class="form-group">
@@ -1090,7 +1168,7 @@
                     <textarea id="physical_limitations" 
                               name="physical_limitations" 
                                   class="form-control"
-                                  placeholder="Describe any physical limitations that affect your climbing. Include chronic conditions, flexibility issues, or movement restrictions. &#10;Example: 'Limited shoulder mobility from old injury' or 'Chronic lower back tightness that affects high stepping'">{{ summary.physical_limitations or '' }}</textarea>
+                                  placeholder="Describe any physical limitations that affect your climbing. Include chronic conditions, flexibility issues, or movement restrictions. &#10;Example: 'Limited shoulder mobility from old injury' or 'Chronic lower back tightness that affects high stepping'">{{ initial_summary.physical_limitations or '' }}</textarea>
                     </div>
                 </div>
 
@@ -1111,7 +1189,7 @@
                                     <input type="radio" 
                                            name="favorite_angle" 
                                            value="{{ value }}" 
-                                           {% if summary.favorite_angle and summary.favorite_angle.name == value %}checked{% endif %}>
+                                           {% if initial_summary.favorite_angle and initial_summary.favorite_angle.name == value %}checked{% endif %}>
                                     <span>{{ display }}</span>
                                 </label>
                         {% endfor %}
@@ -1133,7 +1211,7 @@
                                     <input type="radio" 
                                            name="favorite_hold_types" 
                                            value="{{ value }}" 
-                                           {% if summary.favorite_hold_types and summary.favorite_hold_types.name == value %}checked{% endif %}>
+                                           {% if initial_summary.favorite_hold_types and initial_summary.favorite_hold_types.name == value %}checked{% endif %}>
                                     <span>{{ display }}</span>
                                 </label>
                         {% endfor %}
@@ -1148,7 +1226,7 @@
                                     <input type="radio" 
                                            name="weakest_style" 
                                            value="{{ value }}" 
-                                           {% if summary.weakest_style and summary.weakest_style.name == value %}checked{% endif %}>
+                                           {% if initial_summary.weakest_style and initial_summary.weakest_style.name == value %}checked{% endif %}>
                                     <span>{{ display }}</span>
                                 </label>
                         {% endfor %}
@@ -1163,7 +1241,7 @@
                                     <input type="radio" 
                                            name="strongest_style" 
                                            value="{{ value }}" 
-                                           {% if summary.strongest_style and summary.strongest_style.name == value %}checked{% endif %}>
+                                           {% if initial_summary.strongest_style and initial_summary.strongest_style.name == value %}checked{% endif %}>
                                     <span>{{ display }}</span>
                                 </label>
                         {% endfor %}
@@ -1184,7 +1262,7 @@
                                     <input type="radio" 
                                            name="favorite_energy_type" 
                                            value="{{ value }}" 
-                                           {% if summary.favorite_energy_type and summary.favorite_energy_type.name == value %}checked{% endif %}>
+                                           {% if initial_summary.favorite_energy_type and initial_summary.favorite_energy_type.name == value %}checked{% endif %}>
                                     <span>{{ display }}</span>
                                 </label>
                         {% endfor %}
@@ -1204,7 +1282,7 @@
                                     <input type="radio" 
                             name="sleep_score" 
                                            value="{{ score }}" 
-                                           {% if summary.sleep_score and summary.sleep_score.name == score %}checked{% endif %}>
+                                           {% if initial_summary.sleep_score and initial_summary.sleep_score.name == score %}checked{% endif %}>
                                     <span>{{ score }}</span>
                                 </label>
                         {% endfor %}
@@ -1219,7 +1297,7 @@
                                     <input type="radio" 
                             name="nutrition_score" 
                                            value="{{ score }}" 
-                                           {% if summary.nutrition_score and summary.nutrition_score.name == score %}checked{% endif %}>
+                                           {% if initial_summary.nutrition_score and initial_summary.nutrition_score.name == score %}checked{% endif %}>
                                     <span>{{ score }}</span>
                                 </label>
                         {% endfor %}
@@ -1235,9 +1313,17 @@
         </div>
 
         <!-- Chat Interface Section -->
-        <div class="chat-interface" id="chat_interface">
+        <div class="chat-interface" id="chat_interface" style="display: {{ 'flex' if initial_data_complete else 'none' }}">
             <div class="chat-header">
                 <h3>Chat with Sage</h3>
+                <div class="model-toggle">
+                    <span class="toggle-label chat-label active">Chat</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="model_toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label reasoner-label">Reasoner</span>
+                </div>
                 <button type="button" onclick="toggleView()" class="icon-button" title="Toggle Context">
                     <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Toggle Context">
                     <span class="label">{% if data_complete %}Settings{% else %}Chat{% endif %}</span>
@@ -1271,73 +1357,74 @@
 
     <!-- JavaScript -->
     <script>
-        // Add console log at the start of the script to show context
-        console.log('Current Context:', {
-            summary: {{ summary.as_dict() | tojson if summary else 'null' }},
-            data_complete: {{ data_complete | tojson }},
-            routes_grade_list: {{ routes_grade_list | tojson if routes_grade_list else '[]' }},
-            boulders_grade_list: {{ boulders_grade_list | tojson if boulders_grade_list else '[]' }}
-        });
-
-        // Add a conversation history tracker at the top of your script
-        let isFirstMessage = true;
-        let conversationHistory = [];
-        let message_view = true;
-
-        // Initialize chat with context if data is complete
-        document.addEventListener('DOMContentLoaded', async function() {
-            const isDataComplete = {% if data_complete %}true{% else %}false{% endif %};
-            const onboardingContainer = document.getElementById('onboarding_container');
-            const chatInterface = document.getElementById('chat_interface');
+        // Initialize template variables with fallbacks
+        window.TEMPLATE_VARS = {{ template_vars | tojson | safe }};
+        window.MESSAGE_VIEW = {{ 'true' if message_view else 'false' }};
+        
+        // Initialize state
+        window.state = {
+            isFirstMessage: true,
+            conversationHistory: [],
+            reasoningModel: false,
+            userId: window.TEMPLATE_VARS.userId,
+            dataComplete: window.TEMPLATE_VARS.data_complete,
+            routesGradeList: window.TEMPLATE_VARS.routes_grade_list || [],
+            bouldersGradeList: window.TEMPLATE_VARS.boulders_grade_list || []
+        };
+        
+        // Model toggle functionality
+        function initializeModelToggle() {
+            const modelToggle = document.getElementById('model_toggle');
+            const chatLabel = document.querySelector('.chat-label');
+            const reasonerLabel = document.querySelector('.reasoner-label');
             
-            // Set initial visibility
-            if (isDataComplete) {
-                onboardingContainer.style.display = 'none';
-                chatInterface.style.display = 'flex';
-                onboardingContainer.setAttribute('data-visible', 'false');
-                chatInterface.setAttribute('data-visible', 'true');
-            } else {
-                onboardingContainer.style.display = 'block';
-                chatInterface.style.display = 'none';
-                onboardingContainer.setAttribute('data-visible', 'true');
-                chatInterface.setAttribute('data-visible', 'false');
-            }
+            // Initialize toggle state from localStorage or default to false
+            const savedState = localStorage.getItem('reasoning_model') === 'true';
+            window.state.reasoningModel = savedState;
+            modelToggle.checked = savedState;
+            updateToggleLabels(savedState);
             
-            // Set initial button label
-            updateButtonLabel();
-            
-            // Rest of the initialization code...
-        });
-
-        // Utility Functions
-        function appendMessage(sender, content) {
-            const messagesContainer = document.getElementById('chat_messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender.toLowerCase()}-message`;
-            
-            // Use marked.js to render markdown for Sage's messages
-            const messageContent = sender === 'Sage' ? marked.parse(content) : content;
-            
-            messageDiv.innerHTML = `
-                <strong>${sender}:</strong>
-                <div class="message-content">${messageContent}</div>
-            `;
-            messagesContainer.appendChild(messageDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            modelToggle.addEventListener('change', function() {
+                // Clear conversation history when switching models
+                window.state.conversationHistory = [];
+                window.state.isFirstMessage = true;
+                document.getElementById('chat_messages').innerHTML = '';
+                
+                window.state.reasoningModel = this.checked;
+                localStorage.setItem('reasoning_model', this.checked);
+                updateToggleLabels(this.checked);
+                
+                // Show visual feedback
+                const toggle = this.parentElement;
+                toggle.style.transform = 'scale(1.05)';
+                setTimeout(() => {
+                    toggle.style.transform = 'scale(1)';
+                }, 200);
+                
+                // Reinitialize chat with new model
+                showChatInterface();
+            });
         }
 
+        function updateToggleLabels(isReasoner) {
+            const chatLabel = document.querySelector('.chat-label');
+            const reasonerLabel = document.querySelector('.reasoner-label');
+            chatLabel.classList.toggle('active', !isReasoner);
+            reasonerLabel.classList.toggle('active', isReasoner);
+        }
+
+        // Chat interface functionality
         async function showChatInterface() {
-            message_view = true;
+            window.MESSAGE_VIEW = true;
             document.getElementById('onboarding_container').setAttribute('data-visible', 'false');
             document.getElementById('chat_interface').setAttribute('data-visible', 'true');
             
-            // Only fetch greeting if this is the first time showing chat
             if (!document.getElementById('chat_messages').children.length) {
                 const loadingSpinner = document.getElementById('loading_spinner');
                 loadingSpinner.classList.add('visible');
                 
                 try {
-                    const response = await fetch('/sage-chat/message?userId={{ summary.userId }}', {
+                    const response = await fetch('/sage-chat/message?userId=' + window.state.userId, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1345,24 +1432,77 @@
                         body: JSON.stringify({
                             user_prompt: 'Please introduce yourself and describe what you know about me, end with an open ended question allowing me to specify what I want to do with this chat session. Also mention that I can click the sage icon to change my settings at any time',
                             is_first_message: true,
-                            conversation_history: []
+                            conversation_history: [],
+                            use_reasoner: window.state.reasoningModel
                         })
                     });
+
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    
                     const data = await response.json();
+                    console.log('=== API Response Received ===');
+                    console.log('Is First Message:', window.state.isFirstMessage);
+                    console.log('Using Reasoner:', window.state.reasoningModel);
+                    console.log('Current Conversation History:', JSON.stringify(window.state.conversationHistory, null, 2));
+                    console.log('Response Data:', {
+                        has_initial_message: !!data.initial_user_message,
+                        has_response: !!data.response,
+                        has_reasoning: !!data.reasoning,
+                        has_context: !!data.context
+                    });
                     
                     if (data.response) {
-                        appendMessage('Sage', data.response);
-                        if (data.context) {
-                            conversationHistory.push({
+                        if (window.state.isFirstMessage && window.state.reasoningModel && data.initial_user_message) {
+                            console.log('Setting up initial reasoner conversation');
+                            console.log('Initial User Message:', data.initial_user_message);
+                            
+                            // Display messages
+                            appendMessage('You', data.initial_user_message);
+                            appendMessage('Sage', data.response, data.reasoning);
+                            
+                            // Set up conversation history with initial user message first
+                            window.state.conversationHistory = [
+                                {
+                                    role: 'user',
+                                    content: data.initial_user_message
+                                },
+                                {
+                                    role: 'assistant',
+                                    content: data.response
+                                }
+                            ];
+                            console.log('New Conversation History:', JSON.stringify(window.state.conversationHistory, null, 2));
+                        } else if (window.state.reasoningModel) {
+                            console.log('Adding subsequent reasoner message');
+                            
+                            // Remove the last message if it's a duplicate of what we're about to add
+                            const lastMessage = window.state.conversationHistory[window.state.conversationHistory.length - 1];
+                            if (lastMessage && lastMessage.role === 'user' && lastMessage.content === userPrompt) {
+                                window.state.conversationHistory.pop();
+                            }
+                            
+                            // Add the user message if it's not already the last one
+                            if (!window.state.conversationHistory.length || 
+                                window.state.conversationHistory[window.state.conversationHistory.length - 1].role !== 'user') {
+                                window.state.conversationHistory.push({
+                                    role: 'user',
+                                    content: userPrompt
+                                });
+                            }
+                            
+                            // Display and add the assistant response
+                            appendMessage('Sage', data.response, data.reasoning);
+                            window.state.conversationHistory.push({
                                 role: 'assistant',
-                                content: data.context
+                                content: data.response
                             });
+                            
+                            console.log('Updated Conversation History:', JSON.stringify(window.state.conversationHistory, null, 2));
                         }
-                        conversationHistory.push({
-                            role: 'assistant',
-                            content: data.response
-                        });
-                        isFirstMessage = false;
+                        
+                        window.state.isFirstMessage = false;
                     }
                 } catch (error) {
                     console.error('Error fetching initial greeting:', error);
@@ -1371,6 +1511,43 @@
                     loadingSpinner.classList.remove('visible');
                 }
             }
+        }
+
+        // Initialize everything when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeModelToggle();
+            if (window.state.dataComplete) {
+                showChatInterface();
+            }
+        });
+
+        // Utility Functions
+        function appendMessage(sender, content, reasoning = null) {
+            const messagesContainer = document.getElementById('chat_messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender.toLowerCase()}-message`;
+            
+            let messageContent = sender === 'Sage' ? marked.parse(content) : content;
+            
+            // If reasoning is provided, add it before the response
+            if (reasoning) {
+                messageContent = `
+                    <div class="reasoning-content" style="border-left: 3px solid var(--primary); padding-left: 1rem; margin-bottom: 1rem; color: var(--text-muted);">
+                        <strong>Reasoning:</strong>
+                        ${marked.parse(reasoning)}
+                    </div>
+                    <div class="response-content">
+                        ${messageContent}
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <strong>${sender}:</strong>
+                <div class="message-content">${messageContent}</div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
         function updateButtonLabel() {
@@ -1396,6 +1573,13 @@
                 onboardingContainer.setAttribute('data-visible', 'true');
                 chatInterface.setAttribute('data-visible', 'false');
                 updateButtonLabel();
+                
+                // Clear conversation history when switching to settings
+                window.state.conversationHistory = [];
+                window.state.isFirstMessage = true;
+                if (chatMessages) {
+                    chatMessages.innerHTML = '';
+                }
             } else {
                 // Switching to chat view (if validation passes)
                 const form = document.getElementById('onboarding_form');
@@ -1412,7 +1596,7 @@
                 // Proceed with form submission
                 const formData = new FormData(form);
                 
-                fetch(`/sage-chat/onboard?userId={{ summary.userId }}`, {
+                fetch('/sage-chat/onboard?userId=' + window.state.userId, {
                     method: 'POST',
                     body: formData
                 })
@@ -1426,7 +1610,7 @@
                         updateButtonLabel();
                         
                         // Reset chat state
-                        isFirstMessage = true;
+                        window.state.isFirstMessage = true;
                         if (chatMessages) {
                             chatMessages.innerHTML = '';
                             // Show loading spinner before fetching greeting
@@ -1434,7 +1618,7 @@
                             
                             // Make API call for initial greeting
                             try {
-                                const response = await fetch('/sage-chat/message?userId={{ summary.userId }}', {
+                                const response = await fetch('/sage-chat/message?userId=' + window.state.userId, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -1442,24 +1626,25 @@
                                     body: JSON.stringify({
                                         user_prompt: 'Please introduce yourself and describe what you know about me, end with an open ended question allowing me to specify what I want to do with this chat session. Also mention that I can click the sage icon to change my settings at any time',
                                         is_first_message: true,
-                                        conversation_history: []
+                                        conversation_history: [],
+                                        use_reasoner: window.state.reasoningModel
                                     })
                                 });
                                 const greetingData = await response.json();
                                 
                                 if (greetingData.response) {
-                                    appendMessage('Sage', greetingData.response);
+                                    appendMessage('Sage', greetingData.response, greetingData.reasoning);
                                     if (greetingData.context) {
-                                        conversationHistory.push({
+                                        window.state.conversationHistory.push({
                                             role: 'assistant',
                                             content: greetingData.context
                                         });
                                     }
-                                    conversationHistory.push({
+                                    window.state.conversationHistory.push({
                                         role: 'assistant',
                                         content: greetingData.response
                                     });
-                                    isFirstMessage = false;
+                                    window.state.isFirstMessage = false;
                                 }
                             } catch (error) {
                                 console.error('Error fetching initial greeting:', error);
@@ -1476,80 +1661,114 @@
             }
         }
 
-
         // Update the chat form submission handler
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize loading spinner reference
             const loadingSpinner = document.getElementById('loading_spinner');
             const chatForm = document.getElementById('chat_form');
 
             chatForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const userPrompt = document.getElementById('user_prompt').value;
-                if (!userPrompt.trim()) return;
+                const userPrompt = document.getElementById('user_prompt').value.trim();
+                if (!userPrompt) return;
 
-                // Get form elements
                 const submitButton = e.target.querySelector('button[type="submit"]');
                 const userInput = document.getElementById('user_prompt');
-                const loadingSpinner = document.getElementById('loading_spinner');
 
-                // Disable input and button while processing
                 submitButton.disabled = true;
                 userInput.disabled = true;
                 submitButton.innerHTML = 'Sending...';
 
-                // Display user message immediately
                 appendMessage('You', userPrompt);
                 userInput.value = '';
                 
-                // Show loading spinner
                 loadingSpinner.classList.add('visible');
                 
                 try {
-                    // Add user message to history
-                    conversationHistory.push({
+                    // Add the current user message to conversation history
+                    window.state.conversationHistory.push({
                         role: 'user',
                         content: userPrompt
                     });
 
-                    const response = await fetch('/sage-chat/message?userId={{ summary.userId }}', {
+                    const response = await fetch('/sage-chat/message?userId=' + window.state.userId, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
                             user_prompt: userPrompt,
-                            is_first_message: isFirstMessage,
-                            conversation_history: conversationHistory
+                            is_first_message: window.state.isFirstMessage,
+                            conversation_history: window.state.conversationHistory,
+                            use_reasoner: window.state.reasoningModel
                         })
                     });
                     const data = await response.json();
+                    console.log('=== API Response Received ===');
+                    console.log('Is First Message:', window.state.isFirstMessage);
+                    console.log('Using Reasoner:', window.state.reasoningModel);
+                    console.log('Current Conversation History:', JSON.stringify(window.state.conversationHistory, null, 2));
+                    console.log('Response Data:', {
+                        has_initial_message: !!data.initial_user_message,
+                        has_response: !!data.response,
+                        has_reasoning: !!data.reasoning,
+                        has_context: !!data.context
+                    });
                     
                     if (data.response) {
-                        appendMessage('Sage', data.response);
-                        
-                        // If this was the first message, save the context message to history
-                        if (isFirstMessage && data.context) {
-                            conversationHistory.push({
+                        if (window.state.isFirstMessage && window.state.reasoningModel && data.initial_user_message) {
+                            console.log('Setting up initial reasoner conversation');
+                            console.log('Initial User Message:', data.initial_user_message);
+                            
+                            // Display messages
+                            appendMessage('You', data.initial_user_message);
+                            appendMessage('Sage', data.response, data.reasoning);
+                            
+                            // Set up conversation history with initial user message first
+                            window.state.conversationHistory = [
+                                {
+                                    role: 'user',
+                                    content: data.initial_user_message
+                                },
+                                {
+                                    role: 'assistant',
+                                    content: data.response
+                                }
+                            ];
+                            console.log('New Conversation History:', JSON.stringify(window.state.conversationHistory, null, 2));
+                        } else if (window.state.reasoningModel) {
+                            console.log('Adding subsequent reasoner message');
+                            
+                            // Remove the last message if it's a duplicate of what we're about to add
+                            const lastMessage = window.state.conversationHistory[window.state.conversationHistory.length - 1];
+                            if (lastMessage && lastMessage.role === 'user' && lastMessage.content === userPrompt) {
+                                window.state.conversationHistory.pop();
+                            }
+                            
+                            // Add the user message if it's not already the last one
+                            if (!window.state.conversationHistory.length || 
+                                window.state.conversationHistory[window.state.conversationHistory.length - 1].role !== 'user') {
+                                window.state.conversationHistory.push({
+                                    role: 'user',
+                                    content: userPrompt
+                                });
+                            }
+                            
+                            // Display and add the assistant response
+                            appendMessage('Sage', data.response, data.reasoning);
+                            window.state.conversationHistory.push({
                                 role: 'assistant',
-                                content: data.context
+                                content: data.response
                             });
+                            
+                            console.log('Updated Conversation History:', JSON.stringify(window.state.conversationHistory, null, 2));
                         }
                         
-                        // Add assistant's response to history
-                        conversationHistory.push({
-                            role: 'assistant',
-                            content: data.response
-                        });
-                        
-                        // Set first message flag to false after first successful message
-                        isFirstMessage = false;
+                        window.state.isFirstMessage = false;
                     }
                 } catch (error) {
                     console.error('Error:', error);
                     appendMessage('System', 'Sorry, there was an error processing your message.');
                 } finally {
-                    // Hide loading spinner and re-enable input
                     loadingSpinner.classList.remove('visible');
                     submitButton.disabled = false;
                     userInput.disabled = false;
@@ -1564,24 +1783,29 @@
             const formData = new FormData(e.target);
             
             try {
-                const response = await fetch('/sage-chat/onboard?userId={{ summary.userId }}', {
+                const response = await fetch('/sage-chat/onboard?userId=' + window.state.userId, {
                     method: 'POST',
                     body: formData
                 });
+
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+
                 const data = await response.json();
                 
                 if (data.success) {
                     // Reset chat state and history
-                    isFirstMessage = true;
-                    conversationHistory = [];
+                    window.state.isFirstMessage = true;
+                    window.state.conversationHistory = [];
                     const chatMessages = document.getElementById('chat_messages');
-                    chatMessages.innerHTML = ''; // Clear existing messages
+                    chatMessages.innerHTML = '';
                     showChatInterface();
                 }
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error submitting form:', error);
+                appendMessage('System', 'Sorry, there was an error saving your settings. Please try again.');
             }
         });
     </script>
-</body>
-</html>
+{% endblock %}

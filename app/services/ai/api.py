@@ -1,9 +1,10 @@
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, Union
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+import re
 
 def initialize_client():
     load_dotenv()
@@ -333,11 +334,11 @@ def get_climber_context(climber_id: int) -> Dict[str, Any]:
         return context
 
 DEFAULT_SYSTEM_MESSAGE = """You are Sage, a passionate and inquisitive climbing coach with years of experience in advanced technique, sports science, and performance optimization. 
-You are deeply invested in each climber’s unique context and goals. You never settle for generic advice. 
-Instead, you seek clarifications, ask pointed questions, and tailor your answers to exactly fit each climber’s needs. 
+You are deeply invested in each climber's unique context and goals. You never settle for generic advice. 
+Instead, you seek clarifications, ask pointed questions, and tailor your answers to exactly fit each climber's needs. 
 You value natural conversation flow and encourage deeper dialogue by prompting the user to share whatever additional details might help you provide more targeted coaching strategies. 
 Use precise terminology, maintain a supportive tone, and avoid overly broad statements—always prefer curiosity and open-ended questions to refine understanding 
-of the climber’s situation before offering expert solutions.
+of the climber's situation before offering expert solutions.
 You excel at matching the climber's tone and style in your responses.
 
 -Precise Terminology - if you know the exact term for somehting, use it. Avoid watered down or generic language. Scientific or climbing jargon is acceptable.
@@ -373,37 +374,109 @@ def get_completion(
     messages: Optional[list] = None,
     is_first_message: bool = False,
     temperature: float = 1.0,
-    max_tokens: int = 1500
-) -> str:
+    max_tokens: int = 1500,
+    use_reasoner: bool = False
+) -> Union[str, Tuple[str, str]]:
     client = initialize_client()
     
     try:
-        # Initialize conversation with system message
-        conversation = [{"role": "system", "content": system_message}]
+        print("\n=== Starting API Request ===")
+        print(f"Model: {'deepseek-reasoner' if use_reasoner else 'deepseek-chat'}")
+        print(f"Is First Message: {is_first_message}")
+        print(f"Previous Messages Count: {len(messages) if messages else 0}")
         
-        # Get and add climber context if this is the first message
+        # Get context if this is first message
+        context_str = ""
         if is_first_message and climber_id:
             additional_context = get_climber_context(climber_id)
             context_str = "\n".join(f"- {k}: {v}" for k, v in additional_context.items())
-            # Add context as an assistant message so it's preserved in history
-            conversation.append({
-                "role": "assistant", 
-                "content": f"Here is your climbing context that I'll reference throughout our conversation:\n\n{context_str}"
-            })
-        
-        # Add previous messages if they exist
-        if messages:
-            conversation.extend(messages)
-            
-        # Add current prompt
-        conversation.append({"role": "user", "content": prompt})
+            print("\nContext String Generated:", bool(context_str))
 
+        # Initialize conversation differently based on model
+        if use_reasoner:
+            # Start with system message
+            conversation = [{"role": "system", "content": system_message}]
+            print("\nInitial System Message Added")
+            
+            # For first message, combine context with prompt
+            if is_first_message and context_str:
+                first_message = f"Here is my climbing context:\n\n{context_str}\n\n{prompt}"
+                conversation.append({"role": "user", "content": first_message})
+                print("\nAdded Combined First Message (Context + Prompt)")
+            else:
+                # For subsequent messages, ensure user message comes first after system
+                if messages:
+                    # Find the first user message in history
+                    first_user_msg = next((msg for msg in messages if msg.get('role') == 'user'), None)
+                    if first_user_msg:
+                        conversation.append(first_user_msg)
+                        print("\nAdded First User Message from History")
+                        
+                        # Add remaining messages in order, skipping the first user message
+                        for msg in messages:
+                            if msg != first_user_msg:
+                                conversation.append(msg)
+                                print(f"\nAdded Message: role={msg.get('role')}, content_length={len(msg.get('content', ''))}")
+                
+                # Add current user message
+                conversation.append({"role": "user", "content": prompt})
+                print("\nAdded Current User Message")
+        else:
+            # For regular chat, we can use assistant messages for context
+            conversation = [{"role": "system", "content": system_message}]
+            print("\nInitial System Message Added")
+            
+            if context_str:
+                conversation.append({
+                    "role": "assistant",
+                    "content": f"Here is your climbing context that I'll reference throughout our conversation:\n\n{context_str}"
+                })
+                print("\nContext Added as Assistant Message")
+            
+            # Add previous messages if they exist
+            if messages:
+                print("\nAdding Previous Messages:")
+                filtered_messages = []
+                for i, msg in enumerate(messages):
+                    if isinstance(msg, dict):
+                        # For chat, we can include all fields except reasoning_content
+                        filtered_msg = {k: v for k, v in msg.items() if k != 'reasoning_content'}
+                        filtered_messages.append(filtered_msg)
+                        print(f"Message {i}: role={filtered_msg.get('role')}, content_length={len(filtered_msg.get('content', ''))}")
+                    else:
+                        filtered_messages.append(msg)
+                        print(f"Message {i}: Non-dict message type={type(msg)}")
+                conversation.extend(filtered_messages)
+            
+            # Add current prompt
+            conversation.append({"role": "user", "content": prompt})
+            print("\nAdded Current User Message")
+        
+        print("\nFinal Conversation Structure:")
+        for i, msg in enumerate(conversation):
+            print(f"Message {i}: role={msg.get('role')}, content_length={len(msg.get('content', ''))}")
+        
+        # Create chat completion
+        print("\nSending Request to API...")
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-reasoner" if use_reasoner else "deepseek-chat",
             messages=conversation,
-            temperature=temperature,
             max_tokens=max_tokens
         )
-        return response.choices[0].message.content
+        print("Response Received")
+        
+        if use_reasoner:
+            # Get both reasoning and final response from the model
+            reasoning = response.choices[0].message.reasoning_content
+            final_response = response.choices[0].message.content
+            print(f"\nReasoner Response: reasoning_length={len(reasoning)}, response_length={len(final_response)}")
+            return final_response, reasoning
+        
+        response_content = response.choices[0].message.content
+        print(f"\nChat Response Length: {len(response_content)}")
+        return response_content
     except Exception as e:
+        print(f"\nError in get_completion: {str(e)}")  # Add logging
+        if use_reasoner:
+            return f"Error: {str(e)}", ""
         return f"Error: {str(e)}"

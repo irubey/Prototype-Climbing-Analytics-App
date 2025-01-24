@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "chat_interface.html" import chat_interface %}
+{% from "settings.html" import settings %}
+
+{% block content %}
+{% set template_vars = {
+    'userId': user_id,
+    'data_complete': initial_data_complete,
+    'routes_grade_list': routes_grade_list if routes_grade_list is defined else [],
+    'boulders_grade_list': boulders_grade_list if boulders_grade_list is defined else []
+} %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Include all head content from original sageChat.html -->
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body class="app-layout">
+    <div class="chat-container">
+        {{ settings() }}
+        {{ chat_interface() }}
+    </div>
+
+    <!-- Include shared JavaScript -->
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+    
+    <!-- Initialize template variables -->
+    <script>
+        window.TEMPLATE_VARS = {{ template_vars | tojson | safe }};
+        // Rest of initialization code from original sageChat.html
+    </script>
+</body>
+</html>
+{% endblock %}

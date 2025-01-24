@@ -1,0 +1,29 @@
+{% macro settings() %}
+<div class="onboarding-container" id="onboarding_container" style="display: {{ 'block' if not initial_data_complete else 'none' }}">
+    <div class="form-header">
+        <h2 style="display: flex; align-items: center; gap: 0.5rem;">
+            Welcome to Sage
+            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Sage" style="width: 24px; height: 24px;">
+            Your Climbing Coach
+        </h2>
+        <button type="button" onclick="toggleView()" class="icon-button" title="Toggle Context">
+            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Toggle Context">
+            <span class="label">{% if message_view %}Settings{% else %}Chat{% endif %}</span>
+        </button>
+    </div>
+    <p class="lead">Please tell us about your climbing experience and goals to help Sage provide personalized guidance.</p>
+
+    <!-- Onboarding Form -->
+    <form id="onboarding_form" class="form">
+        <!-- Include all form sections from original onboarding -->
+        {{ form_section('Goals and Preferences', 'climbing_goals', 'additional_notes') }}
+        {{ form_section('Training', training_fields) }}
+        {{ form_section('Core Progression', core_progression_fields) }}
+        <!-- Include remaining sections similarly -->
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Context</button>
+        </div>
+    </form>
+</div>
+{% endmacro %}

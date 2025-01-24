@@ -105,9 +105,9 @@
     <div class="background-overlay"></div>
     <div class="container">
       <main class="content-wrapper spacing-responsive" role="main">
-        <div class="main-content">
+        <div class="main-content user-viz">
           <h1 class="text-sm-center text-md-left" tabindex="0">
-            SendSage
+            SendSage - Visualized logbook
             <br />
             <span class="subtitle">Seek Climbing Wisdom Through Data</span>
           </h1>
@@ -134,6 +134,74 @@
                 type="url"
                 name="profile_url"
                 placeholder="Paste Mtn. Project Profile URL"
+                aria-label="Mountain Project Profile URL"
+                id="profileInput"
+                class="spacing-responsive"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              <div
+                class="error-message"
+                id="errorMessage"
+                role="alert"
+                aria-live="polite"
+              ></div>
+              <div class="button-group grid grid-cols">
+                <button
+                  type="submit"
+                  class="primary-button"
+                  id="submitButton"
+                  aria-label="Analyze climbing data"
+                >
+                  <span class="button-text">Analyze</span>
+                  <span class="loading-spinner" aria-hidden="true"></span>
+                </button>
+                <button
+                  type="button"
+                  class="secondary-button"
+                  id="demoButton"
+                  onclick="tryDemo()"
+                  aria-label="Try demo analysis"
+                >
+                  <span class="button-text">Try Demo</span>
+                  <span class="loading-spinner" aria-hidden="true"></span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        
+        <div class="main-content sage-chat">
+          <h1 class="text-sm-center text-md-left" tabindex="0">
+            SendSage - Chat
+            <br />
+            <span class="subtitle">Chat with the Sage</span>
+          </h1>
+
+          <div class="social-proof" aria-live="polite">
+            <div class="user-count-wrapper">
+              <span class="user-count-label"
+                >Join your
+                <span class="user-count-sage" id="userCount-sage">-</span> fellow climbers
+                chatting with the Sage</span
+              >
+            </div>
+          </div>
+
+          <div class="input-container sage-chat">
+            <form
+              action="/"
+              method="POST"
+              id="sageChatForm"
+              onsubmit="return handleSubmit(event)"
+              class="grid grid-cols"
+            >
+              <input
+                type="url"
+                name="profile_url"
+                placeholder="Type Your Name or Paste Mtn. Project Profile URL"
                 aria-label="Mountain Project Profile URL"
                 id="profileInput"
                 class="spacing-responsive"

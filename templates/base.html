@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag("js", new Date());
+      gtag("config", "G-QLKC35PVJB");
+    </script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SendSage | {% block title %}{% endblock %}</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/brand/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/brand/favicon-16x16.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/brand/apple-touch-icon.png') }}">
+
+    <!-- Base Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Block for page-specific styles -->
+    {% block styles %}{% endblock %}
+  </head>
+
+  <body>
+    <header>
+      <a href="{% block home_link %}{{ url_for('main.userviz', user_id=user_id) }}{% endblock %}" class="home-link" title="Back to Dashboard">
+        <i class="fas fa-home"></i>
+      </a>
+      <h1>{% block header_title %}{% endblock %}</h1>
+      {% block header_buttons %}
+      <div class="auth-nav">
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('main.logout') }}" class="auth-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        {% else %}
+          <a href="{{ url_for('main.login') }}" class="auth-link"><i class="fas fa-sign-in-alt"></i> Login</a>
+          <a href="{{ url_for('main.register') }}" class="auth-link"><i class="fas fa-user-plus"></i> Register</a>
+        {% endif %}
+      </div>
+      <a href="https://www.buymeacoffee.com/irubey" class="buy-coffee-button" target="_blank">
+        <i class="fas fa-coffee"></i> Did I Bring You a Smile?
+      </a>
+      {% endblock %}
+    </header>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+
+    <main class="main-content">
+      <div class="container">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+
+    <footer>
+      <nav class="footer-nav">
+        <a href="{{ url_for('main.userviz', user_id=user_id) }}" class="footer-link">
+          <i class="fas fa-chart-line"></i> Dashboard
+        </a>
+        <a href="{{ url_for('main.terms_and_privacy') }}" class="footer-link">
+          <i class="fas fa-shield-alt"></i> Terms & Privacy
+        </a>
+        <a href="mailto:climbing.analytics@gmail.com" class="footer-link">
+          <i class="fas fa-envelope"></i> Feedback
+        </a>
+      </nav>
+    </footer>
+
+    <!-- Base Scripts -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="{{ url_for('static', filename='js/userManagement.js') }}"></script>
+    
+    <!-- Block for page-specific scripts -->
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

@@ -1,0 +1,166 @@
+
+{% extends "base.html" %}
+{% block title %}SendSage - AI-Powered Climbing Analytics{% endblock %}
+
+{% block content %}
+<div class="landing-container">
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Transform Your Climbing Data into Wisdom</h1>
+      <p class="hero-subtext">Analyze your Mountain Project history with AI and unlock personalized insights</p>
+      <div class="cta-buttons">
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('main.sage_chat', user_id=current_user.id) }}" class="cta-primary">
+            Continue to Dashboard <i class="fas fa-arrow-right"></i>
+          </a>
+        {% else %}
+          <a href="{{ url_for('main.register') }}" class="cta-primary">Get Started Free</a>
+          <a href="#demo" class="cta-secondary">Try Demo</a>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="feature-card">
+      <i class="fas fa-brain"></i>
+      <h3>AI-Powered Analysis</h3>
+      <p>Get personalized training recommendations based on your actual climbing history</p>
+    </div>
+    <div class="feature-card">
+      <i class="fas fa-chart-network"></i>
+      <h3>Visual Progress Tracking</h3>
+      <p>Interactive grade pyramids and performance metrics updated automatically</p>
+    </div>
+    <div class="feature-card">
+      <i class="fas fa-cloud-upload"></i>
+      <h3>Data Integration</h3>
+      <p>Sync with Mountain Project or upload your own training logs</p>
+    </div>
+  </section>
+
+  <section class="pricing" id="pricing">
+    <h2>Simple, Transparent Pricing</h2>
+    <div class="pricing-cards">
+      <div class="price-card basic">
+        <h3>Basic</h3>
+        <div class="price">$1<span>/month</span></div>
+        <ul>
+          <li><i class="fas fa-check"></i> GPT-3.5 Analysis</li>
+          <li><i class="fas fa-check"></i> 25 Daily Messages</li>
+          <li><i class="fas fa-check"></i> Basic Visualizations</li>
+          <li><i class="fas fa-check"></i> 1MB File Uploads</li>
+        </ul>
+        <a href="{{ url_for('main.payment') }}?tier=basic" class="cta-primary">Choose Basic</a>
+      </div>
+      
+      <div class="price-card premium">
+        <h3>Premium</h3>
+        <div class="price">$10<span>/month</span></div>
+        <ul>
+          <li><i class="fas fa-check"></i> GPT-4 Analysis</li>
+          <li><i class="fas fa-check"></i> Unlimited Messages</li>
+          <li><i class="fas fa-check"></i> Advanced Analytics</li>
+          <li><i class="fas fa-check"></i> 10MB File Uploads</li>
+        </ul>
+        <a href="{{ url_for('main.payment') }}?tier=premium" class="cta-primary">Choose Premium</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="demo" id="demo">
+    <div class="demo-content">
+      <h2>See SendSage in Action</h2>
+      <div class="demo-card">
+        <p class="demo-text">"Show me my weakest style and suggest 3 training exercises"</p>
+        <button class="cta-secondary" onclick="tryDemo()">
+          Try Live Demo <i class="fas fa-comment-alt"></i>
+        </button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+.landing-container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.hero {
+  text-align: center;
+  padding: 4rem 0;
+  background: linear-gradient(to right, var(--primary-color), #2a4f5f);
+  color: white;
+  border-radius: 1rem;
+  margin-bottom: 2rem;
+}
+
+.hero h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin: 4rem 0;
+}
+
+.feature-card {
+  text-align: center;
+  padding: 2rem;
+  background: var(--background-light);
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.pricing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.price-card {
+  padding: 2rem;
+  border-radius: 0.5rem;
+  background: var(--background-light);
+  text-align: center;
+}
+
+.demo-card {
+  background: var(--background-light);
+  padding: 2rem;
+  border-radius: 0.5rem;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 2rem;
+  }
+  
+  .cta-buttons {
+    flex-direction: column;
+  }
+}
+</style>
+
+<script>
+function tryDemo() {
+  window.location.href = "/?profile_url=https://www.mountainproject.com/user/200169262/isaac-rubey";
+}
+</script>
+{% endblock %}
+[file content end]

@@ -1,0 +1,42 @@
+{% macro chat_interface() %}
+<div class="chat-interface" id="chat_interface" style="display: {{ 'flex' if initial_data_complete else 'none' }}">
+    <div class="chat-header">
+        <h3>Chat with Sage</h3>
+        <div class="model-toggle">
+            <span class="toggle-label chat-label active">Chat</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="model_toggle">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label reasoner-label">Reasoner</span>
+        </div>
+        <button type="button" onclick="toggleView()" class="icon-button" title="Toggle Context">
+            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Toggle Context">
+            <span class="label">{% if data_complete %}Settings{% else %}Chat{% endif %}</span>
+        </button>
+    </div>
+    <div class="chat-messages" id="chat_messages">
+        <!-- Loading spinner moved outside of chat messages -->
+    </div>
+    <!-- Loading spinner placed between messages and input -->
+    <div class="loading-spinner" id="loading_spinner">
+        <div class="skeleton-message">
+            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Loading...">
+            <div class="skeleton-text">Sage is thinking...</div>
+        </div>
+    </div>
+    <!-- Chat Input Form -->
+    <div class="chat-input-container">
+        <form id="chat_form">
+            <div class="input-group">
+                <input type="text" 
+                       id="user_prompt" 
+                       name="user_prompt" 
+                       class="form-control" 
+                       placeholder="Ask Sage anything about climbing...">
+                <button type="submit" class="btn btn-primary">Send</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endmacro %}
