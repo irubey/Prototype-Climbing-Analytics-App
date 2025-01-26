@@ -7,14 +7,14 @@ class AnalyticsService:
     def __init__(self, db):
         self.db = db
         
-    def get_base_volume_metrics(self, userId: int = None):
+    def get_base_volume_metrics(self, user_id: int = None):
         """Get base volume metrics for a user."""
-        if not userId:
-            raise ValueError("userId must be provided")
+        if not user_id:
+            raise ValueError("user_id must be provided")
             
 
         # Query user ticks
-        user_ticks = UserTicks.query.filter_by(userId=userId).all()
+        user_ticks = UserTicks.query.filter_by(user_id=user_id).all()
 
         
         if not user_ticks:
@@ -39,22 +39,22 @@ class AnalyticsService:
             "favorite_area": favorite_location
         }
 
-    def get_performance_metrics(self, userId: int = None):
+    def get_performance_metrics(self, user_id: int = None):
         """Get performance metrics for a user."""
-        if not userId:
-            raise ValueError("userId must be provided")
+        if not user_id:
+            raise ValueError("user_id must be provided")
             
         # Query highest grades for each discipline
-        sport_highest = SportPyramid.query.filter_by(userId=userId).order_by(SportPyramid.binned_code.desc()).first()
-        trad_highest = TradPyramid.query.filter_by(userId=userId).order_by(TradPyramid.binned_code.desc()).first()
-        boulder_highest = BoulderPyramid.query.filter_by(userId=userId).order_by(BoulderPyramid.binned_code.desc()).first()
+        sport_highest = SportPyramid.query.filter_by(user_id=user_id).order_by(SportPyramid.binned_code.desc()).first()
+        trad_highest = TradPyramid.query.filter_by(user_id=user_id).order_by(TradPyramid.binned_code.desc()).first()
+        boulder_highest = BoulderPyramid.query.filter_by(user_id=user_id).order_by(BoulderPyramid.binned_code.desc()).first()
 
         # Get latest sends from all pyramids
         latest_sends = []
         
         # Get recent sport sends
-        sport_sends = SportPyramid.query.filter_by(userId=userId)\
-            .order_by(SportPyramid.tick_date.desc())\
+        sport_sends = SportPyramid.query.filter_by(user_id=user_id)\
+            .order_by(SportPyramid.first_send_date.desc())\
             .limit(5).all()
         for send in sport_sends:
             latest_sends.append({
@@ -63,12 +63,12 @@ class AnalyticsService:
                 "location": send.location,
                 "num_attempts": send.num_attempts,
                 "discipline": "Sport",
-                "tick_date": send.tick_date
+                "first_send_date": send.first_send_date
             })
 
         # Get recent trad sends
-        trad_sends = TradPyramid.query.filter_by(userId=userId)\
-            .order_by(TradPyramid.tick_date.desc())\
+        trad_sends = TradPyramid.query.filter_by(user_id=user_id)\
+            .order_by(TradPyramid.first_send_date.desc())\
             .limit(5).all()
         for send in trad_sends:
             latest_sends.append({
@@ -77,12 +77,12 @@ class AnalyticsService:
                 "location": send.location,
                 "num_attempts": send.num_attempts,
                 "discipline": "Trad",
-                "tick_date": send.tick_date
+                "first_send_date": send.first_send_date
             })
 
         # Get recent boulder sends
-        boulder_sends = BoulderPyramid.query.filter_by(userId=userId)\
-            .order_by(BoulderPyramid.tick_date.desc())\
+        boulder_sends = BoulderPyramid.query.filter_by(user_id=user_id)\
+            .order_by(BoulderPyramid.first_send_date.desc())\
             .limit(5).all()
         for send in boulder_sends:
             latest_sends.append({
@@ -91,11 +91,11 @@ class AnalyticsService:
                 "location": send.location,
                 "num_attempts": send.num_attempts,
                 "discipline": "Boulder",
-                "tick_date": send.tick_date
+                "first_send_date": send.first_send_date
             })
 
         # Sort all sends by date and take the 5 most recent
-        latest_sends.sort(key=lambda x: x['tick_date'] if x['tick_date'] else datetime.min, reverse=True)
+        latest_sends.sort(key=lambda x: x['first_send_date'] if x['first_send_date'] else datetime.min, reverse=True)
         latest_sends = latest_sends[:5]
 
         return {
@@ -105,13 +105,13 @@ class AnalyticsService:
             "latest_sends": latest_sends
         }
 
-    def get_all_metrics(self, userId: int = None):
+    def get_all_metrics(self, user_id: int = None):
         """Get all metrics for a user."""
-        if not userId:
-            raise ValueError("userId must be provided")
+        if not user_id:
+            raise ValueError("user_id must be provided")
             
 
-        base_metrics = self.get_base_volume_metrics(userId=userId)
-        performance_metrics = self.get_performance_metrics(userId=userId)
+        base_metrics = self.get_base_volume_metrics(user_id=user_id)
+        performance_metrics = self.get_performance_metrics(user_id=user_id)
         
         return {**base_metrics, **performance_metrics} 

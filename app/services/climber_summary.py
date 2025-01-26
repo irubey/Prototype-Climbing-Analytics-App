@@ -1,22 +1,22 @@
 from typing import Dict, Any, List, Optional
-from sqlalchemy import func, desc, case, and_, exists
 from datetime import datetime, timedelta
 from app.models import (
-    UserTicks, 
-    SportPyramid, 
-    TradPyramid, 
-    BoulderPyramid,
     ClimberSummary,
     ClimbingDiscipline,
-    ClimbingStyle,
-    RouteCharacteristic,
+    CruxAngle,
+    CruxEnergyType,
     HoldType,
     SessionLength,
-    db,
     SleepScore,
-    NutritionScore
+    NutritionScore,
+    UserTicks,
+    SportPyramid,
+    TradPyramid,
+    BoulderPyramid
 )
 from app.services.grade_processor import GradeProcessor
+from app.services.database_service import DatabaseService
+from app import db
 
 class UserInputData:
     """Data class for user input fields"""
@@ -62,9 +62,13 @@ class UserInputData:
         # Style preferences
         favorite_angle: Optional[str] = None,
         favorite_hold_types: Optional[str] = None,
-        weakest_style: Optional[str] = None,
-        strongest_style: Optional[str] = None,
+        weakest_angle: Optional[str] = None,
+        strongest_angle: Optional[str] = None,
         favorite_energy_type: Optional[str] = None,
+        strongest_energy_type: Optional[str] = None,
+        weakest_energy_type: Optional[str] = None,
+        strongest_hold_types: Optional[str] = None,
+        weakest_hold_types: Optional[str] = None,
         
         # Lifestyle
         sleep_score: Optional[str] = None,
@@ -111,11 +115,15 @@ class UserInputData:
         self.sends_last_30_days = sends_last_30_days
         
         # Style preferences
-        self.favorite_angle = getattr(ClimbingStyle, favorite_angle) if favorite_angle else None
+        self.favorite_angle = getattr(CruxAngle, favorite_angle) if favorite_angle else None
+        self.strongest_angle = getattr(CruxAngle, strongest_angle) if strongest_angle else None
+        self.weakest_angle = getattr(CruxAngle, weakest_angle) if weakest_angle else None
+        self.favorite_energy_type = getattr(CruxEnergyType, favorite_energy_type) if favorite_energy_type else None
+        self.strongest_energy_type = getattr(CruxEnergyType, strongest_energy_type) if strongest_energy_type else None
+        self.weakest_energy_type = getattr(CruxEnergyType, weakest_energy_type) if weakest_energy_type else None
         self.favorite_hold_types = getattr(HoldType, favorite_hold_types) if favorite_hold_types else None
-        self.weakest_style = getattr(ClimbingStyle, weakest_style) if weakest_style else None
-        self.strongest_style = getattr(ClimbingStyle, strongest_style) if strongest_style else None
-        self.favorite_energy_type = getattr(RouteCharacteristic, favorite_energy_type) if favorite_energy_type else None
+        self.strongest_hold_types = getattr(HoldType, strongest_hold_types) if strongest_hold_types else None
+        self.weakest_hold_types = getattr(HoldType, weakest_hold_types) if weakest_hold_types else None
         
         # Lifestyle
         self.sleep_score = getattr(SleepScore, sleep_score) if sleep_score else None
@@ -129,7 +137,6 @@ class UserInputData:
         result = {}
         for k, v in self.__dict__.items():
             if v is not None:
-                # Convert enum to its value if it's an enum
                 if hasattr(v, 'value'):
                     result[k] = v.value
                 else:
@@ -142,348 +149,207 @@ class ClimberSummaryService:
         self.grade_processor = GradeProcessor()
         self.username = username
 
-    
-        
     def get_grade_from_tick(self, tick: UserTicks) -> str:
         """Get standardized grade from a tick using GradeProcessor."""
-        if not tick:
-            return None
-        return self.grade_processor.get_grade_from_code(tick.binned_code)
+        return self.grade_processor.get_grade_from_code(tick.binned_code) if tick else None
         
     def get_core_progression_metrics(self) -> Dict[str, Any]:
-        """Calculate core progression metrics from UserTicks."""
-        # Get base query for user's ticks
-        user_ticks = UserTicks.query.filter_by(userId=self.user_id)
-        
-        # Calculate highest grades tried
-        highest_sport = user_ticks.filter_by(discipline='sport').order_by(desc(UserTicks.binned_code)).first()
-        highest_trad = user_ticks.filter_by(discipline='trad').order_by(desc(UserTicks.binned_code)).first()
-        highest_boulder = user_ticks.filter_by(discipline='boulder').order_by(desc(UserTicks.binned_code)).first()
-        
-        # Calculate total climbs
-        total_climbs = user_ticks.count()
-        
-        # Calculate favorite style based on most frequent discipline
-        discipline_counts = db.session.query(
-            UserTicks.discipline,
-            func.count(UserTicks.discipline).label('count')
-        ).filter_by(userId=self.user_id).group_by(UserTicks.discipline).order_by(desc('count')).first()
-        
-        # Calculate years climbing (from earliest tick)
-        earliest_tick = user_ticks.order_by(UserTicks.tick_date).first()
-        years_climbing = 0
-        if earliest_tick:
-            years_climbing = (datetime.now().date() - earliest_tick.tick_date).days // 365
-            
-        # Get most frequent crag in the last year
-        year_ago = datetime.now().date() - timedelta(days=365)
-        preferred_crag = db.session.query(
-            UserTicks.location,
-            func.count(UserTicks.location).label('count')
-        ).filter(
-            UserTicks.userId == self.user_id,
-            UserTicks.tick_date >= year_ago
-        ).group_by(UserTicks.location).order_by(desc('count')).first()
-        
+        """Calculate core progression metrics using DatabaseService"""
         return {
-            "highest_sport_grade_tried": self.get_grade_from_tick(highest_sport),
-            "highest_trad_grade_tried": self.get_grade_from_tick(highest_trad),
-            "highest_boulder_grade_tried": self.get_grade_from_tick(highest_boulder),
-            "total_climbs": total_climbs,
-            "favorite_discipline": discipline_counts.discipline if discipline_counts else None,
-            "years_climbing_outside": years_climbing,
-            "preferred_crag_last_year": preferred_crag.location if preferred_crag else None
+            "highest_sport_grade_tried": self.get_grade_from_tick(
+                DatabaseService.get_highest_grade(self.user_id, 'sport')
+            ),
+            "highest_trad_grade_tried": self.get_grade_from_tick(
+                DatabaseService.get_highest_grade(self.user_id, 'trad')
+            ),
+            "highest_boulder_grade_tried": self.get_grade_from_tick(
+                DatabaseService.get_highest_grade(self.user_id, 'boulder')
+            ),
+            "total_climbs": DatabaseService.get_user_ticks_by_id(self.user_id).count(),
+            "favorite_discipline": (discipline_counts := DatabaseService.get_discipline_counts(self.user_id)) 
+                and discipline_counts.discipline,
+            "years_climbing_outside": self._calculate_years_climbing(),
+            "preferred_crag_last_year": (preferred_crag := DatabaseService.get_preferred_crag(self.user_id)) 
+                and preferred_crag.location
         }
+
+    def _calculate_years_climbing(self) -> int:
+        earliest_tick = DatabaseService.get_earliest_tick_date(self.user_id)
+        if earliest_tick and earliest_tick.tick_date:
+            return (datetime.now().date() - earliest_tick.tick_date).days // 365
+        return 0
         
     def get_performance_metrics(self) -> Dict[str, Any]:
-        """Calculate performance metrics from UserTicks."""
-        # Base query for clean sends
-        clean_sends = UserTicks.query.filter_by(
-            userId=self.user_id,
-            send_bool=True
+        """Calculate performance metrics using DatabaseService"""
+        lead_styles = ['Redpoint', 'Onsight', 'Flash', 'Pinkpoint']
+        
+        sport_query = DatabaseService.get_clean_sends(
+            self.user_id, 'sport', lead_styles
         )
-        
-        # Sport clean sends
-        sport_sends = clean_sends.filter_by(discipline='sport')
-        highest_sport_lead = sport_sends.filter(UserTicks.lead_style.in_([
-            'Redpoint',
-            'Onsight',
-            'Flash',
-            'Pinkpoint'
-        ])).order_by(desc(UserTicks.binned_code)).first()
-        
-        tr_sends = clean_sends.filter_by(discipline='trad')
-        highest_tr = tr_sends.order_by(desc(UserTicks.binned_code)).first()
-        
-        # Trad clean sends
-        trad_sends = clean_sends.filter_by(discipline='trad')
-        highest_trad_lead = trad_sends.filter(UserTicks.lead_style.in_([
-            'Redpoint',
-            'Onsight',
-            'Flash',
-            'Pinkpoint'
-        ])).order_by(desc(UserTicks.binned_code)).first()
-        
-        highest_trad_top = trad_sends.filter_by(discipline='trad').order_by(desc(UserTicks.binned_code)).first()
-        
-        # Boulder clean sends
-        highest_boulder = clean_sends.filter_by(discipline='boulder').order_by(desc(UserTicks.binned_code)).first()
-        
-        # Onsight grades
-        sport_onsight = sport_sends.filter_by(lead_style='Onsight').order_by(desc(UserTicks.binned_code)).first()
-        trad_onsight = trad_sends.filter_by(lead_style='Onsight').order_by(desc(UserTicks.binned_code)).first()
-        
-        # Flash grades for boulder
-        boulder_flash = clean_sends.filter_by(
-            discipline='boulder',
-            lead_style='Flash'
-        ).order_by(desc(UserTicks.binned_code)).first()
-        
+        trad_query = DatabaseService.get_clean_sends(
+            self.user_id, 'trad', lead_styles
+        )
+        boulder_query = DatabaseService.get_clean_sends(
+            self.user_id, 'boulder'
+        )
+
         return {
-            "highest_grade_sport_sent_clean_on_lead": self.get_grade_from_tick(highest_sport_lead),
-            "highest_grade_tr_sent_clean": self.get_grade_from_tick(highest_tr),
-            "highest_grade_trad_sent_clean_on_lead": self.get_grade_from_tick(highest_trad_lead),
-            "highest_grade_boulder_sent_clean": self.get_grade_from_tick(highest_boulder),
-            "onsight_grade_sport": self.get_grade_from_tick(sport_onsight),
-            "onsight_grade_trad": self.get_grade_from_tick(trad_onsight),
-            "flash_grade_boulder": self.get_grade_from_tick(boulder_flash)
+            "highest_grade_sport_sent_clean_on_lead": self.get_grade_from_tick(
+                DatabaseService.get_max_clean_send(sport_query)
+            ),
+            "highest_grade_tr_sent_clean": self.get_grade_from_tick(
+                DatabaseService.get_max_clean_send(
+                    DatabaseService.get_clean_sends(self.user_id, 'trad')
+                )
+            ),
+            "highest_grade_trad_sent_clean_on_lead": self.get_grade_from_tick(
+                DatabaseService.get_max_clean_send(trad_query)
+            ),
+            "highest_grade_boulder_sent_clean": self.get_grade_from_tick(
+                DatabaseService.get_max_clean_send(boulder_query)
+            ),
+            "onsight_grade_sport": self.get_grade_from_tick(
+                DatabaseService.get_max_clean_send(
+                    DatabaseService.get_clean_sends(self.user_id, 'sport', ['Onsight'])
+                )
+            ),
+            "onsight_grade_trad": self.get_grade_from_tick(
+                DatabaseService.get_max_clean_send(
+                    DatabaseService.get_clean_sends(self.user_id, 'trad', ['Onsight'])
+                )
+            ),
+            "flash_grade_boulder": self.get_grade_from_tick(
+                DatabaseService.get_max_clean_send(
+                    DatabaseService.get_clean_sends(self.user_id, 'boulder', ['Flash'])
+                )
+            )
         }
         
     def get_style_preferences(self) -> Dict[str, Any]:
-        """Analyze climbing style preferences from Pyramid tables."""
-        # Get all pyramid sends for analysis
-        sport_sends = SportPyramid.query.filter_by(userId=self.user_id)
-        trad_sends = TradPyramid.query.filter_by(userId=self.user_id)
-        boulder_sends = BoulderPyramid.query.filter_by(userId=self.user_id)
+        """Analyze climbing style preferences using DatabaseService"""
+        angle_counts = DatabaseService.get_combined_style_data(self.user_id, 'crux_angle')
+        energy_counts = DatabaseService.get_combined_style_data(self.user_id, 'crux_energy')
         
-        # Analyze favorite angle/style by summing counts across all disciplines
-        style_counts_sport = db.session.query(
-            SportPyramid.route_style,
-            func.count().label('count')
-        ).filter_by(userId=self.user_id).group_by(SportPyramid.route_style)
-        
-        style_counts_trad = db.session.query(
-            TradPyramid.route_style,
-            func.count().label('count')
-        ).filter_by(userId=self.user_id).group_by(TradPyramid.route_style)
-        
-        style_counts_boulder = db.session.query(
-            BoulderPyramid.route_style,
-            func.count().label('count')
-        ).filter_by(userId=self.user_id).group_by(BoulderPyramid.route_style)
-        
-        # Calculate completeness ratio for each discipline
-        def calculate_style_completeness(style_counts_query):
-            style_counts = style_counts_query.all()
-            routes_with_style = sum(count.count for count in style_counts if count.route_style is not None)
-            total_routes = sum(count.count for count in style_counts)
-            return routes_with_style / total_routes if total_routes > 0 else 0
-            
-        sport_completeness = calculate_style_completeness(style_counts_sport)
-        trad_completeness = calculate_style_completeness(style_counts_trad)
-        boulder_completeness = calculate_style_completeness(style_counts_boulder)
-        
-        # Only include disciplines with >80% completeness
-        combined_style_counts = {}
-        for style_count in style_counts_sport.all():
-            if style_count.route_style and sport_completeness > 0.8:
-                combined_style_counts[style_count.route_style] = style_count.count
-                
-        for style_count in style_counts_trad.all():
-            if style_count.route_style and trad_completeness > 0.8:
-                combined_style_counts[style_count.route_style] = combined_style_counts.get(style_count.route_style, 0) + style_count.count
-                
-        for style_count in style_counts_boulder.all():
-            if style_count.route_style and boulder_completeness > 0.8:
-                combined_style_counts[style_count.route_style] = combined_style_counts.get(style_count.route_style, 0) + style_count.count
-        
-        # Get the most frequent style if we have enough data
-        favorite_style = max(combined_style_counts.items(), key=lambda x: x[1])[0] if combined_style_counts else None
-        
-        # Analyze strongest style (highest grade by style)
-        style_grades = {}
-        for style in ClimbingStyle:
-            # Check each discipline for the highest grade in this style
-            highest_sport = sport_sends.filter_by(route_style=style).order_by(desc(SportPyramid.binned_code)).first() if sport_completeness > 0.8 else None
-            highest_trad = trad_sends.filter_by(route_style=style).order_by(desc(TradPyramid.binned_code)).first() if trad_completeness > 0.8 else None
-            highest_boulder = boulder_sends.filter_by(route_style=style).order_by(desc(BoulderPyramid.binned_code)).first() if boulder_completeness > 0.8 else None
-            
-            # Get the highest grade across all disciplines
-            highest_codes = [
-                highest_sport.binned_code if highest_sport else None,
-                highest_trad.binned_code if highest_trad else None,
-                highest_boulder.binned_code if highest_boulder else None
-            ]
-            highest_code = max([code for code in highest_codes if code is not None], default=None)
-            
-            if highest_code is not None:
-                style_grades[style] = highest_code
-                
-        strongest_style = max(style_grades.items(), key=lambda x: x[1])[0] if style_grades else None
-        weakest_style = min(style_grades.items(), key=lambda x: x[1])[0] if style_grades else None
-        
-        # Analyze favorite energy system using a simpler query
-        energy_counts = db.session.query(
-            SportPyramid.route_characteristic,
-            func.count().label('count')
-        ).filter_by(userId=self.user_id).group_by(SportPyramid.route_characteristic).order_by(desc('count')).first()
-        
-        # Initialize hold type counts using enum values
-        hold_type_counts = {hold_type: 0 for hold_type in HoldType}
-        
-        # Combine all pyramid sends
-        all_sends = []
-        all_sends.extend(sport_sends.all())
-        all_sends.extend(trad_sends.all())
-        all_sends.extend(boulder_sends.all())
-        
-        # Count occurrences of each hold type in route names
-        for send in all_sends:
-            route_name_lower = send.route_name.lower() if send.route_name else ""
-            
-            # Check route name for hold type keywords using enum values
-            if "crimp" in route_name_lower:
-                hold_type_counts[HoldType.Crimps] += 1
-            if "sloper" in route_name_lower:
-                hold_type_counts[HoldType.Slopers] += 1
-            if "pocket" in route_name_lower or "mono" in route_name_lower:
-                hold_type_counts[HoldType.Pockets] += 1
-            if "pinch" in route_name_lower:
-                hold_type_counts[HoldType.Pinches] += 1
-            if "crack" in route_name_lower or "splitter" in route_name_lower:
-                hold_type_counts[HoldType.Cracks] += 1
-                    
-        # Calculate hold type completeness ratio
-        filled_hold_types = sum(1 for count in hold_type_counts.values() if count > 0)
-        total_hold_types = len(HoldType)
-        ratio = filled_hold_types / total_hold_types if total_hold_types > 0 else 0
+        favorite_angle = max(angle_counts, key=lambda x: x[1])[0] if angle_counts else None
+        favorite_energy = max(energy_counts, key=lambda x: x[1])[0] if energy_counts else None
 
-        if ratio > 0.5:
-            favorite_hold_type = max(hold_type_counts.items(), key=lambda x: x[1])[0].value
-        else:
-            favorite_hold_type = None
+        # Analyze strongest/weakest angles
+        angle_grades = {}
+        for angle in CruxAngle:
+            grade_data = DatabaseService.get_style_analysis(
+                self.user_id, SportPyramid, 'crux_angle'
+            )
+            grade_data += DatabaseService.get_style_analysis(
+                self.user_id, TradPyramid, 'crux_angle'
+            )
+            grade_data += DatabaseService.get_style_analysis(
+                self.user_id, BoulderPyramid, 'crux_angle'
+            )
+            max_grade = max([g.max_grade for g in grade_data if g.crux_angle == angle], default=0)
+            if max_grade > 0:
+                angle_grades[angle] = max_grade
+
+        strongest_angle = max(angle_grades.items(), key=lambda x: x[1])[0] if angle_grades else None
+        weakest_angle = min(angle_grades.items(), key=lambda x: x[1])[0] if angle_grades else None
+
+        # Analyze energy systems
+        energy_grades = {}
+        for energy in CruxEnergyType:
+            energy_data = DatabaseService.get_style_analysis(
+                self.user_id, SportPyramid, 'crux_energy'
+            )
+            energy_data += DatabaseService.get_style_analysis(
+                self.user_id, TradPyramid, 'crux_energy'
+            )
+            energy_data += DatabaseService.get_style_analysis(
+                self.user_id, BoulderPyramid, 'crux_energy'
+            )
+            max_grade = max([g.max_grade for g in energy_data if g.crux_energy == energy], default=0)
+            if max_grade > 0:
+                energy_grades[energy] = max_grade
+
+        strongest_energy = max(energy_grades.items(), key=lambda x: x[1])[0] if energy_grades else None
+        weakest_energy = min(energy_grades.items(), key=lambda x: x[1])[0] if energy_grades else None
+
+        # Hold type analysis (remains similar as it's in-memory processing)
+        hold_type_counts = self._analyze_hold_types()
+        favorite_hold = max(hold_type_counts.items(), key=lambda x: x[1])[0] if hold_type_counts else None
+        strongest_hold = max(hold_type_counts.items(), key=lambda x: x[1])[0] if hold_type_counts else None
+        weakest_hold = min(hold_type_counts.items(), key=lambda x: x[1])[0] if hold_type_counts else None
 
         return {
-            "favorite_angle": favorite_style.value if favorite_style else None,
-            "strongest_style": strongest_style.value if strongest_style else None,
-            "weakest_style": weakest_style.value if weakest_style else None,
-            "favorite_energy_type": energy_counts.route_characteristic.value if energy_counts and energy_counts.route_characteristic else None,
-            "favorite_hold_types": favorite_hold_type
+            "favorite_angle": favorite_angle.value if favorite_angle else None,
+            "strongest_angle": strongest_angle.value if strongest_angle else None,
+            "weakest_angle": weakest_angle.value if weakest_angle else None,
+            "favorite_energy_type": favorite_energy.value if favorite_energy else None,
+            "strongest_energy_type": strongest_energy.value if strongest_energy else None,
+            "weakest_energy_type": weakest_energy.value if weakest_energy else None,
+            "favorite_hold_types": favorite_hold.value if favorite_hold else None,
+            "strongest_hold_types": strongest_hold.value if strongest_hold else None,
+            "weakest_hold_types": weakest_hold.value if weakest_hold else None
         }
+
+    def _analyze_hold_types(self) -> Dict[HoldType, int]:
+        hold_type_counts = {hold_type: 0 for hold_type in HoldType}
+        all_sends = (
+            DatabaseService.get_pyramids_by_user_id(self.user_id)['sport'] +
+            DatabaseService.get_pyramids_by_user_id(self.user_id)['trad'] +
+            DatabaseService.get_pyramids_by_user_id(self.user_id)['boulder']
+        )
+        
+        for send in all_sends:
+            route_name = (send.route_name or "").lower()
+            if "crimp" in route_name: hold_type_counts[HoldType.Crimps] += 1
+            if "sloper" in route_name: hold_type_counts[HoldType.Slopers] += 1
+            if "pocket" in route_name or "mono" in route_name: hold_type_counts[HoldType.Pockets] += 1
+            if "pinch" in route_name: hold_type_counts[HoldType.Pinches] += 1
+            if "crack" in route_name: hold_type_counts[HoldType.Cracks] += 1
+            
+        return hold_type_counts
         
     def get_grade_pyramids(self) -> Dict[str, Any]:
-        """Calculate grade pyramids for each discipline."""
-        def get_pyramid_data(pyramid_table) -> List[Dict[str, Any]]:
-            """Helper to process pyramid data for a discipline."""
-            pyramid_data = db.session.query(
-                pyramid_table.binned_code,
-                func.count(pyramid_table.id).label('count'),
-                func.max(pyramid_table.tick_date).label('last_sent')
-            ).filter_by(
-                userId=self.user_id
-            ).group_by(
-                pyramid_table.binned_code
-            ).order_by(
-                desc(pyramid_table.binned_code)
-            ).all()
-            
+        """Calculate grade pyramids using DatabaseService"""
+        def process_pyramid(discipline: str) -> List[Dict[str, Any]]:
             return [{
                 "grade": self.grade_processor.get_grade_from_code(entry.binned_code),
                 "num_sends": entry.count,
                 "last_sent": entry.last_sent.strftime('%Y-%m-%d') if entry.last_sent else None
-            } for entry in pyramid_data]
-        
+            } for entry in DatabaseService.get_pyramids_by_user_id(self.user_id)[discipline]]
+
         return {
-            "sport": get_pyramid_data(SportPyramid),
-            "trad": get_pyramid_data(TradPyramid),
-            "boulder": get_pyramid_data(BoulderPyramid)
+            "sport": process_pyramid('sport'),
+            "trad": process_pyramid('trad'),
+            "boulder": process_pyramid('boulder')
         }
         
     def get_recent_activity(self) -> Dict[str, Any]:
-        """Calculate recent activity metrics."""
-        thirty_days_ago = datetime.now() - timedelta(days=30)
-        
-        # Count sends in last 30 days
-        recent_sends = UserTicks.query.filter(
-            UserTicks.userId == self.user_id,
-            UserTicks.tick_date >= thirty_days_ago,
-            UserTicks.send_bool == True
-        ).count()
-        
-        # Get current projects using subquery for routes with sends
-        sent_routes = db.session.query(
-            UserTicks.route_name,
-            UserTicks.location
-        ).filter(
-            UserTicks.userId == self.user_id,
-            UserTicks.send_bool == True
-        ).subquery()
-
-        # Main query for current projects
-        projects = db.session.query(
-            UserTicks.route_name,
-            UserTicks.location,
-            UserTicks.discipline,
-            UserTicks.route_grade,
-            func.count(func.distinct(UserTicks.tick_date)).label('days_tried'),
-            func.sum(
-                case(
-                    (UserTicks.length_category != 'multipitch', UserTicks.pitches),
-                    else_=1
-                )
-            ).label('attempts'),
-            func.max(UserTicks.tick_date).label('last_tried')
-        ).filter(
-            UserTicks.userId == self.user_id,
-            ~exists().where(and_(
-                sent_routes.c.route_name == UserTicks.route_name,
-                sent_routes.c.location == UserTicks.location
-            ))
-        ).group_by(
-            UserTicks.route_name,
-            UserTicks.location,
-            UserTicks.discipline,
-            UserTicks.route_grade
-        ).having(
-            func.count(func.distinct(UserTicks.tick_date)) >= 2
-        ).order_by(
-            desc(func.max(UserTicks.tick_date))
-        ).limit(5).all()
-        
-        project_list = [{
-            "name": p.route_name,
-            "grade": p.route_grade,
-            "discipline": p.discipline.value if p.discipline else None,
-            "location": p.location,
-            "attempts": p.attempts,
-            "days_tried": p.days_tried,
-            "last_tried": p.last_tried.strftime('%Y-%m-%d') if p.last_tried else None
-        } for p in projects]
-
+        """Calculate recent activity metrics using DatabaseService"""
+        projects = DatabaseService.get_current_projects(self.user_id)
         return {
-            "sends_last_30_days": recent_sends,
-            "current_projects": project_list
+            "sends_last_30_days": DatabaseService.get_recent_sends_count(self.user_id),
+            "current_projects": [{
+                "name": p.route_name,
+                "grade": p.route_grade,
+                "discipline": p.discipline.value if p.discipline else None,
+                "location": p.location,
+                "attempts": p.attempts,
+                "days_tried": p.days_tried,
+                "last_tried": p.last_tried.strftime('%Y-%m-%d') if p.last_tried else None
+            } for p in projects]
         }
     
-    def get_recent_favorite_routes(self) -> Dict[str, Any]:
-        """Calculate favorite routes."""
-        favorite_routes = UserTicks.query.filter_by(userId=self.user_id, user_stars=5)\
-            .order_by(
-                (UserTicks.notes != '').desc(),
-                UserTicks.tick_date.desc()
-            )\
-            .limit(10)\
-            .all()
-        return [
-            {
-                "name": route.route_name,
-                "grade": route.route_grade,
-                "discipline": route.discipline.value,
-                "location": route.location,
-                "notes": route.notes
-            }
-            for route in favorite_routes
-        ]
+    def get_recent_favorite_routes(self) -> List[Dict[str, Any]]:
+        """Calculate favorite routes using DatabaseService"""
+        favorite_ticks = DatabaseService.get_user_ticks_by_id(self.user_id).filter_by(user_stars=5)\
+            .order_by((UserTicks.notes != '').desc(), UserTicks.tick_date.desc()).limit(10).all()
+            
+        return [{
+            "name": route.route_name,
+            "grade": route.route_grade,
+            "discipline": route.discipline.value,
+            "location": route.location,
+            "notes": route.notes
+        } for route in favorite_ticks]
 
     def update_summary(self, user_input: Optional[UserInputData] = None):
         """
@@ -502,7 +368,7 @@ class ClimberSummaryService:
         
         # Combine all metrics
         summary_data = {
-            "userId": self.user_id,
+            "user_id": self.user_id,
             "username": self.username,
             **core_metrics,
             **performance_metrics,
@@ -551,7 +417,7 @@ class ClimberSummaryService:
 
 def update_all_summaries():
     """Update summaries for all users, preserving existing user input."""
-    users = db.session.query(UserTicks.userId, UserTicks.username).distinct().all()
+    users = db.session.query(UserTicks.user_id, UserTicks.username).distinct().all()
     for user_id, username in users:
         service = ClimberSummaryService(user_id=user_id, username=username)
         service.update_summary()  # No user input, will preserve existing

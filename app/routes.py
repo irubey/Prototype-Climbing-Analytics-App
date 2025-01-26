@@ -14,6 +14,7 @@ from app.services.climber_summary import ClimberSummaryService, UserInputData
 from app.services.ai.api import get_completion, get_climber_context
 from app.services.auth.auth_service import generate_reset_token, validate_reset_token
 from datetime import date, datetime
+from functools import wraps
 from flask_login import current_user, login_user, logout_user, login_required
 import json
 from app.services.grade_processor import GradeProcessor
@@ -34,7 +35,16 @@ class CustomJSONEncoder(json.JSONEncoder):
         if hasattr(obj, 'value'):  # Handle enum objects
             return obj.value
         return super(CustomJSONEncoder, self).default(obj)
-    
+
+def temp_user_check(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if current_user.payment_status == 'temp_account':
+            flash('Upgrade to a full account to unlock all features', 'warning')
+            return redirect(url_for('main.payment'))
+        return f(*args, **kwargs)
+    return decorated
+
 # Auth Routes--------------------------------
 @main_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -61,24 +71,64 @@ def login():
 @main_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.sage_chat'))
     
     form = RegisterForm()
-
     if form.validate_on_submit():
-        # Access data through form object instead of request.form
-        user = User(
-            email=form.email.data,
-            username=form.username.data,
-            mtn_project_profile_url=form.mtn_project_profile_url.data or None,
-            tier='basic'
-        )
-        user.set_password(form.password.data)
+        try:
+            #check if mtn_project_profile_url already exists
+            if User.query.filter(
+                User.mtn_project_profile_url == form.mtn_project_profile_url.data,
+                User.username.endswith('_temp')
+            ).first():
+                temp_user = User.query.filter(
+                    User.mtn_project_profile_url == form.mtn_project_profile_url.data,
+                    User.username.endswith('_temp')
+                ).first()
+                db.session.delete(temp_user)
+                db.session.commit()
+            
+            # Check if username already exists
+            if User.query.filter_by(username=form.username.data).first():
+                flash('Username already taken', 'danger')
+                return redirect(url_for('main.register'))
+
+            # Create user with registration data
+            user = User(
+                email=form.email.data,
+                username=form.username.data,
+                mtn_project_profile_url=form.mtn_project_profile_url.data,
+                tier='basic',
+                payment_status='unpaid'
+            )
+            user.set_password(form.password.data)
+            
+            db.session.add(user)
+            db.session.commit()
+            login_user(user)
+
+            #delete temp user
+            temp_user = User.query.filter(
+                User.mtn_project_profile_url == form.mtn_project_profile_url.data,
+                User.username.endswith('_temp')
+            ).first()
+            db.session.delete(temp_user)
+            db.session.commit()
+
+            # Process Mountain Project data AFTER registration
+            if user.mtn_project_profile_url:
+                processor = DataProcessor(db.session)
+                processor.process_profile(
+                    profile_url=user.mtn_project_profile_url,
+                    user_id=user.id  # Use registered user's ID
+                )
+            
+            return redirect(url_for('main.payment'))
         
-        db.session.add(user)
-        db.session.commit()
-        login_user(user)
-        return redirect(url_for('main.payment'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Registration error: {str(e)}")
+            flash('Registration failed. Please try again.', 'danger')
     
     return render_template('auth/register.html', form=form)
         
@@ -189,7 +239,7 @@ def payment():
             flash('Payment processing error', 'danger')
             return redirect(url_for('main.payment'))
     
-    return render_template('payment.html',
+    return render_template('payment/payment.html',
                          selected_tier=selected_tier,
                          stripe_public_key=os.getenv('STRIPE_PUBLIC_KEY'),
                          basic_price=os.getenv('STRIPE_PRICE_ID_BASIC'),
@@ -266,115 +316,99 @@ def get_tier_from_subscription(subscription_id):
     return 'basic'
 
 # Landing Page Routes--------------------------------
+
+def extract_username_from_url(url):
+    """Extracts username from Mountain Project URL"""
+    try:
+        return url.strip('/').split('/')[-1]
+    except:
+        return "unknown_climber"
+
+def generate_temp_email(username):
+    """Generates unique temporary email"""
+    base_email = f"{username}@temp.sendsage.com"
+    counter = 1
+    while User.query.filter_by(email=base_email).first():
+        base_email = f"{username}{counter}@temp.sendsage.com"
+        counter += 1
+    return base_email
+
 @main_bp.route("/", methods=['GET', 'POST'])
 def index():
-    # Handle POST requests for Mountain Project processing
     if request.method == 'POST':
-        return handle_profile_submission(request)
-        
-    # GET requests show new landing page
+        profile_url = request.form.get('profile_url')
+        if profile_url:
+            return handle_profile_submission(profile_url)
+        else:
+            flash('Please provide a Mountain Project profile URL', 'danger')
+    
     if current_user.is_authenticated:
         return redirect(url_for('main.sage_chat'))
-    support_count = get_support_count().json['count']
+    
     return render_template('new_index.html', 
                          current_user=current_user,
-                         support_count=support_count)
+                         support_count=get_support_count().json['count'])
 
-def handle_profile_submission(request):
-    profile_url = request.form.get('profile_url')
-    current_app.logger.info(f"Received form data - profile_url: {profile_url}")
-    
-    # Log memory usage at start of request
-    process = psutil.Process(os.getpid())
-    start_memory = process.memory_info().rss / 1024 / 1024
-    current_app.logger.info(f"Memory usage at start: {start_memory:.2f} MB")
-    
-    if not profile_url:
-        current_app.logger.error("No profile_url provided")
-        return jsonify({
-            'error': 'Please provide a Mountain Project profile URL'
-        }), 400
-        
+def handle_profile_submission(profile_url):
+    # Check for existing user with this profile URL
+    existing_user = User.query.filter_by(mtn_project_profile_url=profile_url).first()
+    if existing_user:
+        flash('User already exists, please login', 'danger')
+        return redirect(url_for('main.login'))
+
     try:
-        # Clean the input URL
-        profile_url = profile_url.strip()
-        current_app.logger.info(f"Processing URL after strip: '{profile_url}'")
-        
-        # More flexible URL validation
+        # Clean and validate URL
+        profile_url = profile_url.strip().replace(' ', '%20')
         if 'mountainproject.com/user/' not in profile_url:
-            current_app.logger.error(f"URL validation failed for: '{profile_url}'")
-            return jsonify({
-                'error': 'Please provide a valid Mountain Project profile URL'
-            }), 400
+            flash('Invalid Mountain Project URL format', 'danger')
+            return redirect(url_for('main.index'))
 
-        # Extract user_id from URL
-        try:
-            # URL format: mountainproject.com/user/{user_id}/{username}
-            url_parts = profile_url.split('/')
-            user_id = int(url_parts[-2])  # Convert to int to validate it's a number
-            current_app.logger.info(f"Extracted user_id: {user_id}")
-        except (IndexError, ValueError):
-            current_app.logger.error(f"Failed to extract valid user_id from URL: {profile_url}")
-            return jsonify({
-                'error': 'Invalid Mountain Project URL format'
-            }), 400
+        # Extract username from URL
+        username = extract_username_from_url(profile_url)
+        if not username or username == 'user':
+            flash('Could not extract valid username from URL', 'danger')
+            return redirect(url_for('main.index'))
 
-        # Clean and encode the URL
-        profile_url = profile_url.replace(' ', '%20')
-        current_app.logger.info(f"URL after encoding: '{profile_url}'")
+        # Create temporary user
+        temp_email = generate_temp_email(username)
+        temp_user = User(
+            username=username + '_temp',
+            email=temp_email,
+            mtn_project_profile_url=profile_url,
+            tier='basic',
+            payment_status='temp_account'
+        )
+        temp_user.set_password(os.urandom(24).hex())  # Random password
+        
+        db.session.add(temp_user)
+        db.session.commit()
 
-        # Check if user data exists
-        existing_ticks = UserTicks.query.filter_by(user_id=int(user_id)).first()
-        if existing_ticks:
-            current_app.logger.info(f"Found existing data for user_id: {user_id}")
-            return redirect(url_for('main.userviz', user_id=int(user_id)))
-
-        # If no existing data, process the profile
+        # Process data with database-generated ID
         processor = DataProcessor(db.session)
-        sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username, extracted_user_id = processor.process_profile(profile_url)
+        results = processor.process_profile(profile_url, user_id=temp_user.id)
 
-        # Verify user_id matches
-        if int(extracted_user_id) != int(user_id):
-            current_app.logger.error(f"URL user_id ({user_id}) doesn't match extracted user_id ({extracted_user_id})")
-            return jsonify({
-                'error': 'Invalid user profile URL'
-            }), 400
+        if not results:
+            flash('Failed to process climbing data', 'danger')
+            return redirect(url_for('main.index'))
 
-        # Log memory usage before database operations
-        current_memory = process.memory_info().rss / 1024 / 1024
-        current_app.logger.info(f"Memory usage before DB ops: {current_memory:.2f} MB (Change: {current_memory - start_memory:.2f} MB)")
+        # Save processed data
+        DatabaseService.save_calculated_data({
+            'sport_pyramid': results[0],
+            'trad_pyramid': results[1],
+            'boulder_pyramid': results[2],
+            'user_ticks': results[3]
+        })
 
-        try:
-            # Clear existing data for this user_id
-            DatabaseService.clear_user_data(user_id=int(user_id))
+        login_user(temp_user, remember=False)
+        flash('Welcome to Sendsage!', 'success')
 
-            # Update the calculated data using DatabaseService
-            DatabaseService.save_calculated_data({
-                'sport_pyramid': sport_pyramid,
-                'trad_pyramid': trad_pyramid,
-                'boulder_pyramid': boulder_pyramid,
-                'user_ticks': user_ticks
-            })
-        except Exception as db_error:
-            current_app.logger.error(f"Database operation failed: {str(db_error)}")
-            return jsonify({
-                'error': 'Database operation failed. Please try again.'
-            }), 500
-        
-        # Log final memory usage
-        end_memory = process.memory_info().rss / 1024 / 1024
-        current_app.logger.info(f"Final memory usage: {end_memory:.2f} MB (Total change: {end_memory - start_memory:.2f} MB)")
-        
-        return redirect(url_for('main.userviz', user_id=int(user_id)))
-        
+        return redirect(url_for('main.userviz'))
+
     except Exception as e:
-        current_app.logger.error(f"Error processing request: {str(e)}")
-        # Log memory on error
-        error_memory = process.memory_info().rss / 1024 / 1024
-        current_app.logger.error(f"Memory usage at error: {error_memory:.2f} MB (Change: {error_memory - start_memory:.2f} MB)")
-        return jsonify({
-            'error': 'An error occurred while processing your data. Please try again.'
-        }), 500
+        db.session.rollback()
+        current_app.logger.error(f"Profile processing error: {str(e)}")
+        flash('Error processing your climbing profile', 'danger')
+        return redirect(url_for('main.index'))
 
 @main_bp.route("/api/support-count")
 @cache.cached(timeout=3600)  # Cache for one hour (3600 seconds)
@@ -393,8 +427,7 @@ def terms_and_privacy():
 # User Viz Routes--------------------------------
 @main_bp.route("/userviz")
 def userviz():
-    user_id = request.args.get('user_id')
-
+    user_id = current_user.id
     # Get user data
     user = UserTicks.query.filter_by(user_id=user_id).first()
     if not user:
@@ -436,8 +469,7 @@ def userviz():
 
 @main_bp.route("/performance-pyramid")
 def performance_pyramid():
-    user_id = request.args.get('user_id')
-
+    user_id = current_user.id
     # Get user data
     user = UserTicks.query.filter_by(user_id=user_id).first()
     if not user:
@@ -474,7 +506,7 @@ def performance_pyramid():
 
 @main_bp.route("/base-volume")
 def base_volume():
-    user_id = request.args.get('user_id')
+    user_id = current_user.id
 
     # Get user data
     user = UserTicks.query.filter_by(user_id=user_id).first()
@@ -501,7 +533,7 @@ def base_volume():
 
 @main_bp.route("/progression")
 def progression():
-    user_id = request.args.get('user_id')
+    user_id = current_user.id
 
     # Get user data
     user = UserTicks.query.filter_by(user_id=user_id).first()
@@ -519,8 +551,7 @@ def progression():
 
 @main_bp.route("/when-where")
 def when_where():
-    user_id = request.args.get('user_id')
-
+    user_id = current_user.id
     # Get user data
     user = UserTicks.query.filter_by(user_id=user_id).first()
     if not user:
@@ -535,7 +566,7 @@ def when_where():
 
 @main_bp.route("/pyramid-input", methods=['GET', 'POST'])
 def pyramid_input():
-    user_id = request.args.get('user_id')
+    user_id = current_user.id
 
     # Get user data
     user = UserTicks.query.filter_by(user_id=user_id).first()
@@ -582,7 +613,7 @@ def pyramid_input():
 
 @main_bp.route("/performance-characteristics")
 def performance_characteristics():
-    user_id = request.args.get('user_id')
+    user_id = current_user.id
 
     # Get user data
     user = UserTicks.query.filter_by(user_id=user_id).first()
@@ -667,8 +698,9 @@ def delete_tick(tick_id):
             'error': 'Server error while deleting tick'
         }), 500
 
-@main_bp.route("/refresh-data/<int:user_id>", methods=['POST'])
-def refresh_data(user_id):
+@main_bp.route("/refresh-data", methods=['POST'])
+def refresh_data():
+    user_id = current_user.id
     try:
         # Get user data
         user = UserTicks.query.filter_by(user_id=user_id).first()
@@ -719,8 +751,9 @@ REQUIRED_FIELDS = ['climbing_goals']
 
 @main_bp.route("/sage-chat")
 @login_required
+@temp_user_check
 def sage_chat():
-    user_id = request.args.get('user_id')
+    user_id = current_user.id
     current_app.logger.info(f"Sage chat request for user_id: {user_id}")
     
     # First check if user exists in UserTicks
@@ -775,8 +808,8 @@ def sage_chat():
 
 @main_bp.route("/sage-chat/onboard", methods=['POST'])
 @login_required
-def sage_chat_onboard():
-    user_id = request.args.get('user_id')
+@temp_user_check
+def sage_chat_onboard(user_id):
     summary = ClimberSummary.query.get_or_404(user_id)
     
     try:
@@ -854,8 +887,8 @@ def sage_chat_onboard():
 
 @main_bp.route("/sage-chat/message", methods=['POST'])
 @login_required
-def sage_chat_message():
-    user_id = request.args.get('user_id')
+@temp_user_check
+def sage_chat_message(user_id):
     summary = ClimberSummary.query.get_or_404(user_id)
     
     # Check daily message limit for basic tier users
@@ -922,6 +955,7 @@ def sage_chat_message():
 
 @main_bp.route('/upload', methods=['POST'])
 @login_required
+@temp_user_check
 def upload_file():
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400

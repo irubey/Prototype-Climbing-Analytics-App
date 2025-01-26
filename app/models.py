@@ -36,13 +36,13 @@ class SessionLength(enum.Enum):
     THREE_TO_FOUR_HOURS = "3-4 hours"
     FOUR_PLUS_HOURS = "4+ hours"
     
-class ClimbingStyle(enum.Enum):
+class CruxAngle(enum.Enum):
     Slab = "Slab"
     Vertical = "Vertical"
     Overhang = "Overhang"
     Roof = "Roof"
 
-class RouteCharacteristic(enum.Enum):
+class CruxEnergyType(enum.Enum):
     Power = "Power"
     Power_Endurance = "Power Endurance"
     Endurance = "Endurance"
@@ -151,9 +151,9 @@ class BoulderPyramid(BaseModel):
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.ForeignKey('users.id'))
-    tick_id = db.Column(db.Integer)
+    tick_id = db.Column(db.ForeignKey('user_ticks.id'))
     route_name = db.Column(db.String(255))
-    tick_date = db.Column(db.Date)
+    first_send_date = db.Column(db.Date)
     route_grade = db.Column(db.String(255))
     binned_grade = db.Column(db.String(255))
     binned_code = db.Column(db.Integer)
@@ -166,9 +166,10 @@ class BoulderPyramid(BaseModel):
     season_category = db.Column(db.String(255))
     route_url = db.Column(db.String(255))
     user_grade = db.Column(db.String(255))
-    route_characteristic = db.Column(Enum(RouteCharacteristic))
+    crux_energy = db.Column(Enum(CruxEnergyType))
     num_attempts = db.Column(db.Integer)
-    route_style = db.Column(Enum(ClimbingStyle))
+    num_sends = db.Column(db.Integer)
+    crux_angle = db.Column(Enum(CruxAngle))
 
 class SportPyramid(BaseModel):
     __tablename__ = 'sport_pyramid'
@@ -178,10 +179,10 @@ class SportPyramid(BaseModel):
         db.Index('idx_sport_pyramid_lookup', 'user_id', 'route_name', 'tick_date'),
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tick_id = db.Column(db.Integer)
+    tick_id = db.Column(db.ForeignKey('user_ticks.id'))
     user_id = db.Column(db.ForeignKey('users.id'))
     route_name = db.Column(db.String(255))
-    tick_date = db.Column(db.Date)
+    first_send_date = db.Column(db.Date)
     route_grade = db.Column(db.String(255))
     binned_grade = db.Column(db.String(255))
     binned_code = db.Column(db.Integer)
@@ -194,9 +195,10 @@ class SportPyramid(BaseModel):
     season_category = db.Column(db.String(255))
     route_url = db.Column(db.String(255))
     user_grade = db.Column(db.String(255))
-    route_characteristic = db.Column(Enum(RouteCharacteristic))
+    crux_energy = db.Column(Enum(CruxEnergyType))
     num_attempts = db.Column(db.Integer)
-    route_style = db.Column(Enum(ClimbingStyle))
+    num_sends = db.Column(db.Integer)
+    crux_angle = db.Column(Enum(CruxAngle))
 
 class TradPyramid(BaseModel):
     __tablename__ = 'trad_pyramid'
@@ -205,10 +207,10 @@ class TradPyramid(BaseModel):
         db.Index('idx_trad_pyramid_user_id', 'user_id'),
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tick_id = db.Column(db.Integer)
+    tick_id = db.Column(db.ForeignKey('user_ticks.id'))
     user_id = db.Column(db.ForeignKey('users.id'))
     route_name = db.Column(db.String(255))
-    tick_date = db.Column(db.Date)
+    first_send_date = db.Column(db.Date)
     route_grade = db.Column(db.String(255))
     binned_grade = db.Column(db.String(255))
     binned_code = db.Column(db.Integer)
@@ -221,9 +223,10 @@ class TradPyramid(BaseModel):
     season_category = db.Column(db.String(255))
     route_url = db.Column(db.String(255))
     user_grade = db.Column(db.String(255))
-    route_characteristic = db.Column(Enum(RouteCharacteristic))
+    crux_energy = db.Column(Enum(CruxEnergyType))
     num_attempts = db.Column(db.Integer)
-    route_style = db.Column(Enum(ClimbingStyle))
+    num_sends = db.Column(db.Integer)
+    crux_angle = db.Column(Enum(CruxAngle))
 
 class UserTicks(BaseModel):
     __tablename__ = 'user_ticks'
@@ -233,7 +236,7 @@ class UserTicks(BaseModel):
         db.Index('idx_user_ticks_lookup', 'user_id', 'route_name', 'tick_date'),
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.ForeignKey('users.id'))
+    user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
     route_name = db.Column(db.String(255))
     tick_date = db.Column(db.Date)
     route_grade = db.Column(db.String(255))
@@ -312,11 +315,15 @@ class ClimberSummary(BaseModel):
     current_projects = db.Column(db.JSON)  # List of current projects stored as JSON
     
     # Style preferences
-    favorite_angle = db.Column(Enum(ClimbingStyle, values_callable=lambda x: [e.value for e in x]))
+    favorite_angle = db.Column(Enum(CruxAngle, values_callable=lambda x: [e.value for e in x]))
+    weakest_angle = db.Column(Enum(CruxAngle, values_callable=lambda x: [e.value for e in x]))
+    strongest_angle = db.Column(Enum(CruxAngle, values_callable=lambda x: [e.value for e in x]))
+    favorite_energy_type = db.Column(Enum(CruxEnergyType, values_callable=lambda x: [e.value for e in x]))
+    weakest_energy_type = db.Column(Enum(CruxEnergyType, values_callable=lambda x: [e.value for e in x]))
+    strongest_energy_type = db.Column(Enum(CruxEnergyType, values_callable=lambda x: [e.value for e in x]))
     favorite_hold_types = db.Column(Enum(HoldType, values_callable=lambda x: [e.value for e in x]))
-    weakest_style = db.Column(Enum(ClimbingStyle, values_callable=lambda x: [e.value for e in x]))
-    strongest_style = db.Column(Enum(ClimbingStyle, values_callable=lambda x: [e.value for e in x]))
-    favorite_energy_type = db.Column(Enum(RouteCharacteristic, values_callable=lambda x: [e.value for e in x]))
+    weakest_hold_types = db.Column(Enum(HoldType, values_callable=lambda x: [e.value for e in x]))
+    strongest_hold_types = db.Column(Enum(HoldType, values_callable=lambda x: [e.value for e in x]))
 
     #Lifestyle
     sleep_score = db.Column(Enum(SleepScore, values_callable=lambda x: [e.value for e in x]))

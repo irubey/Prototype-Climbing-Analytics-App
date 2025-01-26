@@ -5,7 +5,6 @@ from typing import Tuple, Dict
 from .grade_processor import GradeProcessor
 from .climb_classifier import ClimbClassifier
 from .pyramid_builder import PyramidBuilder
-from app.models import ClimbingDiscipline
 
 class DataProcessor:
     """Main class that orchestrates the processing of climbing data"""
@@ -15,14 +14,9 @@ class DataProcessor:
         self.classifier = ClimbClassifier()
         self.db_session = db_session
     
-    def process_profile(self, profile_url: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, str, int]:
+    def process_profile(self, profile_url: str, user_id: int, username: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, str, int]:
         """Process a Mountain Project profile URL and return the processed data."""
-        # Extract username and userId from URL
-        username = profile_url.split('/')[-1]
-        
-        # Convert userId to Python int immediately
-        user_id = int(profile_url.split('/')[-2])  # Explicit conversion to Python int
-        
+
         # Download and parse CSV data
         df = self.download_and_parse_csv(profile_url)
         
@@ -92,7 +86,7 @@ class DataProcessor:
         df['send_bool'] = self.classifier.classify_sends(df)
         
         # Process dates
-        df['tick_date'] = pd.to_datetime(df['tick_date'], errors='coerce')
+        df['tick_date'] = pd.to_datetime(df['tick_date'], errors='coerce').dt.date
         df = df.dropna(subset=['tick_date'])
         
         # Process lengths
@@ -108,10 +102,8 @@ class DataProcessor:
         df['location'] = df['location'].apply(lambda x: x.split('>')).apply(lambda x: x[:3])
         df['location'] = df['location'].apply(lambda x: f"{x[-1]}, {x[0]}")
         
-        # Add username and userId
-        df['username'] = username
+        # Add userId
         df['userId'] = user_id
-        df['user_profile_url'] = f"https://www.mountainproject.com/user/{user_id}/{username}"
         
         # Add route_stars
         df['route_stars'] = df['route_stars'].fillna(0) + 1
@@ -200,7 +192,7 @@ class DataProcessor:
         df['notes'] = df['notes'].fillna('').astype(str).str.strip()
         
         # Integer types - using standard Python int
-        df['userId'] = df['userId'].astype('int64').astype(int)  # Convert to Python int
+        df['user_id'] = df['user_id'].astype('int64').astype(int)  # Convert to Python int
         df['pitches'] = df['pitches'].astype('int64').astype(int)
         df['binned_code'] = df['binned_code'].astype('int64').astype(int)
         df['cur_max_rp_sport'] = df['cur_max_rp_sport'].astype('int64').astype(int)
