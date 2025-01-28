@@ -29,7 +29,7 @@
 
   <body>
     <header>
-      <a href="{% block home_link %}{{ url_for('main.userviz', user_id=user_id) }}{% endblock %}" class="home-link" title="Back to Dashboard">
+      <a href="{% block home_link %}{{ url_for('main.index') }}{% endblock %}" class="home-link" title="Back to Dashboard">
         <i class="fas fa-home"></i>
       </a>
       <h1>{% block header_title %}{% endblock %}</h1>
@@ -67,7 +67,7 @@
 
     <footer>
       <nav class="footer-nav">
-        <a href="{{ url_for('main.userviz', user_id=user_id) }}" class="footer-link">
+        <a href="{{ url_for('main.index') }}" class="footer-link">
           <i class="fas fa-chart-line"></i> Dashboard
         </a>
         <a href="{{ url_for('main.terms_and_privacy') }}" class="footer-link">

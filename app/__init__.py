@@ -13,6 +13,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+import stripe
 
 # Initialize Flask extensions
 db = SQLAlchemy()
@@ -24,6 +25,7 @@ mail = Mail()
 login_manager = LoginManager()
 login_manager.login_view = 'main.login'
 bcrypt = Bcrypt()
+stripe.api_version = ' 2024-09-30.acacia'  
 
 from app.models import User
 
@@ -34,10 +36,15 @@ def load_user(user_id):
 def create_app():
     app = Flask(__name__, 
                 template_folder='../templates',
-                static_folder='../static')
+                static_folder='../static',
+                static_url_path='/static')
     
     # Load configuration
     app.config.from_object(Config)
+    
+    # Configure Stripe AFTER loading config
+    stripe.api_key = app.config.get('STRIPE_API_KEY')
+    stripe.max_network_retries = 3  # Recommended for reliability
     
     # Initialize extensions with app
     db.init_app(app)
@@ -51,16 +58,25 @@ def create_app():
     app.register_blueprint(main_bp)
     
     # Set up logging
-    if not os.path.exists('logs'):
-        os.mkdir('logs')
-    
-    file_handler = RotatingFileHandler('logs/climbapp.log', maxBytes=10240000, backupCount=10)
+    logging.basicConfig(level=logging.DEBUG)  # Enable all debug messages
+
+    # Remove existing file handler setup
+    app.logger.handlers.clear()
+
+    # Create new file handler
+    file_handler = RotatingFileHandler(
+        'logs/climbapp.log', 
+        maxBytes=10240000, 
+        backupCount=10
+    )
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
     ))
-    file_handler.setLevel(logging.INFO)
-    app.logger.addHandler(file_handler)
-    app.logger.setLevel(logging.INFO)
+    file_handler.setLevel(logging.DEBUG)
+
+    # Add handler to root logger
+    logging.getLogger().addHandler(file_handler)
+
     app.logger.info('ClimbApp startup')
     
     # Configure WhiteNoise for static files
@@ -105,21 +121,18 @@ def create_app():
                         CREATE SEQUENCE IF NOT EXISTS sport_pyramid_id_seq;
                         CREATE SEQUENCE IF NOT EXISTS trad_pyramid_id_seq;
                         CREATE SEQUENCE IF NOT EXISTS boulder_pyramid_id_seq;
-                        CREATE SEQUENCE IF NOT EXISTS users_id_seq;
                         CREATE SEQUENCE IF NOT EXISTS user_uploads_id_seq;
                         
                         ALTER TABLE user_ticks ALTER COLUMN id SET DEFAULT nextval('user_ticks_id_seq');
                         ALTER TABLE sport_pyramid ALTER COLUMN id SET DEFAULT nextval('sport_pyramid_id_seq');
                         ALTER TABLE trad_pyramid ALTER COLUMN id SET DEFAULT nextval('trad_pyramid_id_seq');
                         ALTER TABLE boulder_pyramid ALTER COLUMN id SET DEFAULT nextval('boulder_pyramid_id_seq');
-                        ALTER TABLE users ALTER COLUMN id SET DEFAULT nextval('users_id_seq');
                         ALTER TABLE user_uploads ALTER COLUMN id SET DEFAULT nextval('user_uploads_id_seq');
     
                         SELECT setval('user_ticks_id_seq', 1, false);
                         SELECT setval('sport_pyramid_id_seq', 1, false);
                         SELECT setval('trad_pyramid_id_seq', 1, false);
                         SELECT setval('boulder_pyramid_id_seq', 1, false);
-                        SELECT setval('users_id_seq', 1, false);
                         SELECT setval('user_uploads_id_seq', 1, false);
                     """))
                     db.session.commit()

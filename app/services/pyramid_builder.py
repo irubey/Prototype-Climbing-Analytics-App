@@ -2,11 +2,12 @@ import pandas as pd
 from typing import Tuple
 from sqlalchemy import text
 
-from app.models import SportPyramid, TradPyramid, BoulderPyramid
+from app.models import SportPyramid, TradPyramid, BoulderPyramid, UserTicks
 from app.services.grade_processor import GradeProcessor
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Explicitly set level
 
 class PyramidBuilderError(Exception):
     """Custom exception for pyramid building errors"""
@@ -120,81 +121,81 @@ class PyramidBuilder:
         self._validate_pyramid(sends_df)
 
         # Final cleanup
+        logger.debug(f"Final pyramid columns before save: {sends_df.columns.tolist()}")
+        logger.debug(f"Sample user_ids: {sends_df['user_id'].head(3).tolist()}")
         return self._finalize_pyramid(sends_df, discipline)
 
+    REQUIRED_COLUMNS = [
+        'id', 'user_id', 'route_name', 'location',
+        'tick_date', 'route_grade', 'binned_code',
+        'discipline', 'notes', 'send_bool'
+    ]
+
     def _process_sends(self, df: pd.DataFrame, discipline: str) -> pd.DataFrame:
         """Process all sends and calculate num_sends/num_attempts"""
+        missing = [col for col in self.REQUIRED_COLUMNS if col not in df.columns]
+        if missing:
+            raise PyramidBuilderError(f"Missing required columns: {missing}")
+
         # Filter to successful sends only
         sends_df = df[df['send_bool']].copy()
         
-        # Group by route/location to count sends and get earliest send date
-        grouped = sends_df.groupby(['route_name', 'location']).agg({
-            'first_send_date': ['min', 'count'],  # First send date and total sends
+        # Group by user_id + route/location
+        grouped = sends_df.groupby(['user_id', 'route_name', 'location']).agg({
+            'tick_date': ['min', 'count'],
             'route_grade': 'first',
             'binned_code': 'first',
             'discipline': 'first',
             'notes': 'first',
-            'id': 'first'  # Retain tick_id for reference
+            'id': 'first'
         }).reset_index()
 
         # Flatten multi-index columns
-        grouped.columns = ['route_name', 'location', 
-                        'first_send_date', 'num_sends',
-                        'route_grade', 'binned_code', 
-                        'discipline', 'notes', 'tick_id']
+        grouped.columns = [
+            'user_id', 'route_name', 'location',
+            'first_send_date', 'num_sends',
+            'route_grade', 'binned_code', 
+            'discipline', 'notes', 'tick_id'
+        ]
 
-        # Calculate total attempts (all ticks, including non-sends)
-        attempts = df.groupby(['route_name', 'location']).size().reset_index(name='num_attempts')
+        # Calculate attempts using pitches and lead style
+        if 'pitches' not in df.columns:
+            df['pitches'] = 1  # Default to 1 pitch if missing
         
-        # Merge sends and attempts
-        merged_df = pd.merge(grouped, attempts, on=['route_name', 'location'], how='left')
-        
-        return merged_df
-
-    def _process_sends(self, df: pd.DataFrame, discipline: str) -> pd.DataFrame:
-        """Process all sends and calculate num_sends/num_attempts"""
-        # Filter to successful sends only
-        sends_df = df[df['send_bool']].copy()
-        
-        # Group by route/location to count sends and get earliest send date
-        grouped = sends_df.groupby(['route_name', 'location']).agg({
-            'tick_date': ['min', 'count'],  # First send date and total sends
-            'route_grade': 'first',
-            'binned_code': 'first',
-            'discipline': 'first',
-            'notes': 'first',
-            'id': 'first'  # Retain tick_id for reference
-        }).reset_index()
-
-        # Flatten multi-index columns
-        grouped.columns = ['route_name', 'location', 
-                        'first_send_date', 'num_sends',
-                        'route_grade', 'binned_code', 
-                        'discipline', 'notes', 'tick_id']
-
-        # Calculate total attempts using new logic
-        # Handle missing pitches (default to 1)
-        df['pitches'] = df['pitches'].fillna(1)
-        
-        # Calculate per-tick contribution to attempts
         df['attempt_contribution'] = df.apply(
-            lambda row: (
-                1 
-                if row['lead_style'] in ['Flash', 'Onsight']
-                else row['pitches'] 
-                if row['length_category'] != 'multipitch'
-                else 1
-            ),
+            lambda row: 1 if row['lead_style'] in ['Flash', 'Onsight'] 
+            else row['pitches'] if row['length_category'] != 'multipitch' 
+            else 1,
             axis=1
         )
         
-        # Sum contributions for each route/location
-        attempts = df.groupby(['route_name', 'location'])['attempt_contribution'].sum().reset_index(name='num_attempts')
+        attempts = df.groupby(['user_id', 'route_name', 'location'])['attempt_contribution'].sum().reset_index(name='num_attempts')
         
-        # Merge sends and attempts
-        merged_df = pd.merge(grouped, attempts, on=['route_name', 'location'], how='left')
+        attempts['user_id'] = attempts['user_id'].astype(int)
+        grouped['user_id'] = grouped['user_id'].astype(int)
         
-        return merged_df
+        sends_df = pd.merge(
+            grouped,
+            attempts,
+            on=['user_id', 'route_name', 'location'],
+            how='left'
+        )
+
+        # Explicitly ensure user_id exists and is integer type
+        if 'user_id' not in sends_df.columns:
+            raise PyramidBuilderError("user_id missing after merge in _process_sends")
+        sends_df['user_id'] = sends_df['user_id'].astype(int)
+
+        # After grouping, check columns
+        logger.debug(f"Grouped columns: {grouped.columns}")
+
+        # After merge
+        logger.debug(f"Merged columns: {sends_df.columns}")
+
+        if 'id' not in sends_df.columns:
+            raise PyramidBuilderError("Missing 'id' column in UserTicks data")
+
+        return sends_df
 
     def _add_pyramid_metadata(self, df: pd.DataFrame, discipline: str):
         """Use GradeProcessor's sorting logic"""
@@ -236,16 +237,20 @@ class PyramidBuilder:
 
     def _finalize_pyramid(self, df: pd.DataFrame, discipline: str) -> pd.DataFrame:
         """Final cleanup and validation"""
-        # Tick ID validation
-        if 'id' not in df.columns:
-            raise PyramidBuilderError("Missing UserTicks ID reference")
-                
-        df['tick_id'] = df['id'].astype(int)
-        df = df.drop(columns=[
-            'id', 'cur_max_rp_sport', 'cur_max_rp_trad', 'tick_date',
-            'cur_max_boulder', 'send_bool', 'sort_grade'
-        ], errors='ignore')
-
+        # Should already have user_id from raw data processing
+        if 'user_id' not in df.columns:
+            raise PyramidBuilderError("Missing user_id in pyramid data")
+        
+        # Verify tick IDs exist before finalization
+        missing_ticks = df[~df['tick_id'].isin(UserTicks.query.with_entities(UserTicks.id))]
+        if not missing_ticks.empty:
+            logger.error(f"Missing tick IDs: {missing_ticks['tick_id'].tolist()}")
+            df = df[df['tick_id'].isin(UserTicks.query.with_entities(UserTicks.id))]
+        
+        logger.debug(f"First 3 tick IDs: {df['tick_id'].head(3).tolist()}")
+        existing = UserTicks.query.filter(UserTicks.id.in_(df['tick_id'])).count()
+        logger.info(f"Found {existing}/{len(df)} valid tick IDs")
+        
         return df
 
     def _validate_pyramid(self, df: pd.DataFrame):

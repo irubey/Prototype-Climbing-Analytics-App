@@ -8,12 +8,13 @@ from app.models import (
     UserUpload
 )
 from app.services import DataProcessor
+from app.services.pyramid_builder import PyramidBuilder
 from app.services.database_service import DatabaseService
 from app.services.analytics_service import AnalyticsService
 from app.services.climber_summary import ClimberSummaryService, UserInputData
 from app.services.ai.api import get_completion, get_climber_context
 from app.services.auth.auth_service import generate_reset_token, validate_reset_token
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import wraps
 from flask_login import current_user, login_user, logout_user, login_required
 import json
@@ -25,6 +26,14 @@ from sqlalchemy.sql import text
 from flask_mail import Message
 from app.forms import LoginForm, RegisterForm
 import stripe
+from app.services.payment.stripe_handler import (
+    handle_checkout_session,
+    handle_subscription_update,
+    handle_subscription_cancellation,
+    handle_payment_failure,
+    get_tier_from_subscription
+)
+import pandas as pd
 
 main_bp = Blueprint('main', __name__)
 
@@ -40,8 +49,11 @@ def temp_user_check(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if current_user.payment_status == 'temp_account':
-            flash('Upgrade to a full account to unlock all features', 'warning')
-            return redirect(url_for('main.payment'))
+            # Add session expiration logic
+            if datetime.now() - current_user.created_at > timedelta(hours=24):
+                logout_user()
+                flash('Temporary session expired', 'warning')
+                return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated
 
@@ -76,51 +88,56 @@ def register():
     form = RegisterForm()
     if form.validate_on_submit():
         try:
-            #check if mtn_project_profile_url already exists
-            if User.query.filter(
-                User.mtn_project_profile_url == form.mtn_project_profile_url.data,
-                User.username.endswith('_temp')
-            ).first():
-                temp_user = User.query.filter(
-                    User.mtn_project_profile_url == form.mtn_project_profile_url.data,
-                    User.username.endswith('_temp')
-                ).first()
-                db.session.delete(temp_user)
+            with db.session.begin_nested():  # Nested transaction
+                profile_url = form.mtn_project_profile_url.data or None
+                
+                # New check: Prevent using URL belonging to existing non-temp user
+                if profile_url:
+                    existing_permanent_user = User.query.filter(
+                        User.mtn_project_profile_url == profile_url,
+                        ~User.username.endswith('_temp')  # Exclude temp users
+                    ).first()
+                    if existing_permanent_user:
+                        flash('This Mountain Project profile is already registered', 'danger')
+                        return redirect(url_for('main.login'))
+
+                # Check for existing temp user only if URL is provided
+                if profile_url:
+                    temp_user = User.query.filter(
+                        User.mtn_project_profile_url == profile_url,
+                        User.username.endswith('_temp')
+                    ).first()
+                    if temp_user:
+                        db.session.delete(temp_user)
+                        db.session.commit()
+            
+            with db.session.begin_nested():  # Separate transaction
+                # Check username uniqueness
+                if User.query.filter_by(username=form.username.data).first():
+                    flash('Username already taken', 'danger')
+                    return redirect(url_for('main.register'))
+
+                # Create new user
+                user = User(
+                    email=form.email.data,
+                    username=form.username.data,
+                    mtn_project_profile_url=profile_url,  # Could be None
+                    tier='basic',
+                    payment_status='unpaid'
+                )
+                user.set_password(form.password.data)
+                db.session.add(user)
                 db.session.commit()
             
-            # Check if username already exists
-            if User.query.filter_by(username=form.username.data).first():
-                flash('Username already taken', 'danger')
-                return redirect(url_for('main.register'))
-
-            # Create user with registration data
-            user = User(
-                email=form.email.data,
-                username=form.username.data,
-                mtn_project_profile_url=form.mtn_project_profile_url.data,
-                tier='basic',
-                payment_status='unpaid'
-            )
-            user.set_password(form.password.data)
-            
-            db.session.add(user)
-            db.session.commit()
             login_user(user)
 
-            #delete temp user
-            temp_user = User.query.filter(
-                User.mtn_project_profile_url == form.mtn_project_profile_url.data,
-                User.username.endswith('_temp')
-            ).first()
-            db.session.delete(temp_user)
-            db.session.commit()
-
-            # Process Mountain Project data AFTER registration
-            if user.mtn_project_profile_url:
+            # Only process profile if URL exists
+            if profile_url:
                 processor = DataProcessor(db.session)
                 processor.process_profile(
-                    profile_url=user.mtn_project_profile_url,
-                    user_id=user.id  # Use registered user's ID
+                    profile_url=profile_url,
+                    user_id=user.id,
+                    username=user.username
                 )
             
             return redirect(url_for('main.payment'))
@@ -210,9 +227,15 @@ def reset_password(token):
 
 # Payment Routes--------------------------------
 
-@main_bp.route('/payment', methods=['GET', 'POST'])
+@main_bp.route('/payment', methods=['GET', 'POST'], endpoint='payment')
 @login_required
 def payment():
+    # Add configuration check
+    if not os.getenv('STRIPE_PUBLIC_KEY') or not os.getenv('STRIPE_PRICE_ID_BASIC'):
+        current_app.logger.error("Missing Stripe configuration")
+        flash('Payment system configuration error', 'danger')
+        return redirect(url_for('main.index'))
+    
     if current_user.payment_status == 'active':
         return redirect(url_for('main.sage_chat'))
 
@@ -245,6 +268,16 @@ def payment():
                          basic_price=os.getenv('STRIPE_PRICE_ID_BASIC'),
                          premium_price=os.getenv('STRIPE_PRICE_ID_PREMIUM'))
 
+@main_bp.route('/payment/success')
+@login_required
+def payment_success():
+    # Immediately update payment status while waiting for webhook
+    if current_user.payment_status in ['unpaid', 'temp_account']:
+        current_user.payment_status = 'pending_verification'
+        db.session.commit()
+    
+    return render_template('payment/success.html')
+
 @main_bp.route('/stripe-webhook', methods=['POST'])
 def stripe_webhook():
     payload = request.get_data(as_text=True)
@@ -262,6 +295,12 @@ def stripe_webhook():
     # Handle multiple event types
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
+        if not handle_checkout_session(session):
+            current_app.logger.error("Failed to handle checkout session")
+            
+    # Add grace period for webhook delays        
+    elif event['type'] == 'checkout.session.async_payment_succeeded':
+        session = event['data']['object']
         handle_checkout_session(session)
     elif event['type'] == 'customer.subscription.updated':
         subscription = event['data']['object']
@@ -275,52 +314,16 @@ def stripe_webhook():
 
     return jsonify({'status': 'success'}), 200
 
-def handle_checkout_session(session):
-    user = User.query.filter_by(stripe_customer_id=session.customer).first()
-    if user:
-        user.payment_status = 'active'
-        user.stripe_subscription_id = session.subscription
-        user.tier = get_tier_from_subscription(session.subscription)
-        db.session.commit()
-
-def handle_subscription_update(subscription):
-    user = User.query.filter_by(stripe_subscription_id=subscription.id).first()
-    if user:
-        user.tier = get_tier_from_subscription(subscription.id)
-        user.payment_status = subscription.status
-        db.session.commit()
-
-def handle_subscription_cancellation(subscription):
-    user = User.query.filter_by(stripe_subscription_id=subscription.id).first()
-    if user:
-        user.payment_status = 'canceled'
-        user.tier = 'basic'
-        db.session.commit()
-
-def handle_payment_failure(invoice):
-    """Handle failed payment attempts"""
-    customer_id = invoice['customer']
-    user = User.query.filter_by(stripe_customer_id=customer_id).first()
-    
-    if user:
-        user.payment_status = 'past_due'
-        db.session.commit()
-        current_app.logger.warning(f"Payment failed for user {user.email}")
-        # Add email notification here
-
-def get_tier_from_subscription(subscription_id):
-    subscription = stripe.Subscription.retrieve(subscription_id)
-    price_id = subscription['items']['data'][0]['price']['id']
-    if price_id == os.getenv('STRIPE_PRICE_ID_PREMIUM'):
-        return 'premium'
-    return 'basic'
-
 # Landing Page Routes--------------------------------
 
 def extract_username_from_url(url):
-    """Extracts username from Mountain Project URL"""
+    """Improved URL parsing"""
     try:
-        return url.strip('/').split('/')[-1]
+        # Handle both numeric IDs and vanity URLs
+        parts = url.strip('/').split('/')
+        if parts[-1].isdigit():
+            return "unknown_climber"
+        return parts[-1].split('?')[0]  # Remove query params
     except:
         return "unknown_climber"
 
@@ -345,70 +348,127 @@ def index():
     if current_user.is_authenticated:
         return redirect(url_for('main.sage_chat'))
     
-    return render_template('new_index.html', 
+    return render_template('index.html', 
                          current_user=current_user,
                          support_count=get_support_count().json['count'])
 
+
+
 def handle_profile_submission(profile_url):
-    # Check for existing user with this profile URL
-    existing_user = User.query.filter_by(mtn_project_profile_url=profile_url).first()
-    if existing_user:
-        flash('User already exists, please login', 'danger')
+    # Modified check: Only look for non-temp users
+    existing_permanent_user = User.query.filter(
+        User.mtn_project_profile_url == profile_url,
+        ~User.username.endswith('_temp')
+    ).first()
+    if existing_permanent_user:
+        flash('Profile already registered. Please login.', 'danger')
         return redirect(url_for('main.login'))
 
-    try:
-        # Clean and validate URL
-        profile_url = profile_url.strip().replace(' ', '%20')
-        if 'mountainproject.com/user/' not in profile_url:
-            flash('Invalid Mountain Project URL format', 'danger')
-            return redirect(url_for('main.index'))
+    # Changed logic for existing temp users
+    existing_temp = User.query.filter(
+        User.mtn_project_profile_url == profile_url,
+        User.username.endswith('_temp')
+    ).first()
 
-        # Extract username from URL
-        username = extract_username_from_url(profile_url)
-        if not username or username == 'user':
-            flash('Could not extract valid username from URL', 'danger')
-            return redirect(url_for('main.index'))
-
-        # Create temporary user
-        temp_email = generate_temp_email(username)
-        temp_user = User(
-            username=username + '_temp',
-            email=temp_email,
-            mtn_project_profile_url=profile_url,
-            tier='basic',
-            payment_status='temp_account'
-        )
-        temp_user.set_password(os.urandom(24).hex())  # Random password
-        
-        db.session.add(temp_user)
-        db.session.commit()
-
-        # Process data with database-generated ID
-        processor = DataProcessor(db.session)
-        results = processor.process_profile(profile_url, user_id=temp_user.id)
-
-        if not results:
-            flash('Failed to process climbing data', 'danger')
-            return redirect(url_for('main.index'))
-
-        # Save processed data
-        DatabaseService.save_calculated_data({
-            'sport_pyramid': results[0],
-            'trad_pyramid': results[1],
-            'boulder_pyramid': results[2],
-            'user_ticks': results[3]
-        })
-
-        login_user(temp_user, remember=False)
-        flash('Welcome to Sendsage!', 'success')
-
+    if existing_temp:
+        login_user(existing_temp, remember=False)
+        flash('Welcome back! Continuing your session', 'success')
         return redirect(url_for('main.userviz'))
 
+    # Clean and validate URL
+    profile_url = profile_url.strip().replace(' ', '%20')
+    if 'mountainproject.com/user/' not in profile_url:
+        flash('Invalid Mountain Project URL format', 'danger')
+        return redirect(url_for('main.index'))
+
+    # Extract username from URL
+    username = extract_username_from_url(profile_url)
+    if not username or username == 'user':
+        flash('Could not extract valid username from URL', 'danger')
+        return redirect(url_for('main.index'))
+
+    # Create temporary user
+    base_username = username.lower()  # Ensure case insensitivity
+    temp_username = f"{base_username}_temp"
+    temp_email = generate_temp_email(username)
+    temp_user = User(
+        username=temp_username,
+        email=temp_email,
+        mtn_project_profile_url=profile_url,
+        tier='basic',
+        payment_status='unpaid'
+    )
+    temp_user.set_password(os.urandom(24).hex())  # Random password
+    
+    db.session.add(temp_user)
+    db.session.commit()
+
+    # Process and save UserTicks FIRST
+    processor = DataProcessor(db.session)
+    user_ticks_df = processor.process_user_ticks(profile_url, temp_user.id, temp_user.username)
+    
+    try:
+        with db.session.begin():
+            DatabaseService._batch_save_dataframe(user_ticks_df, 'user_ticks')
+            
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Profile processing error: {str(e)}")
-        flash('Error processing your climbing profile', 'danger')
+        current_app.logger.error(f"Error saving user_ticks: {str(e)}")
+        flash('An error occurred while saving user ticks. Please try again later.', 'danger')
         return redirect(url_for('main.index'))
+    
+    # After saving UserTicks
+    user_ticks = UserTicks.query.filter_by(user_id=temp_user.id).options(
+        db.load_only(UserTicks.id, UserTicks.user_id, UserTicks.route_name, 
+                    UserTicks.location, UserTicks.tick_date)
+    ).all()
+
+    # Verify IDs exist before pyramid building
+    if not user_ticks:
+        raise ValueError("No UserTicks found after saving")
+    
+    print(f"First tick ID: {user_ticks[0].id}")  # Should show actual database ID
+
+    # After fetching UserTicks
+    user_ticks_df = pd.DataFrame([{
+        'id': t.id,
+        'user_id': t.user_id,
+        'route_name': t.route_name,
+        'location': t.location,
+        'tick_date': t.tick_date,
+        'route_grade': t.route_grade,
+        'binned_code': t.binned_code,
+        'discipline': t.discipline,
+        'notes': t.notes,
+        'send_bool': t.send_bool
+    } for t in user_ticks])
+
+    # Explicitly verify columns before pyramid building
+    print(f"UserTicks DF columns: {user_ticks_df.columns.tolist()}")
+
+    # Before pyramid building
+    required_cols = ['id', 'user_id', 'route_name', 'location']
+    if not all(col in user_ticks_df.columns for col in required_cols):
+        raise ValueError("UserTicks DataFrame missing critical columns")
+
+    # Now build pyramids with database-fetched ticks
+    pyramid_builder = PyramidBuilder()
+    sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(
+        user_ticks_df,  # Use the database-fetched DF with real IDs
+        db.session
+    )
+    
+    # Save pyramids
+    DatabaseService.save_calculated_data({
+        'sport_pyramid': sport_pyramid,
+        'trad_pyramid': trad_pyramid,
+        'boulder_pyramid': boulder_pyramid
+    })
+
+    login_user(temp_user, remember=False)
+    flash('Welcome to Sendsage!', 'success')
+
+    return redirect(url_for('main.userviz'))
 
 @main_bp.route("/api/support-count")
 @cache.cached(timeout=3600)  # Cache for one hour (3600 seconds)
@@ -416,6 +476,23 @@ def get_support_count():
     return jsonify({"count": db.session.query(User.id).distinct().count()})
 
 
+# Logbook Connection Routes--------------------------------
+@main_bp.route("/logbook-connection", methods=['GET', 'POST'])
+def logbook_connection():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.userviz'))
+        
+    if request.method == 'POST':
+        try:
+            profile_url = request.form.get('profile_url')
+            if profile_url:
+                return handle_profile_submission(profile_url)
+            flash('Please provide a Mountain Project profile URL', 'danger')
+        except Exception as e:
+            current_app.logger.error(f"Logbook connection error: {str(e)}")
+            flash('Failed to process profile connection', 'danger')
+            
+    return render_template('logbook_connection.html')
 
 # Terms and Privacy Routes--------------------------------
 @main_bp.route("/terms-privacy")
@@ -427,9 +504,16 @@ def terms_and_privacy():
 # User Viz Routes--------------------------------
 @main_bp.route("/userviz")
 def userviz():
+    if not current_user.is_authenticated:
+        return redirect(url_for('main.logbook_connection'))
+        
+    if not current_user.mtn_project_profile_url:
+        flash('No climbing data associated with account', 'warning')
+        return redirect(url_for('main.logbook_connection'))
+        
     user_id = current_user.id
-    # Get user data
-    user = UserTicks.query.filter_by(user_id=user_id).first()
+    
+    user = User.query.get(user_id)
     if not user:
         return "User not found", 404
         
@@ -457,7 +541,7 @@ def userviz():
     user_ticks_json = json.loads(encoder.encode(user_ticks_data))
     binned_code_dict_json = json.loads(encoder.encode(binned_code_dict_data))
     
-    return render_template('userViz.html', 
+    return render_template('viz/userviz.html', 
                          user_id=user_id,
                          username=user.username,
                          sport_pyramid=sport_pyramid_json,
@@ -703,14 +787,14 @@ def refresh_data():
     user_id = current_user.id
     try:
         # Get user data
-        user = UserTicks.query.filter_by(user_id=user_id).first()
+        user = User.query.filter_by(user_id=user_id).first()
         if not user:
             return jsonify({
                 'error': 'User not found'
             }), 404
 
         # Get the profile URL from user data
-        profile_url = user.user_profile_url
+        profile_url = user.mtn_project_profile_url
         if not profile_url:
             return jsonify({
                 'error': 'Profile URL not found'
@@ -721,13 +805,8 @@ def refresh_data():
         
         # Process the profile
         processor = DataProcessor(db.session)
-        sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks, username, extracted_user_id = processor.process_profile(profile_url)
+        sport_pyramid, trad_pyramid, boulder_pyramid, user_ticks = processor.process_profile(profile_url)
 
-        # Verify user_id matches
-        if int(extracted_user_id) != user_id:
-            return jsonify({
-                'error': 'User ID mismatch during refresh'
-            }), 400
 
         # Update the calculated data using DatabaseService
         DatabaseService.save_calculated_data({
@@ -1046,6 +1125,34 @@ def health_check():
             'timestamp': datetime.now().isoformat()
         }), 500
     
+
+# Add new route for demo login
+@main_bp.route("/demo-login", methods=['POST'])
+def demo_login():
+    demo_user = User.query.get(1)
+    
+    if not demo_user:
+        # Create user
+        demo_user = User(
+            id=1,
+            username='demo_user',
+            email='demo@sendsage.com',
+            tier='premium',
+            payment_status='active',
+            mtn_project_profile_url='https://www.mountainproject.com/demo'
+        )
+        demo_user.set_password(os.urandom(24).hex())
+        db.session.add(demo_user)
+        db.session.commit()
+        
+        # Process data ONLY for new users
+        processor = DataProcessor(db.session)
+        processor.process_demo_data(demo_user.id, demo_user.username)
+    else:
+        db.session.expire_all()
+
+    login_user(demo_user)
+    return redirect(url_for('main.userviz'))
 
 
 

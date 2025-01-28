@@ -1,8 +1,8 @@
 from app.models import (
     db, BinnedCodeDict, BoulderPyramid, SportPyramid, 
-    TradPyramid, UserTicks
+    TradPyramid, UserTicks, ClimberSummary, UserUpload, User
 )
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, IntegrityError
 import pandas as pd
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
@@ -10,7 +10,8 @@ from app.services.pyramid_builder import PyramidBuilder
 import os
 from functools import wraps
 import time
-from sqlalchemy import desc, func, and_, exists, case, query, text
+from sqlalchemy import desc, func, and_, exists, case, text
+from sqlalchemy.orm import Query as BaseQuery
 
 def retry_on_db_error(max_retries=3, delay=1):
     """Decorator to retry database operations on connection errors"""
@@ -41,26 +42,20 @@ class DatabaseService:
     @retry_on_db_error()
     def save_calculated_data(calculated_data: Dict[str, pd.DataFrame]) -> None:
         """Save calculated pyramid and tick data to database"""
-        # Get user_id from any of the dataframes
-        user_id = None
-        for df in calculated_data.values():
-            if not df.empty and 'user_id' in df.columns:
-                user_id = int(df.iloc[0]['user_id'])  # Explicitly convert to int
-                break
+        # Save UserTicks FIRST
+        if 'user_ticks' in calculated_data:
+            DatabaseService._batch_save_dataframe(
+                calculated_data['user_ticks'], 
+                'user_ticks'
+            )
         
-        if user_id is not None:
-            # Clear existing data first
-            DatabaseService.clear_user_data(user_id=user_id)
-        else:
-            raise ValueError("No user_id found in calculated data")
-        
-        # Batch insert new data
-        for table_name, df in calculated_data.items():
-            if not df.empty:
-                # Ensure user_id is int in the DataFrame
-                if 'user_id' in df.columns:
-                    df['user_id'] = df['user_id'].astype('int64').astype(int)
-                DatabaseService._batch_save_dataframe(df, table_name)
+        # Then save pyramids with valid foreign keys
+        for table_name in ['sport_pyramid', 'trad_pyramid', 'boulder_pyramid']:
+            if table_name in calculated_data:
+                DatabaseService._batch_save_dataframe(
+                    calculated_data[table_name], 
+                    table_name
+                )
         
         # Reset sequences if using PostgreSQL
         if 'postgresql' in os.environ.get('DATABASE_URL', ''):
@@ -95,6 +90,35 @@ class DatabaseService:
 
         model_columns = [c.name for c in model_class.__table__.columns]
         
+        # Validate user_id exists
+        if table_name in ['user_ticks', 'sport_pyramid', 'trad_pyramid', 'boulder_pyramid']:
+            if 'user_id' not in df.columns:
+                raise ValueError(f"Missing user_id column in {table_name} data")
+            if df['user_id'].isnull().any():
+                raise ValueError(f"Null user_id found in {table_name} data")
+        
+        if table_name == 'sport_pyramid' or table_name == 'trad_pyramid' or table_name == 'boulder_pyramid' and 'user_id' in df.columns:
+            if df['user_id'].isnull().any():
+                raise ValueError("Null user_id found in pyramid data")
+        if table_name == 'climber_summary' and 'user_id' in df.columns:
+            if df['user_id'].isnull().any():
+                raise ValueError("Null user_id found in climber_summary data")
+        
+        # Validate foreign keys
+        if table_name in ['sport_pyramid', 'trad_pyramid', 'boulder_pyramid']:
+            if 'tick_id' not in df.columns:
+                raise ValueError(f"Missing tick_id in {table_name} data")
+            
+            # Verify tick_ids exist in UserTicks
+            existing_ticks = UserTicks.query.filter(
+                UserTicks.id.in_(df['tick_id'].tolist())
+            ).with_entities(UserTicks.id).all()
+            
+            existing_ids = {t.id for t in existing_ticks}
+            missing = df[~df['tick_id'].isin(existing_ids)]
+            if not missing.empty:
+                raise ValueError(f"Invalid tick_ids found: {missing['tick_id'].tolist()}")
+        
         # Prepare batch of records
         records_to_insert = []
         
@@ -102,16 +126,14 @@ class DatabaseService:
         tick_ids = {}
         if table_name != 'user_ticks' and 'tick_id' not in df.columns:
             conditions = [(row['user_id'], row['route_name'], row['tick_date']) for _, row in df.iterrows()]
-            if conditions:
-                # Build one query to get all tick IDs
-                tick_records = UserTicks.query.filter(
-                    db.tuple_(
-                        UserTicks.user_id,
-                        UserTicks.route_name,
-                        UserTicks.tick_date
-                    ).in_(conditions)
-                ).all()
-                tick_ids = {(t.user_id, t.route_name, t.tick_date): t.id for t in tick_records}
+            tick_records = UserTicks.query.filter(
+                db.tuple_(
+                    UserTicks.user_id,
+                    UserTicks.route_name,
+                    UserTicks.tick_date
+                ).in_(conditions)
+            ).all()
+            tick_ids = {(t.user_id, t.route_name, t.tick_date): t.id for t in tick_records}
 
         # Prepare all records
         for _, row in df.iterrows():
@@ -132,7 +154,13 @@ class DatabaseService:
         # Bulk insert all records
         if records_to_insert:
             db.session.bulk_save_objects(records_to_insert)
-            db.session.commit()
+        
+        # After bulk insert
+        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+            db.session.execute(text(
+                f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), "
+                f"COALESCE((SELECT MAX(id)+1 FROM {table_name}), 1), false)"
+            ))
 
     @staticmethod
     def init_binned_code_dict(binned_code_dict: Dict[int, List[str]]) -> None:
@@ -320,19 +348,20 @@ class DatabaseService:
             # Commit the deletions
             db.session.commit()
             
-            # Reset sequences
-            db.session.execute(text("""
-                SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
-                SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
-                SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
-                SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
-                    COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
-            """))
+            # Get current max ID safely
+            max_id = db.session.query(func.max(User.id)).scalar() or 0
+            new_start = max_id + 1 if max_id > 0 else 1
+            
+            # Reset sequence using PostgreSQL-specific command
+            db.session.execute(text(
+                f"ALTER SEQUENCE users_id_seq RESTART WITH {new_start};"
+            ))
             
             db.session.commit()
+
+            # Add this to ensure complete data isolation
+            ClimberSummary.query.filter_by(user_id=user_id).delete()
+            UserUpload.query.filter_by(user_id=user_id).delete()
         except SQLAlchemyError as e:
             db.session.rollback()
             raise e  # Re-raise the exception after rollback
@@ -367,7 +396,7 @@ class DatabaseService:
         ).group_by(UserTicks.location).order_by(desc('count')).first()
     
     @staticmethod
-    def get_clean_sends(user_id: int, discipline: str, style: list = None) -> query:
+    def get_clean_sends(user_id: int, discipline: str, style: list = None) -> BaseQuery:
         base_query = UserTicks.query.filter_by(
             user_id=user_id,
             send_bool=True,
@@ -378,7 +407,7 @@ class DatabaseService:
         return base_query
 
     @staticmethod
-    def get_max_clean_send(query: query) -> Optional[UserTicks]:
+    def get_max_clean_send(query: BaseQuery) -> Optional[UserTicks]:
         return query.order_by(desc(UserTicks.binned_code)).first()
     
     @staticmethod
@@ -450,3 +479,16 @@ class DatabaseService:
         ).order_by(
             desc(func.max(UserTicks.tick_date))
         ).limit(limit).all()
+
+    @staticmethod
+    def validate_pyramid_data(user_id: int):
+        """Ensure all pyramid entries have valid user relationships"""
+        # Check sport pyramid
+        invalid_sport = db.session.query(SportPyramid).filter(
+            SportPyramid.user_id == user_id,
+            ~exists().where(UserTicks.id == SportPyramid.tick_id)
+        ).first()
+        if invalid_sport:
+            raise IntegrityError(f"Invalid sport pyramid tick: {invalid_sport.tick_id}")
+
+        # Similar checks for trad and boulder pyramids...

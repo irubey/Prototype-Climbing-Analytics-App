@@ -1,4 +1,4 @@
-<!-- templates/payment.html -->
+<!-- templates/payment/payment.html -->
 {% extends "base.html" %}
 
 {% block content %}
@@ -11,6 +11,26 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
+                        <!-- Free Tier -->
+                        <div class="col-md-4 mb-4">
+                            <div class="card h-100 {% if selected_tier == 'free' %}border-primary{% endif %}">
+                                <div class="card-body">
+                                    <h5 class="card-title">Free Forever</h5>
+                                    <h6 class="card-subtitle mb-2 text-muted">Visualization Only</h6>
+                                    <ul class="list-unstyled mt-3">
+                                        <li>✓ 15 Interactive Visualizations</li>
+                                        <li>✓ Mountain Project Ticklist Sync</li>
+                                        <li>✓ Grade Pyramids & Metrics</li>
+                                        <li>✓ Lifetime Progress Tracking</li>
+                                    </ul>
+                                    <a href="{{ url_for('main.logbook_connection') }}" 
+                                       class="btn {% if selected_tier == 'free' %}btn-primary{% else %}btn-outline-primary{% endif %} btn-block">
+                                        Connect Mountain Project
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Basic Tier -->
                         <div class="col-md-6 mb-4">
                             <div class="card h-100 {% if selected_tier == 'basic' %}border-primary{% endif %}">
@@ -22,7 +42,7 @@
                                         <li>✓ 1MB file upload limit</li>
                                         <li>✓ Basic analytics</li>
                                     </ul>
-                                    <form action="{{ url_for('payment', tier='basic') }}" method="POST" class="mt-3">
+                                    <form action="{{ url_for('main.payment', tier='basic') }}" method="POST" class="mt-3">
                                         <button type="submit" class="btn {% if selected_tier == 'basic' %}btn-primary{% else %}btn-outline-primary{% endif %} btn-block">
                                             {% if selected_tier == 'basic' %}Selected{% else %}Select Basic{% endif %}
                                         </button>
@@ -43,7 +63,7 @@
                                         <li>✓ Advanced analytics</li>
                                         <li>✓ Priority support</li>
                                     </ul>
-                                    <form action="{{ url_for('payment', tier='premium') }}" method="POST" class="mt-3">
+                                    <form action="{{ url_for('main.payment', tier='premium') }}" method="POST" class="mt-3">
                                         <button type="submit" class="btn {% if selected_tier == 'premium' %}btn-primary{% else %}btn-outline-primary{% endif %} btn-block">
                                             {% if selected_tier == 'premium' %}Selected{% else %}Select Premium{% endif %}
                                         </button>

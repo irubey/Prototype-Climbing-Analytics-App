@@ -3,7 +3,9 @@ from sqlalchemy import Enum
 from flask_login import UserMixin
 import enum
 from datetime import datetime, UTC, timezone
-from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.sql import text
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
 
 
@@ -48,7 +50,6 @@ class CruxEnergyType(enum.Enum):
     Endurance = "Endurance"
     Technique = "Technique"
 
-
 class HoldType(enum.Enum):
     Crimps = "Crimps"
     Slopers = "Slopers"
@@ -82,12 +83,12 @@ class User(UserMixin, db.Model):
     __table_args__ = (
         db.Index('idx_user_id', 'id'),
         db.Index('idx_user_username', 'username'),
-    db.Index('ix_user_tier', 'tier'),
-    db.Index('ix_user_mtn_project', 'mtn_project_profile_url'),
+        db.Index('ix_user_tier', 'tier'),
+        db.Index('ix_user_mtn_project', 'mtn_project_profile_url')
     )
     
     # Core Authentication
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username = db.Column(db.String(255), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128))
@@ -105,7 +106,7 @@ class User(UserMixin, db.Model):
     last_message_date = db.Column(db.Date)
     
     # Mountain Project Integration
-    mtn_project_profile_url = db.Column(db.String(255))
+    mtn_project_profile_url = db.Column(db.String(255), unique=True)
     mtn_project_last_sync = db.Column(db.DateTime)
     
     # Timestamps
@@ -135,24 +136,23 @@ class UserUpload(db.Model):
         db.Index('idx_user_uploads_user_id', 'user_id'),
     )
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
     filename = db.Column(db.String(255))
     file_size = db.Column(db.Integer)  # Track size for 1MB/10MB limits
     file_type = db.Column(db.String(10))  # 'txt' or 'csv'
     content = db.Column(db.Text)  # Raw text storage for MVP
     uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))    
 
-
 class BoulderPyramid(BaseModel):
     __tablename__ = 'boulder_pyramid'
     __table_args__ = (
-        db.Index('idx_boulder_pyramid_tick_date', 'tick_date'),
+        db.Index('idx_boulder_pyramid_tick_date', 'first_send_date'),
         db.Index('idx_boulder_pyramid_user_id', 'user_id'),
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.ForeignKey('users.id'))
-    tick_id = db.Column(db.ForeignKey('user_ticks.id'))
-    route_name = db.Column(db.String(255))
+    user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
+    tick_id = db.Column(db.ForeignKey('user_ticks.id'), nullable=False)
+    route_name = db.Column(db.String(255), nullable=False)
     first_send_date = db.Column(db.Date)
     route_grade = db.Column(db.String(255))
     binned_grade = db.Column(db.String(255))
@@ -174,14 +174,14 @@ class BoulderPyramid(BaseModel):
 class SportPyramid(BaseModel):
     __tablename__ = 'sport_pyramid'
     __table_args__ = (
-        db.Index('idx_sport_pyramid_tick_date', 'tick_date'),
+        db.Index('idx_sport_pyramid_tick_date', 'first_send_date'),
         db.Index('idx_sport_pyramid_user_id', 'user_id'),
-        db.Index('idx_sport_pyramid_lookup', 'user_id', 'route_name', 'tick_date'),
+        db.Index('idx_sport_pyramid_lookup', 'user_id', 'route_name', 'first_send_date'),
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tick_id = db.Column(db.ForeignKey('user_ticks.id'))
-    user_id = db.Column(db.ForeignKey('users.id'))
-    route_name = db.Column(db.String(255))
+    tick_id = db.Column(db.ForeignKey('user_ticks.id'), nullable=False)
+    user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
+    route_name = db.Column(db.String(255), nullable=False)
     first_send_date = db.Column(db.Date)
     route_grade = db.Column(db.String(255))
     binned_grade = db.Column(db.String(255))
@@ -203,13 +203,13 @@ class SportPyramid(BaseModel):
 class TradPyramid(BaseModel):
     __tablename__ = 'trad_pyramid'
     __table_args__ = (
-        db.Index('idx_trad_pyramid_tick_date', 'tick_date'),
+        db.Index('idx_trad_pyramid_tick_date', 'first_send_date'),
         db.Index('idx_trad_pyramid_user_id', 'user_id'),
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tick_id = db.Column(db.ForeignKey('user_ticks.id'))
-    user_id = db.Column(db.ForeignKey('users.id'))
-    route_name = db.Column(db.String(255))
+    tick_id = db.Column(db.ForeignKey('user_ticks.id'), nullable=False)
+    user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
+    route_name = db.Column(db.String(255), nullable=False)
     first_send_date = db.Column(db.Date)
     route_grade = db.Column(db.String(255))
     binned_grade = db.Column(db.String(255))
@@ -231,9 +231,7 @@ class TradPyramid(BaseModel):
 class UserTicks(BaseModel):
     __tablename__ = 'user_ticks'
     __table_args__ = (
-        db.Index('idx_user_ticks_tick_date', 'tick_date'),
-        db.Index('idx_user_ticks_user_id', 'user_id'),
-        db.Index('idx_user_ticks_lookup', 'user_id', 'route_name', 'tick_date'),
+        db.Index('ix_user_ticks_compound', 'user_id', 'tick_date'),  # UUID + date composite index
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
@@ -260,7 +258,6 @@ class UserTicks(BaseModel):
     notes = db.Column(db.Text)
     route_stars = db.Column(db.Float)
     user_stars = db.Column(db.Float)
-
 
 class ClimberSummary(BaseModel):
     __tablename__ = 'climber_summary'

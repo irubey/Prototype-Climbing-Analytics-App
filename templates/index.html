@@ -1,521 +1,453 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <!-- Google tag (gtag.js) -->
-    <script
-      async
-      defer
-      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
-    ></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
-      }
-      gtag("js", new Date());
-      gtag("config", "G-QLKC35PVJB");
-    </script>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <meta
-      name="description"
-      content="SendSage - Where climbing wisdom meets data. Let our sage analytics transform your Mountain Project data into enlightened insights for your climbing journey."
-    />
-    <meta name="theme-color" content="#2a4f5f" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta
-      name="apple-mobile-web-app-status-bar-style"
-      content="black-translucent"
-    />
+{% extends "base.html" %}
+{% block title %}SendSage - AI-Powered Climbing Analytics{% endblock %}
 
-    <title>SendSage | Climbing Analytics</title>
-
-    <!-- Favicon -->
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="32x32"
-      href="{{ url_for('static', filename='images/brand/favicon-32x32.png') }}"
-    />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="16x16"
-      href="{{ url_for('static', filename='images/brand/favicon-16x16.png') }}"
-    />
-    <link
-      rel="apple-touch-icon"
-      sizes="180x180"
-      href="{{ url_for('static', filename='images/brand/apple-touch-icon.png') }}"
-    />
-
-    <!-- Preconnect to external domains -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <!-- Preload loading screen images -->
-    <link
-      rel="preload"
-      as="image"
-      fetchpriority="high"
-      href="{{ url_for('static', filename='images/loading1.jpg') }}"
-    />
-    <link
-      rel="preload"
-      as="image"
-      href="{{ url_for('static', filename='images/loading2.jpg') }}"
-    />
-    <link
-      rel="preload"
-      as="image"
-      href="{{ url_for('static', filename='images/loading3.jpg') }}"
-    />
-    <link
-      rel="preload"
-      as="image"
-      href="{{ url_for('static', filename='images/loading4.jpg') }}"
-    />
-    <link
-      rel="preload"
-      as="image"
-      href="{{ url_for('static', filename='images/loading5.jpg') }}"
-    />
-
-    <!-- Load fonts -->
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-    />
-
-    <!-- Load CSS -->
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}"
-    />
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/_landingPage.css') }}"
-    />
-    <script src="{{ url_for('static', filename='js/userManagement.js') }}"></script>
-  </head>
-  <body>
-    <div class="background-overlay"></div>
-    <div class="container">
-      <main class="content-wrapper spacing-responsive" role="main">
-        <div class="main-content user-viz">
-          <h1 class="text-sm-center text-md-left" tabindex="0">
-            SendSage - Visualized logbook
-            <br />
-            <span class="subtitle">Seek Climbing Wisdom Through Data</span>
-          </h1>
-
-          <div class="social-proof" aria-live="polite">
-            <div class="user-count-wrapper">
-              <span class="user-count-label"
-                >Join your
-                <span class="user-count" id="userCount">-</span> fellow climbers
-                analyzing their data</span
-              >
-            </div>
-          </div>
-
-          <div class="input-container">
-            <form
-              action="/"
-              method="POST"
-              id="profileForm"
-              onsubmit="return handleSubmit(event)"
-              class="grid grid-cols"
-            >
-              <input
-                type="url"
-                name="profile_url"
-                placeholder="Paste Mtn. Project Profile URL"
-                aria-label="Mountain Project Profile URL"
-                id="profileInput"
-                class="spacing-responsive"
-                autocomplete="off"
-                autocapitalize="off"
-                spellcheck="false"
-              />
-              <div
-                class="error-message"
-                id="errorMessage"
-                role="alert"
-                aria-live="polite"
-              ></div>
-              <div class="button-group grid grid-cols">
-                <button
-                  type="submit"
-                  class="primary-button"
-                  id="submitButton"
-                  aria-label="Analyze climbing data"
-                >
-                  <span class="button-text">Analyze</span>
-                  <span class="loading-spinner" aria-hidden="true"></span>
-                </button>
-                <button
-                  type="button"
-                  class="secondary-button"
-                  id="demoButton"
-                  onclick="tryDemo()"
-                  aria-label="Try demo analysis"
-                >
-                  <span class="button-text">Try Demo</span>
-                  <span class="loading-spinner" aria-hidden="true"></span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-        
-        
-        <div class="main-content sage-chat">
-          <h1 class="text-sm-center text-md-left" tabindex="0">
-            SendSage - Chat
-            <br />
-            <span class="subtitle">Chat with the Sage</span>
-          </h1>
-
-          <div class="social-proof" aria-live="polite">
-            <div class="user-count-wrapper">
-              <span class="user-count-label"
-                >Join your
-                <span class="user-count-sage" id="userCount-sage">-</span> fellow climbers
-                chatting with the Sage</span
-              >
-            </div>
-          </div>
-
-          <div class="input-container sage-chat">
-            <form
-              action="/"
-              method="POST"
-              id="sageChatForm"
-              onsubmit="return handleSubmit(event)"
-              class="grid grid-cols"
-            >
-              <input
-                type="url"
-                name="profile_url"
-                placeholder="Type Your Name or Paste Mtn. Project Profile URL"
-                aria-label="Mountain Project Profile URL"
-                id="profileInput"
-                class="spacing-responsive"
-                autocomplete="off"
-                autocapitalize="off"
-                spellcheck="false"
-              />
-              <div
-                class="error-message"
-                id="errorMessage"
-                role="alert"
-                aria-live="polite"
-              ></div>
-              <div class="button-group grid grid-cols">
-                <button
-                  type="submit"
-                  class="primary-button"
-                  id="submitButton"
-                  aria-label="Analyze climbing data"
-                >
-                  <span class="button-text">Analyze</span>
-                  <span class="loading-spinner" aria-hidden="true"></span>
-                </button>
-                <button
-                  type="button"
-                  class="secondary-button"
-                  id="demoButton"
-                  onclick="tryDemo()"
-                  aria-label="Try demo analysis"
-                >
-                  <span class="button-text">Try Demo</span>
-                  <span class="loading-spinner" aria-hidden="true"></span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </main>
-
-      <footer>
-        <nav class="footer-links">
-          <a href="/contact" class="footer-link">Contact</a>
-          <a href="/terms" class="footer-link">Terms</a>
-          <a href="/privacy" class="footer-link">Privacy</a>
-        </nav>
-      </footer>
+{% block content %}
+<div class="landing-container">
+  <section class="hero">
+    <div class="hero-particles">
+      <div class="particle" style="top:20%; left:10%; width:8px; height:8px; animation-delay:0s"></div>
+      <div class="particle" style="top:40%; left:80%; width:6px; height:6px; animation-delay:2s"></div>
+      <div class="particle" style="top:60%; left:30%; width:10px; height:10px; animation-delay:4s"></div>
     </div>
-
-    <!-- Loading Screen -->
-    <div
-      id="loadingScreen"
-      style="display: none"
-      role="dialog"
-      aria-label="Loading progress"
-    >
-      <div class="loading-overlay"></div>
-      <div class="loading-content">
-        <div class="loading-header">
-          <h2 tabindex="0">Analyzing Your Climbing</h2>
-          <div class="loading-icon">
-            <div class="spinner" aria-hidden="true"></div>
-          </div>
-        </div>
-
-        <div class="loading-stages">
-          <div class="stage" id="stage1">
-            <div class="stage-dot" aria-hidden="true"></div>
-            <span>Fetching data</span>
-          </div>
-          <div class="stage" id="stage2">
-            <div class="stage-dot" aria-hidden="true"></div>
-            <span>Processing routes</span>
-          </div>
-          <div class="stage" id="stage3">
-            <div class="stage-dot" aria-hidden="true"></div>
-            <span>Building metrics</span>
-          </div>
-          <div class="stage" id="stage4">
-            <div class="stage-dot" aria-hidden="true"></div>
-            <span>Preparing viz</span>
-          </div>
-        </div>
-
-        <div
-          class="progress-container"
-          role="progressbar"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <div class="progress-bar">
-            <div class="progress-fill"></div>
-          </div>
-          <p class="loading-status">Processing your data...</p>
-        </div>
+    <div class="hero-content">
+      <h1>Elevate Your Climbing with Send Sage</h1>
+      <p class="hero-subtext">Partner with Sage - your intelligent climbing coach.
+      </br> 
+      Analyze your progress through dynamic visualizations, track performance metrics,
+      and customize tailored training plans crafted from your unique climbing journey.
+      </p>
+      <div class="cta-buttons">
+          <a href="{{ url_for('main.register') }}" class="cta-primary">The Sage Awaits</a>
       </div>
     </div>
+  </section>
 
-    <script>
-      let isLoading = false;
-      let currentStage = 0;
-      const stages = ["stage1", "stage2", "stage3", "stage4"];
-      const stageDelay = 2000; // 2 seconds per stage
+  <section class="features">
+    <div class="feature-card">
+      <i class="fas fa-brain"></i>
+      <h3>AI-Powered Analysis</h3>
+      <p>Get personalized training recommendations based on your actual climbing history</p>
+    </div>
+    <div class="feature-card">
+      <i class="fas fa-chart-line"></i>
+      <h3>Visual Progress Tracking</h3>
+      <p>Interactive grade pyramids and performance metrics updated automatically</p>
+    </div>
+    <div class="feature-card">
+      <i class="fas fa-cloud-upload"></i>
+      <h3>Data Integration</h3>
+      <p>Sync with Mountain Project or upload your own training logs</p>
+    </div>
+  </section>
 
-      // Add function to fetch and display user count
-      async function fetchUserCount() {
-        try {
-          const response = await fetch("/api/support-count");
-          const data = await response.json();
-          const userCountElement = document.getElementById("userCount");
-          userCountElement.textContent = data.count.toLocaleString();
-        } catch (error) {
-          console.error("Error fetching user count:", error);
-        }
-      }
+  <section class="demo" id="demo">
+    <div class="demo-content">
+      <h2>See ProffesorSage in Action</h2>
+      <div class="demo-card">
+        <p class="demo-text">"Show me my weakest style and suggest 3 training exercises"</p>
+      </div>
+    </div>
+  </section>
 
-      // Fetch user count when page loads
-      document.addEventListener("DOMContentLoaded", fetchUserCount);
+  <section class="pricing" id="pricing">
+    <h2>Simple, Transparent Pricing</h2>
+    <div class="pricing-cards">
+      <!-- Free Tier -->
+      <div class="price-card free">
+        <h3>Free Forever</h3>
+        <div class="price-tier">Visualization Only</div>
+        <div class="price">$0<span>/month</span></div>
+        <ul>
+          <li><i class="fas fa-check"></i> 15 Interactive Visualizations</li>
+          <li><i class="fas fa-check"></i> Mountain Project Ticklist Sync</li>
+          <li><i class="fas fa-check"></i> Grade Pyramids & Performance Metrics</li>
+          <li><i class="fas fa-check"></i> Lifetime Progress Tracking</li>
+        </ul>
+        <a href="{{ url_for('main.logbook_connection') }}" class="cta-primary">
+          Connect Mountain Project
+        </a>
+      </div>
 
-      function setLoading(loading) {
-        isLoading = loading;
-        document
-          .getElementById("submitButton")
-          .classList.toggle("loading", loading);
-        document
-          .getElementById("demoButton")
-          .classList.toggle("loading", loading);
-        document.getElementById("profileInput").disabled = loading;
+      <!-- Basic Tier -->
+      <div class="price-card basic">
+        <h3>Basic</h3>
+        <div class="price-tier">Acolyte</div>
+        <div class="price">$1<span>/month</span></div>
+        <ul>
+          <li><i class="fas fa-check"></i> Everything in Free Tier</li>
+          <li><i class="fas fa-check"></i> The Sage -Context Aware AI Coach</li>
+          <li><i class="fas fa-check"></i> 25 Daily Messages</li>
+          <li><i class="fas fa-check"></i> 1MB File Uploads</li>
+        </ul>
+        <a href="{{ url_for('main.payment') }}?tier=basic" class="cta-primary">Choose Basic</a>
+      </div>
 
-        // Update ARIA states
-        document
-          .getElementById("submitButton")
-          .setAttribute("aria-busy", loading);
-        document
-          .getElementById("demoButton")
-          .setAttribute("aria-busy", loading);
-      }
+      <!-- Premium Tier -->
+      <div class="price-card premium">
+        <h3>Premium</h3>
+        <div class="price-tier">Rope Gun</div>
+        <div class="price">$10<span>/month</span></div>
+        <ul>
+          <li><i class="fas fa-check"></i> Everything in Basic Tier</li>
+          <li><i class="fas fa-check"></i> Proffesor Sage - Advanced AI Coach</li>
+          <li><i class="fas fa-check"></i> Unlimited Messages</li>
+          <li><i class="fas fa-check"></i> 10MB File Uploads</li>
+        </ul>
+        <a href="{{ url_for('main.payment') }}?tier=premium" class="cta-primary">Choose Premium</a>
+      </div>
+    </div>
+  </section>
+</div>
 
-      function updateLoadingStages() {
-        if (currentStage < stages.length) {
-          const stageElement = document.getElementById(stages[currentStage]);
-          stageElement.classList.add("active");
-          stageElement.setAttribute("aria-current", "step");
-          currentStage++;
+<style>
+.landing-container {
+  max-width: 1200px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
 
-          // Update progress bar
-          const progress = (currentStage / stages.length) * 100;
-          document
-            .querySelector(".progress-container")
-            .setAttribute("aria-valuenow", progress);
-        }
-      }
+/* Hero Section */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 4rem 1rem;
+  background: linear-gradient(135deg, var(--primary-color), #14303d);
+  margin: 0 0 3rem;
+  text-align: center;
+  color: white;
+  border-radius: 0;
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-      function showLoadingScreen() {
-        const loadingScreen = document.getElementById("loadingScreen");
-        loadingScreen.style.display = "flex";
-        loadingScreen.setAttribute("aria-hidden", "false");
-        currentStage = 0;
-        stages.forEach((stage) => {
-          const element = document.getElementById(stage);
-          element.classList.remove("active");
-          element.removeAttribute("aria-current");
-        });
-        document.querySelector(".progress-fill").style.width = "100%";
-        updateLoadingStages();
-      }
+.hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
 
-      function hideLoadingScreen() {
-        const loadingScreen = document.getElementById("loadingScreen");
-        loadingScreen.style.display = "none";
-        loadingScreen.setAttribute("aria-hidden", "true");
-        document.querySelector(".progress-fill").style.width = "0";
-        currentStage = 0;
-        stages.forEach((stage) => {
-          const element = document.getElementById(stage);
-          element.classList.remove("active");
-          element.removeAttribute("aria-current");
-        });
-      }
+.hero h1 {
+  font-size: 2.5rem;
+  line-height: 1.15;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.5px;
+  animation: fadeInUp 0.8s ease-out;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
 
-      async function submitForm(formData) {
-        try {
-          showLoadingScreen();
+.hero-subtext {
+  font-size: 1.25rem;
+  margin-bottom: 2.5rem;
+  line-height: 1.5;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  animation: fadeInUp 0.8s ease-out 0.2s forwards;
+  opacity: 0;
+}
 
-          // Stage 1: Fetching data
-          updateLoadingStages();
+/* CTA Buttons */
+.cta-buttons {
+  display: flex;
+  flex-direction: column;
+  max-width: 400px;
+  gap: 1.2rem;
+  margin: 0 auto;
+  animation: fadeInUp 0.8s ease-out 0.4s forwards;
+  opacity: 0;
+  position: relative;
+  z-index: 1;
+}
 
-          const response = await fetch("/", {
-            method: "POST",
-            body: formData,
-          });
+.cta-primary, .cta-secondary {
+  padding: 1.2rem 2rem;
+  transition: all 0.3s ease;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
 
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            // Handle JSON response (usually error)
-            const data = await response.json();
-            if (!response.ok) {
-              throw new Error(data.error || "An error occurred. Please try again.");
-            }
-            // Handle successful JSON response if any
-            if (data.redirect) {
-              window.location.href = data.redirect;
-              return;
-            }
-          } else {
-            // Handle redirect
-            const redirectedURL = response.url;
-            const urlParams = new URLSearchParams(new URL(redirectedURL).search);
-            const userId = urlParams.get("userId");
+.cta-primary {
+  background: var(--accent-teal);
+  color: var(--color-white);
+  border: 2px solid var(--accent-teal);
+  font-size: 1.1rem;
+}
 
-            // Set the userId in localStorage if needed
-            if (userId) {
-              localStorage.setItem('currentUserId', userId);
-            }
+.cta-primary:hover {
+  background: transparent;
+  color: var(--accent-teal);
+  transform: translateY(-2px);
+}
 
-            // Stage 2: Processing routes
-            updateLoadingStages();
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+.cta-secondary {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  font-size: 1.1rem;
+  color: var(--color-white);
+}
 
-            // Stage 3: Building metrics
-            updateLoadingStages();
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+.cta-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-white);
+  transform: translateY(-2px);
+}
 
-            // Stage 4: Preparing visualizations
-            updateLoadingStages();
-            await new Promise((resolve) => setTimeout(resolve, 500));
+/* Features Grid */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin: 3rem 0;
+}
 
-            window.location.href = redirectedURL;
-          }
-        } catch (error) {
-          hideLoadingScreen();
-          setLoading(false);
-          showError(error.message);
-        }
-      }
+.feature-card {
+  position: relative;
+  overflow: hidden;
+  padding: 1.5rem;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  transition: transform var(--transition-base);
+}
 
-      function showError(message) {
-        const errorElement = document.getElementById("errorMessage");
-        errorElement.textContent = message;
-        errorElement.style.display = "block";
-        document.getElementById("profileInput").classList.add("error");
-        document.getElementById("profileInput").setAttribute("aria-invalid", "true");
-        
-        // Ensure the error is visible
-        errorElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+.feature-card:hover {
+  transform: translateY(-5px);
+}
 
-      function clearError() {
-        const errorElement = document.getElementById("errorMessage");
-        errorElement.textContent = "";
-        errorElement.style.display = "none";
-        const input = document.getElementById("profileInput");
-        input.classList.remove("error");
-        input.removeAttribute("aria-invalid");
-      }
+.feature-card i {
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  transition: color var(--transition-base);
+}
 
-      async function handleSubmit(event) {
-        event.preventDefault();
-        if (isLoading) return false;
+.feature-card:nth-child(2) i {
+  color: var(--accent-teal);
+}
 
-        const input = document.getElementById("profileInput");
-        const value = input.value.trim();
+/* Demo Section */
+.demo {
+  margin: 4rem 0;
+  position: relative;
+}
 
-        clearError();
+.demo-content {
+  position: relative;
+  z-index: 1;
+}
 
-        if (!value) {
-          showError("Please enter a Mountain Project profile URL");
-          return false;
-        }
+.demo-card {
+  background: linear-gradient(135deg, var(--primary-color), #2a4f5f);
+  color: var(--color-white);
+  padding: 2rem;
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
 
-        if (!value.includes("mountainproject.com/user/")) {
-          showError("Please enter valid URL: mountainproject.com/user/#########");
-          return false;
-        }
+.demo-card::before {
+  content: "";
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+}
 
-        // Validate URL format
-        try {
-          const urlParts = value.split('/');
-          const userId = urlParts[urlParts.indexOf('user') + 1];
-          if (!userId || isNaN(parseInt(userId))) {
-            showError("Invalid Mountain Project URL format. Please check the URL.");
-            return false;
-          }
-        } catch (e) {
-          showError("Invalid URL format. Please check the URL.");
-          return false;
-        }
+.demo-card::after {
+  content: "";
+  position: absolute;
+  bottom: -30px;
+  left: -30px;
+  width: 100px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+}
 
-        setLoading(true);
-        const formData = new FormData();
-        formData.append("profile_url", value);
-        await submitForm(formData);
+.demo-text {
+  font-size: 1.2rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
 
-        return false;
-      }
+/* Pricing Section */
+.pricing {
+  margin: 4rem 0;
+}
 
-      async function tryDemo() {
-        if (isLoading) return;
+.pricing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
 
-        document.getElementById("profileInput").value =
-          "https://www.mountainproject.com/user/200169262/isaac-rubey";
-        const form = document.getElementById("profileForm");
-        const formData = new FormData(form);
+.price-card {
+  position: relative;
+  padding: 2rem;
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  background: var(--color-white);
+  transition: transform var(--transition-base);
+}
 
-        setLoading(true);
-        await submitForm(formData);
-      }
+.price-card:hover {
+  transform: scale(1.02);
+}
 
-      // Remove error state when user starts typing
-      document
-        .getElementById("profileInput")
-        .addEventListener("input", function () {
-          clearError();
-        });
-    </script>
-    <script src="{{ url_for('static', filename='js/loadingScreen.js') }}"></script>
-  </body>
-</html>
+.price-card.free {
+  border-color: var(--accent-teal);
+  box-shadow: var(--shadow-lg);
+}
+
+.price-card.free::after {
+  content: "Popular";
+  position: absolute;
+  top: -12px;
+  right: 20px;
+  background: var(--accent-teal);
+  color: var(--color-white);
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.price-card.basic {
+  border-color: var(--accent);
+}
+
+.price-card.premium {
+  border-color: var(--secondary);
+}
+
+.price-tier {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.price {
+  font-size: 2.5rem;
+  margin: 1rem 0;
+}
+
+.pricing-cards .cta-primary {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+/* Animated Background Elements */
+.hero::before,
+.hero::after {
+  content: "";
+  position: absolute;
+  animation: float 20s infinite linear;
+}
+
+.hero::before {
+  top: -50px;
+  right: -50px;
+  width: 150px;
+  height: 150px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%;
+}
+
+.hero::after {
+  bottom: -50px;
+  left: -50px;
+  width: 150px;
+  height: 150px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+}
+
+/* Particle Effects */
+.hero-particles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.particle {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  animation: particleFloat 15s infinite linear;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-20px) rotate(2deg); }
+  50% { transform: translateY(10px) rotate(-2deg); }
+  75% { transform: translateY(-10px) rotate(3deg); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes particleFloat {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  50% { opacity: 0.3; }
+  100% { transform: translateY(-100vh) translateX(50vw); opacity: 0; }
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .hero {
+    min-height: 60vh;
+    padding: 2rem 1rem;
+  }
+  
+  .hero h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+  }
+  
+  .hero-subtext {
+    font-size: 1.1rem;
+  }
+  
+  .cta-primary,
+  .cta-secondary {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero h1 {
+    font-size: 1.8rem;
+  }
+  
+  .hero-subtext {
+    font-size: 1rem;
+  }
+}
+</style>
+{% endblock %}

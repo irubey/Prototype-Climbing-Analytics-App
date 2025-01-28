@@ -55,7 +55,7 @@
   <body data-username="{{ username }}">
     <header>
       <a
-        href="{{ url_for('index') }}"
+        href="{{ url_for('main.index') }}"
         class="home-link"
         title="Back to Homepage"
       >
@@ -64,7 +64,7 @@
       <h1>{{ username }}</h1>
       <div class="header-buttons">
         <a
-          href="{{ url_for('sage_chat', userId=userId) }}"
+          href="{{ url_for('main.sage_chat', userId=userId) }}"
           class="sage-chat-button"
           title="Chat with Sage"
         >
@@ -72,7 +72,7 @@
           Chat with Sage
         </a>
         <form
-          action="{{ url_for('refresh_data', userId=userId) }}"
+          action="{{ url_for('main.refresh_data', userId=userId) }}"
           method="POST"
           style="display: inline"
         >
@@ -127,7 +127,7 @@
           <div class="links-row">
             <div class="card">
               <a
-                href="{{ url_for('base_volume', userId=userId) }}"
+                href="{{ url_for('main.base_volume', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -145,7 +145,7 @@
 
             <div class="card">
               <a
-                href="{{ url_for('progression', userId=userId) }}"
+                href="{{ url_for('main.progression', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -163,7 +163,7 @@
 
             <div class="card">
               <a
-                href="{{ url_for('when_where', userId=userId) }}"
+                href="{{ url_for('main.when_where', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -250,7 +250,7 @@
                   data before viewing the visualizations below.
                 </p>
                 <a
-                  href="{{ url_for('pyramid_input', userId=userId)}}"
+                  href="{{ url_for('main.pyramid_input', userId=userId)}}"
                   class="accent-button"
                 >
                   <i class="fas fa-edit"></i> Edit Performance Data
@@ -260,7 +260,7 @@
 
             <div class="card performance-card">
               <a
-                href="{{ url_for('performance_pyramid', userId=userId) }}"
+                href="{{ url_for('main.performance_pyramid', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -277,7 +277,7 @@
 
             <div class="card performance-card">
               <a
-                href="{{ url_for('performance_characteristics', userId=userId) }}"
+                href="{{ url_for('main.performance_characteristics', userId=userId) }}"
                 class="card-link"
               >
                 <h3>
@@ -374,10 +374,10 @@
 
     <footer>
       <nav class="footer-nav">
-        <a href="{{ url_for('index') }}" class="footer-link">
+        <a href="{{ url_for('main.index') }}" class="footer-link">
           <i class="fas fa-home"></i> Home
         </a>
-        <a href="{{ url_for('terms_and_privacy') }}" class="footer-link">
+        <a href="{{ url_for('main.terms_and_privacy') }}" class="footer-link">
           <i class="fas fa-shield-alt"></i> Terms & Privacy
         </a>
         <a href="mailto:climbing.analytics@gmail.com" class="footer-link">

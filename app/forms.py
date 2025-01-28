@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, SelectField, TextAreaField, IntegerField, DateField
-from wtforms.validators import DataRequired, Email, EqualTo, Optional, NumberRange, validators
+from wtforms.validators import DataRequired, Email, EqualTo, Optional, NumberRange, InputRequired, ValidationError
 from app.models import (ClimbingDiscipline, SessionLength, CruxAngle,
                        CruxEnergyType, HoldType, SleepScore, NutritionScore)
 from app.services.grade_processor import GradeProcessor
@@ -97,34 +97,34 @@ class ClimberSummaryForm(FlaskForm):
 
 class PyramidEntryForm(FlaskForm):
     # Required fields
-    route_name = StringField('Route Name', validators=[validators.DataRequired()])
+    route_name = StringField('Route Name', validators=[DataRequired()])
     discipline = SelectField('Discipline', choices=[
         ('', 'Select Discipline'),
         ('sport', 'Sport'),
         ('trad', 'Trad'), 
         ('boulder', 'Boulder')
-    ], validators=[validators.DataRequired()])
-    route_grade = StringField('Route Grade', validators=[validators.DataRequired()])
+    ], validators=[DataRequired()])
+    route_grade = StringField('Route Grade', validators=[DataRequired()])
     
     # Optional fields with validation
     first_send_date = DateField('First Send Date', default=date.today(),
-                               validators=[validators.Optional()])
+                               validators=[Optional()])
     length = IntegerField('Length (meters)', validators=[
-        validators.Optional(),
-        validators.NumberRange(min=0, max=1000)
+        Optional(),
+        NumberRange(min=0, max=1000)
     ])
     num_attempts = IntegerField('Attempts', default=1, validators=[
-        validators.NumberRange(min=1)
+        NumberRange(min=1)
     ])
     num_sends = IntegerField('Sends', default=1, validators=[
-        validators.NumberRange(min=1)
+        NumberRange(min=1)
     ])
     crux_energy = SelectField('Crux Energy Type',
         choices=[(e.name, e.value) for e in CruxEnergyType] + [('', 'Not Specified')],
-        validators=[validators.Optional()])
+        validators=[Optional()])
     crux_angle = SelectField('Crux Angle',
         choices=[(a.name, a.value) for a in CruxAngle] + [('', 'Not Specified')],
-        validators=[validators.Optional()])
+        validators=[Optional()])
     location = StringField('Location')
     
     submit = SubmitField('Save Route')
@@ -140,4 +140,4 @@ class PyramidEntryForm(FlaskForm):
         grade = field.data
         valid_grades = GradeProcessor().routes_grade_list + GradeProcessor().boulders_grade_list
         if grade not in valid_grades:
-            raise validators.ValidationError('Invalid climbing grade format')
+            raise ValidationError('Invalid climbing grade format')

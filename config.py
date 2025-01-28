@@ -56,3 +56,12 @@ class Config:
     MAIL_USERNAME = os.environ.get('GMAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('GMAIL_DEFAULT_SENDER')
+
+    # Stripe configuration
+    STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
+    STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
+    STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY')
+    STRIPE_PRICE_ID_BASIC = os.environ.get('STRIPE_PRICE_ID_BASIC')
+    STRIPE_PRICE_ID_PREMIUM = os.environ.get('STRIPE_PRICE_ID_PREMIUM')
+
+    LOG_LEVEL = 'DEBUG'

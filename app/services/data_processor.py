@@ -5,6 +5,11 @@ from typing import Tuple, Dict
 from .grade_processor import GradeProcessor
 from .climb_classifier import ClimbClassifier
 from .pyramid_builder import PyramidBuilder
+from .database_service import DatabaseService
+from app.models import UserTicks
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DataProcessor:
     """Main class that orchestrates the processing of climbing data"""
@@ -14,20 +19,12 @@ class DataProcessor:
         self.classifier = ClimbClassifier()
         self.db_session = db_session
     
-    def process_profile(self, profile_url: str, user_id: int, username: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, str, int]:
-        """Process a Mountain Project profile URL and return the processed data."""
-
-        # Download and parse CSV data
+    def process_user_ticks(self, profile_url: str, user_id: int, username: str) -> pd.DataFrame:
+        """Process and return UserTicks dataframe without pyramids"""
         df = self.download_and_parse_csv(profile_url)
-        
-        # Process raw climbing data
-        processed_df = self.process_raw_data(df, username, user_id)
-        
-        # Build pyramids with db_session for initial predictions
-        pyramid_builder = PyramidBuilder()
-        sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(processed_df, self.db_session)
-        
-        return sport_pyramid, trad_pyramid, boulder_pyramid, processed_df, username, user_id
+        processed_df = self.process_raw_data(df, user_id)
+        return processed_df
+
     
     def download_and_parse_csv(self, profile_url: str) -> pd.DataFrame:
         """Download and parse the CSV data"""
@@ -73,8 +70,11 @@ class DataProcessor:
         except Exception as e:
             raise ValueError(f"Error parsing CSV data: {str(e)}")
     
-    def process_raw_data(self, df: pd.DataFrame, username: str, user_id: int) -> pd.DataFrame:
+    def process_raw_data(self, df: pd.DataFrame, user_id: int) -> pd.DataFrame:
         """Process the raw climbing data"""
+        # Add userId FIRST before any processing
+        df = df.assign(user_id=user_id)  # Immutable assignment
+        
         # Convert grades to codes
         df['binned_code'] = self.grade_processor.convert_grades_to_codes(df['route_grade'])
         
@@ -102,9 +102,6 @@ class DataProcessor:
         df['location'] = df['location'].apply(lambda x: x.split('>')).apply(lambda x: x[:3])
         df['location'] = df['location'].apply(lambda x: f"{x[-1]}, {x[0]}")
         
-        # Add userId
-        df['userId'] = user_id
-        
         # Add route_stars
         df['route_stars'] = df['route_stars'].fillna(0) + 1
         
@@ -119,6 +116,18 @@ class DataProcessor:
         
         # Set data types
         df = self.set_data_types(df)
+        
+        # Insert data directly without stripping 'id'
+        records = df.to_dict('records')
+        
+        # Batch insert with proper transaction handling
+        try:
+            with self.db_session.begin_nested():
+                self.db_session.bulk_insert_mappings(UserTicks, records)
+            self.db_session.commit()
+        except Exception as e:
+            self.db_session.rollback()
+            raise
         
         return df
     
@@ -192,7 +201,8 @@ class DataProcessor:
         df['notes'] = df['notes'].fillna('').astype(str).str.strip()
         
         # Integer types - using standard Python int
-        df['user_id'] = df['user_id'].astype('int64').astype(int)  # Convert to Python int
+        if 'user_id' in df.columns:
+            df['user_id'] = df['user_id'].astype('int64').astype(int)
         df['pitches'] = df['pitches'].astype('int64').astype(int)
         df['binned_code'] = df['binned_code'].astype('int64').astype(int)
         df['cur_max_rp_sport'] = df['cur_max_rp_sport'].astype('int64').astype(int)
@@ -214,3 +224,42 @@ class DataProcessor:
         df['season_category'] = df['season_category'].astype('category')
         
         return df 
+
+    def process_demo_data(self, user_id: int, username: str):
+        """Process demo user data using a predefined Mountain Project profile"""
+        demo_url = "https://www.mountainproject.com/user/200169262/isaac-rubey"
+        
+        # Process core data
+        df = self.download_and_parse_csv(demo_url)
+        processed_df = self.process_raw_data(df, user_id)
+
+        # Build pyramids
+        pyramid_builder = PyramidBuilder()
+        user_ticks = UserTicks.query.filter_by(user_id=user_id).all()
+        # Convert to DataFrame with required columns
+        ticks_df = pd.DataFrame([{
+            'id': t.id,
+            'user_id': t.user_id,
+            'route_name': t.route_name,
+            'tick_date': t.tick_date,
+            'route_grade': t.route_grade,
+            'binned_code': t.binned_code,
+            'discipline': t.discipline,
+            'notes': t.notes,
+            'send_bool': t.send_bool,
+            'location': t.location
+        } for t in user_ticks])
+        
+        sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(
+            ticks_df, 
+            self.db_session
+        )
+        
+        # After building pyramids
+        DatabaseService.save_calculated_data({
+            'sport_pyramid': sport_pyramid,
+            'trad_pyramid': trad_pyramid,
+            'boulder_pyramid': boulder_pyramid
+        })
+
+        return sport_pyramid, trad_pyramid, boulder_pyramid 

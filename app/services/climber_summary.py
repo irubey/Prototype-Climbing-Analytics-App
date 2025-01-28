@@ -12,7 +12,8 @@ from app.models import (
     UserTicks,
     SportPyramid,
     TradPyramid,
-    BoulderPyramid
+    BoulderPyramid,
+    User
 )
 from app.services.grade_processor import GradeProcessor
 from app.services.database_service import DatabaseService
@@ -144,11 +145,12 @@ class UserInputData:
         return result
 
 class ClimberSummaryService:
-    def __init__(self, user_id: int, username: str):
+    def __init__(self, user_id: int):
         self.user_id = user_id
         self.grade_processor = GradeProcessor()
-        self.username = username
-
+        self.user = User.query.get(user_id)
+        self.username = self.user.username
+        
     def get_grade_from_tick(self, tick: UserTicks) -> str:
         """Get standardized grade from a tick using GradeProcessor."""
         return self.grade_processor.get_grade_from_code(tick.binned_code) if tick else None
