@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag("js", new Date());
+        gtag("config", "G-QLKC35PVJB");
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SendSage | {% block title %}{% endblock %}</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32"
+        href="{{ url_for('static', filename='images/brand/favicon-32x32.png') }}" />
+    <link rel="icon" type="image/png" sizes="16x16"
+        href="{{ url_for('static', filename='images/brand/favicon-16x16.png') }}" />
+    <link rel="apple-touch-icon" sizes="180x180"
+        href="{{ url_for('static', filename='images/brand/apple-touch-icon.png') }}" />
+
+    <!-- Common Dependencies -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/visualizations.css') }}" />
+    <script src="{{ url_for('static', filename='js/utils/userManagement.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/data_filters/commonFilters.js') }}"></script>
+
+    {% block head_scripts %}{% endblock %}
+</head>
+
+<body>
+    <header>
+        <a href="{{ url_for('main.userviz') }}" class="home-link" title="Back to Dashboard">
+            <i class="fas fa-home"></i>
+        </a>
+        <h1>{% block page_title %}{% endblock %}</h1>
+        <a href="https://www.buymeacoffee.com/irubey" class="buy-coffee-button" target="_blank">
+            <i class="fas fa-coffee"></i> Did I Bring You a Smile?
+        </a>
+    </header>
+
+    <main class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <nav class="footer-nav">
+            <a href="{{ url_for('main.userviz') }}" class="footer-link">
+                <i class="fas fa-chart-line"></i> Dashboard
+            </a>
+            <a href="{{ url_for('main.terms_and_privacy') }}" class="footer-link">
+                <i class="fas fa-shield-alt"></i> Terms & Privacy
+            </a>
+            <a href="mailto:climbing.analytics@gmail.com" class="footer-link">
+                <i class="fas fa-envelope"></i> Feedback
+            </a>
+        </nav>
+    </footer>
+
+    <!-- Common Modal Styles -->
+    <style>
+        .tooltip {
+            position: absolute;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 8px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal-section {
+            margin-bottom: 20px;
+        }
+
+        .modal-section h4 {
+            margin-bottom: 10px;
+        }
+    </style>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

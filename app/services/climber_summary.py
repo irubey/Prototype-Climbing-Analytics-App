@@ -10,14 +10,14 @@ from app.models import (
     SleepScore,
     NutritionScore,
     UserTicks,
-    SportPyramid,
-    TradPyramid,
-    BoulderPyramid,
+    PerformancePyramid,
     User
 )
 from app.services.grade_processor import GradeProcessor
 from app.services.database_service import DatabaseService
 from app import db
+from uuid import UUID
+from sqlalchemy import func, desc, and_
 
 class UserInputData:
     """Data class for user input fields"""
@@ -145,7 +145,7 @@ class UserInputData:
         return result
 
 class ClimberSummaryService:
-    def __init__(self, user_id: int):
+    def __init__(self, user_id: UUID):
         self.user_id = user_id
         self.grade_processor = GradeProcessor()
         self.user = User.query.get(user_id)
@@ -228,48 +228,49 @@ class ClimberSummaryService:
         }
         
     def get_style_preferences(self) -> Dict[str, Any]:
-        """Analyze climbing style preferences using DatabaseService"""
-        angle_counts = DatabaseService.get_combined_style_data(self.user_id, 'crux_angle')
-        energy_counts = DatabaseService.get_combined_style_data(self.user_id, 'crux_energy')
-        
-        favorite_angle = max(angle_counts, key=lambda x: x[1])[0] if angle_counts else None
-        favorite_energy = max(energy_counts, key=lambda x: x[1])[0] if energy_counts else None
+        """Analyze climbing style preferences using PerformancePyramid"""
+        # Query performance pyramid data joined with user ticks
+        style_data = db.session.query(
+            PerformancePyramid.crux_angle,
+            PerformancePyramid.crux_energy,
+            UserTicks.binned_code,
+            func.count().label('count')
+        ).join(
+            UserTicks, 
+            and_(
+                PerformancePyramid.tick_id == UserTicks.id,
+                PerformancePyramid.user_id == self.user_id
+            )
+        ).group_by(
+            PerformancePyramid.crux_angle,
+            PerformancePyramid.crux_energy,
+            UserTicks.binned_code
+        ).all()
 
-        # Analyze strongest/weakest angles
+        # Analyze angles
+        angle_counts = {}
         angle_grades = {}
-        for angle in CruxAngle:
-            grade_data = DatabaseService.get_style_analysis(
-                self.user_id, SportPyramid, 'crux_angle'
-            )
-            grade_data += DatabaseService.get_style_analysis(
-                self.user_id, TradPyramid, 'crux_angle'
-            )
-            grade_data += DatabaseService.get_style_analysis(
-                self.user_id, BoulderPyramid, 'crux_angle'
-            )
-            max_grade = max([g.max_grade for g in grade_data if g.crux_angle == angle], default=0)
-            if max_grade > 0:
-                angle_grades[angle] = max_grade
+        for data in style_data:
+            if data.crux_angle:
+                angle_counts[data.crux_angle] = angle_counts.get(data.crux_angle, 0) + data.count
+                current_grade = angle_grades.get(data.crux_angle, 0)
+                angle_grades[data.crux_angle] = max(current_grade, data.binned_code)
 
+        # Analyze energy systems
+        energy_counts = {}
+        energy_grades = {}
+        for data in style_data:
+            if data.crux_energy:
+                energy_counts[data.crux_energy] = energy_counts.get(data.crux_energy, 0) + data.count
+                current_grade = energy_grades.get(data.crux_energy, 0)
+                energy_grades[data.crux_energy] = max(current_grade, data.binned_code)
+
+        # Get favorites and strengths
+        favorite_angle = max(angle_counts.items(), key=lambda x: x[1])[0] if angle_counts else None
         strongest_angle = max(angle_grades.items(), key=lambda x: x[1])[0] if angle_grades else None
         weakest_angle = min(angle_grades.items(), key=lambda x: x[1])[0] if angle_grades else None
 
-        # Analyze energy systems
-        energy_grades = {}
-        for energy in CruxEnergyType:
-            energy_data = DatabaseService.get_style_analysis(
-                self.user_id, SportPyramid, 'crux_energy'
-            )
-            energy_data += DatabaseService.get_style_analysis(
-                self.user_id, TradPyramid, 'crux_energy'
-            )
-            energy_data += DatabaseService.get_style_analysis(
-                self.user_id, BoulderPyramid, 'crux_energy'
-            )
-            max_grade = max([g.max_grade for g in energy_data if g.crux_energy == energy], default=0)
-            if max_grade > 0:
-                energy_grades[energy] = max_grade
-
+        favorite_energy = max(energy_counts.items(), key=lambda x: x[1])[0] if energy_counts else None
         strongest_energy = max(energy_grades.items(), key=lambda x: x[1])[0] if energy_grades else None
         weakest_energy = min(energy_grades.items(), key=lambda x: x[1])[0] if energy_grades else None
 
@@ -280,15 +281,15 @@ class ClimberSummaryService:
         weakest_hold = min(hold_type_counts.items(), key=lambda x: x[1])[0] if hold_type_counts else None
 
         return {
-            "favorite_angle": favorite_angle.value if favorite_angle else None,
-            "strongest_angle": strongest_angle.value if strongest_angle else None,
-            "weakest_angle": weakest_angle.value if weakest_angle else None,
-            "favorite_energy_type": favorite_energy.value if favorite_energy else None,
-            "strongest_energy_type": strongest_energy.value if strongest_energy else None,
-            "weakest_energy_type": weakest_energy.value if weakest_energy else None,
-            "favorite_hold_types": favorite_hold.value if favorite_hold else None,
-            "strongest_hold_types": strongest_hold.value if strongest_hold else None,
-            "weakest_hold_types": weakest_hold.value if weakest_hold else None
+            "favorite_angle": favorite_angle,
+            "strongest_angle": strongest_angle,
+            "weakest_angle": weakest_angle,
+            "favorite_energy_type": favorite_energy,
+            "strongest_energy_type": strongest_energy,
+            "weakest_energy_type": weakest_energy,
+            "favorite_hold_types": favorite_hold,
+            "strongest_hold_types": strongest_hold,
+            "weakest_hold_types": weakest_hold
         }
 
     def _analyze_hold_types(self) -> Dict[HoldType, int]:
@@ -310,13 +311,32 @@ class ClimberSummaryService:
         return hold_type_counts
         
     def get_grade_pyramids(self) -> Dict[str, Any]:
-        """Calculate grade pyramids using DatabaseService"""
+        """Calculate grade pyramids using PerformancePyramid and UserTicks"""
         def process_pyramid(discipline: str) -> List[Dict[str, Any]]:
+            pyramid_data = db.session.query(
+                UserTicks.binned_code,
+                func.count().label('count'),
+                func.max(UserTicks.tick_date).label('last_sent')
+            ).join(
+                PerformancePyramid,
+                and_(
+                    PerformancePyramid.tick_id == UserTicks.id,
+                    PerformancePyramid.user_id == self.user_id
+                )
+            ).filter(
+                UserTicks.discipline == discipline,
+                UserTicks.send_bool == True
+            ).group_by(
+                UserTicks.binned_code
+            ).order_by(
+                desc(UserTicks.binned_code)
+            ).all()
+
             return [{
                 "grade": self.grade_processor.get_grade_from_code(entry.binned_code),
                 "num_sends": entry.count,
                 "last_sent": entry.last_sent.strftime('%Y-%m-%d') if entry.last_sent else None
-            } for entry in DatabaseService.get_pyramids_by_user_id(self.user_id)[discipline]]
+            } for entry in pyramid_data]
 
         return {
             "sport": process_pyramid('sport'),
@@ -384,7 +404,9 @@ class ClimberSummaryService:
         
         # Add user input if provided
         if user_input:
-            summary_data.update(user_input.to_dict())
+            user_input_dict = user_input.to_dict()
+            # Update summary data with user input, preserving non-None values
+            summary_data.update({k: v for k, v in user_input_dict.items() if v is not None})
         
         # Update or create summary
         summary = ClimberSummary.query.get(self.user_id)
@@ -396,20 +418,32 @@ class ClimberSummaryService:
                     'typical_session_length': summary.typical_session_length,
                     'has_hangboard': summary.has_hangboard,
                     'has_home_wall': summary.has_home_wall,
+                    'goes_to_gym': summary.goes_to_gym,
                     'current_injuries': summary.current_injuries,
                     'injury_history': summary.injury_history,
                     'physical_limitations': summary.physical_limitations,
                     'climbing_goals': summary.climbing_goals,
                     'willing_to_train_indoors': summary.willing_to_train_indoors,
+                    'favorite_angle': summary.favorite_angle,
+                    'strongest_angle': summary.strongest_angle,
+                    'weakest_angle': summary.weakest_angle,
+                    'favorite_energy_type': summary.favorite_energy_type,
+                    'strongest_energy_type': summary.strongest_energy_type,
+                    'weakest_energy_type': summary.weakest_energy_type,
+                    'favorite_hold_types': summary.favorite_hold_types,
+                    'strongest_hold_types': summary.strongest_hold_types,
+                    'weakest_hold_types': summary.weakest_hold_types,
                     'sleep_score': summary.sleep_score,
                     'nutrition_score': summary.nutrition_score,
                     'additional_notes': summary.additional_notes
                 }
+                # Only update with existing values that are not None
                 summary_data.update({k: v for k, v in existing_user_data.items() if v is not None})
             
             # Update fields
             for key, value in summary_data.items():
-                setattr(summary, key, value)
+                if hasattr(summary, key):  # Only update if field exists
+                    setattr(summary, key, value)
         else:
             summary = ClimberSummary(**summary_data)
             db.session.add(summary)

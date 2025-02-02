@@ -1,22 +1,34 @@
 // Make function globally available
 function workCapacityChart(targetId, userTicksData) {
+  // Validate input data
+  if (!userTicksData || !Array.isArray(userTicksData) || userTicksData.length === 0) {
+    console.error('Invalid or empty user ticks data:', userTicksData);
+    d3.select(targetId).html('<div class="alert alert-warning">No climbing data to visualize.</div>');
+    return;
+  }
+
   // Clear existing chart
   d3.select(targetId).select("svg").remove();
 
   // Get current filter values
-  var discipline = d3
+  const discipline = d3
     .select("input[name='work-capacity-discipline-filter']:checked")
-    .node().value;
-  var timeFrame = d3
+    .node()?.value || 'all';
+  const timeFrame = d3
     .select("input[name='work-capacity-time-filter']:checked")
-    .node().value;
+    .node()?.value || 'allTime';
+
+  console.log('Filters:', { discipline, timeFrame });
 
   // Apply filters
-  var filteredData = CommonFilters.filterByDiscipline(
-    userTicksData,
-    discipline
-  );
+  let filteredData = CommonFilters.filterByDiscipline(userTicksData, discipline);
   filteredData = CommonFilters.filterByTime(filteredData, timeFrame);
+
+  console.log('Filtered Data:', {
+    originalLength: userTicksData.length,
+    filteredLength: filteredData.length,
+    sample: filteredData[0]
+  });
 
   // Data transformation and chart generation
   const transformedData = transformData(filteredData);
@@ -36,12 +48,12 @@ const formatDate = d3.timeFormat("%Y-%m-%d");
 function transformData(data) {
   return data.map((d) => ({
     date: parseDate(d.tick_date),
-    seasonCategory: d.season_category,
+    seasonCategory: d.season_category || '',
     routeName: d.route_name,
     length: d.length === 0 ? null : d.length,
     pitches: d.pitches,
     length_category: d.length_category,
-    discipline: d.discipline,
+    discipline: d.discipline ? d.discipline.toLowerCase() : null
   }));
 }
 
@@ -227,7 +239,7 @@ function setupChart(targetId) {
 
   const x = d3.scaleBand().rangeRound([0, width]).paddingInner(0.05).align(0.1);
   const y = d3.scaleLinear().rangeRound([height, 0]);
-
+  
   return { svg, g, x, y, width, height, margin };
 }
 

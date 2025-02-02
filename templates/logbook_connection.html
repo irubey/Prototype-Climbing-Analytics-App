@@ -123,39 +123,35 @@
 
           <div class="input-container">
             <form
-              action="/logbook-connection"
+              action="{{ url_for('main.logbook_connection') }}"
               method="POST"
               id="profileForm"
-              onsubmit="return handleSubmit(event)"
               class="grid grid-cols"
             >
-              <input
-                type="url"
-                name="profile_url"
-                placeholder="Paste Mtn. Project Profile URL"
-                aria-label="Mountain Project Profile URL"
-                id="profileInput"
-                class="spacing-responsive"
-                autocomplete="off"
-                autocapitalize="off"
-                spellcheck="false"
-              />
-              <div
-                class="error-message"
-                id="errorMessage"
-                role="alert"
-                aria-live="polite"
-              ></div>
+              {{ form.csrf_token }}
+              <div class="form-group">
+                {{ form.profile_url(
+                  class="spacing-responsive form-control",
+                  placeholder="Paste Mtn. Project Profile URL",
+                  autocomplete="off",
+                  autocapitalize="off",
+                  spellcheck="false",
+                  id="profileInput",
+                  required="required",
+                  value=request.form.get('profile_url', '')
+                ) }}
+              </div>
+              {% if form.profile_url.errors %}
+              <div class="error-message" id="errorMessage" role="alert" aria-live="polite">
+                {% for error in form.profile_url.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="error-message" id="errorMessage" role="alert" aria-live="polite" style="display: none;"></div>
+              {% endif %}
               <div class="button-group grid grid-cols">
-                <button
-                  type="submit"
-                  class="primary-button"
-                  id="submitButton"
-                  aria-label="Analyze climbing data"
-                >
-                  <span class="button-text">Analyze</span>
-                  <span class="loading-spinner" aria-hidden="true"></span>
-                </button>
+                <button type="submit" class="primary-button" id="submitButton" name="submit">Analyze</button>
                 <button
                   type="button"
                   class="secondary-button"
@@ -253,21 +249,13 @@
 
       function setLoading(loading) {
         isLoading = loading;
-        document
-          .getElementById("submitButton")
-          .classList.toggle("loading", loading);
-        document
-          .getElementById("demoButton")
-          .classList.toggle("loading", loading);
+        document.getElementById("submitButton").classList.toggle("loading", loading);
+        document.getElementById("demoButton").classList.toggle("loading", loading);
         document.getElementById("profileInput").disabled = loading;
 
         // Update ARIA states
-        document
-          .getElementById("submitButton")
-          .setAttribute("aria-busy", loading);
-        document
-          .getElementById("demoButton")
-          .setAttribute("aria-busy", loading);
+        document.getElementById("submitButton").setAttribute("aria-busy", loading);
+        document.getElementById("demoButton").setAttribute("aria-busy", loading);
       }
 
       function updateLoadingStages() {
@@ -279,9 +267,7 @@
 
           // Update progress bar
           const progress = (currentStage / stages.length) * 100;
-          document
-            .querySelector(".progress-container")
-            .setAttribute("aria-valuenow", progress);
+          document.querySelector(".progress-container").setAttribute("aria-valuenow", progress);
         }
       }
 
@@ -312,150 +298,86 @@
         });
       }
 
-      async function submitForm(formData) {
+      document.getElementById("profileForm").addEventListener("submit", function(event) {
+        event.preventDefault(); // Prevent default form submission
+        
+        if (isLoading) {
+          return;
+        }
+        
+        const profileInput = document.getElementById("profileInput");
+        const profileUrl = profileInput.value.trim();
+        
+        if (!profileUrl) {
+          const errorMessage = document.getElementById("errorMessage");
+          errorMessage.textContent = "Please enter a Mountain Project profile URL";
+          errorMessage.style.display = "block";
+          profileInput.classList.add("error");
+          profileInput.setAttribute("aria-invalid", "true");
+          return;
+        }
+        
+        // Create FormData object
+        const formData = new FormData(event.target);
+        formData.set('profile_url', profileUrl); // Ensure profile_url is set
+        
+        // Submit the form
+        setLoading(true);
+        showLoadingScreen();
+        
+        fetch("{{ url_for('main.logbook_connection') }}", {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin'
+        })
+        .then(response => {
+          if (response.redirected) {
+            window.location.href = response.url;
+          } else {
+            return response.text().then(html => {
+              document.documentElement.innerHTML = html;
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          hideLoadingScreen();
+          setLoading(false);
+          const errorMessage = document.getElementById("errorMessage");
+          errorMessage.textContent = "An error occurred. Please try again.";
+          errorMessage.style.display = "block";
+        });
+      });
+
+      async function tryDemo() {
         try {
           showLoadingScreen();
-
-          // Stage 1: Fetching data
-          updateLoadingStages();
-
-          const response = await fetch("/", {
-            method: "POST",
-            body: formData,
+          const response = await fetch('/demo-login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            }
           });
 
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            // Handle JSON response (usually error)
-            const data = await response.json();
-            if (!response.ok) {
-              throw new Error(data.error || "An error occurred. Please try again.");
-            }
-            // Handle successful JSON response if any
-            if (data.redirect) {
-              window.location.href = data.redirect;
-              return;
-            }
+          if (response.redirected) {
+            window.location.href = response.url;
           } else {
-            // Handle redirect
-            const redirectedURL = response.url;
-            const urlParams = new URLSearchParams(new URL(redirectedURL).search);
-            const userId = urlParams.get("userId");
-
-            // Set the userId in localStorage if needed
-            if (userId) {
-              localStorage.setItem('currentUserId', userId);
-            }
-
-            // Stage 2: Processing routes
-            updateLoadingStages();
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-
-            // Stage 3: Building metrics
-            updateLoadingStages();
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-
-            // Stage 4: Preparing visualizations
-            updateLoadingStages();
-            await new Promise((resolve) => setTimeout(resolve, 500));
-
-            window.location.href = redirectedURL;
+            const result = await response.json();
+            if (result.error) throw new Error(result.error);
           }
         } catch (error) {
           hideLoadingScreen();
-          setLoading(false);
           showError(error.message);
         }
       }
 
-      function showError(message) {
-        const errorElement = document.getElementById("errorMessage");
-        errorElement.textContent = message;
-        errorElement.style.display = "block";
-        document.getElementById("profileInput").classList.add("error");
-        document.getElementById("profileInput").setAttribute("aria-invalid", "true");
-        
-        // Ensure the error is visible
-        errorElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-
-      function clearError() {
-        const errorElement = document.getElementById("errorMessage");
-        errorElement.textContent = "";
-        errorElement.style.display = "none";
-        const input = document.getElementById("profileInput");
-        input.classList.remove("error");
-        input.removeAttribute("aria-invalid");
-      }
-
-      async function handleSubmit(event) {
-        event.preventDefault();
-        if (isLoading) return false;
-
-        const input = document.getElementById("profileInput");
-        const value = input.value.trim();
-
-        clearError();
-
-        if (!value) {
-          showError("Please enter a Mountain Project profile URL");
-          return false;
-        }
-
-        if (!value.includes("mountainproject.com/user/")) {
-          showError("Please enter valid URL: mountainproject.com/user/#########");
-          return false;
-        }
-
-        // Validate URL format
-        try {
-          const urlParts = value.split('/');
-          const userId = urlParts[urlParts.indexOf('user') + 1];
-          if (!userId || isNaN(parseInt(userId))) {
-            showError("Invalid Mountain Project URL format. Please check the URL.");
-            return false;
-          }
-        } catch (e) {
-          showError("Invalid URL format. Please check the URL.");
-          return false;
-        }
-
-        setLoading(true);
-        const formData = new FormData();
-        formData.append("profile_url", value);
-        await submitForm(formData);
-
-        return false;
-      }
-
-      async function tryDemo() {
-        try {
-            showLoadingScreen();
-            const response = await fetch('/demo-login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.redirected) {
-                window.location.href = response.url;
-            } else {
-                const result = await response.json();
-                if (result.error) throw new Error(result.error);
-            }
-        } catch (error) {
-            hideLoadingScreen();
-            showError(error.message);
-        }
-      }
-
       // Remove error state when user starts typing
-      document
-        .getElementById("profileInput")
-        .addEventListener("input", function () {
-          clearError();
-        });
+      document.getElementById("profileInput").addEventListener("input", function() {
+        const errorMessage = document.getElementById("errorMessage");
+        errorMessage.style.display = "none";
+        this.classList.remove("error");
+        this.removeAttribute("aria-invalid");
+      });
     </script>
     <script src="{{ url_for('static', filename='js/loadingScreen.js') }}"></script>
   </body>

@@ -17,6 +17,18 @@ services:
         generateValue: true
       - key: PORT
         value: 10000
+      # Stripe Configuration
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: STRIPE_PUBLIC_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_ID_BASIC
+        sync: false
+      - key: STRIPE_PRICE_ID_PREMIUM
+        sync: false
+      # Database Configuration
       - key: DATABASE_URL
         fromDatabase:
           type: postgres

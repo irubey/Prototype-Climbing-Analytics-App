@@ -1,0 +1,46 @@
+<!-- Characteristics Info Modal -->
+<div id="characteristicsModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeCharacteristicsModal()">&times;</span>
+        <h3>About the Data Analysis</h3>
+
+        <div class="modal-section">
+            <h4>Energy System Analysis</h4>
+            <p>Shows the distribution of routes based on their primary energy system demands:</p>
+            <ul>
+                <li><strong>Power:</strong> Short, intense sequences</li>
+                <li><strong>Power Endurance:</strong> Sustained difficult climbing</li>
+                <li><strong>Endurance:</strong> Long routes with moderate difficulty</li>
+            </ul>
+        </div>
+
+        <div class="modal-section">
+            <h4>Length Categories</h4>
+            <p>Routes are categorized into four length categories:</p>
+            <ul>
+                <li><strong>Short:</strong> Under 60ft</li>
+                <li><strong>Medium:</strong> 60 - 85ft</li>
+                <li><strong>Long:</strong> 86 - 130ft</li>
+                <li><strong>Multipitch:</strong> Over 130ft</li>
+            </ul>
+        </div>
+
+        <div class="modal-section">
+            <h4>Angle Analysis</h4>
+            <p>Shows the distribution of routes based on their predominant angle:</p>
+            <ul>
+                <li><strong>Slab:</strong> Less than vertical</li>
+                <li><strong>Vertical:</strong> 90 degrees</li>
+                <li><strong>Overhung:</strong> Past vertical</li>
+                <li><strong>Roof:</strong> Horizontal or near-horizontal</li>
+            </ul>
+        </div>
+
+        <div class="modal-section">
+            <h4>Data Updates</h4>
+            <p>Route characteristics are based on user-provided information. You can update this data through the input
+                form.</p>
+            <p><a href="{{ url_for('main.pyramid_input') }}" class="accent-link">Input route info here</a></p>
+        </div>
+    </div>
+</div>

@@ -1,10 +1,11 @@
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_caching import Cache
 from flask_login import LoginManager
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail
+from flask_wtf.csrf import CSRFProtect
 from config import Config
 import os
 from sqlalchemy.sql import text
@@ -25,13 +26,13 @@ mail = Mail()
 login_manager = LoginManager()
 login_manager.login_view = 'main.login'
 bcrypt = Bcrypt()
-stripe.api_version = ' 2024-09-30.acacia'  
+stripe.api_version = '2024-09-30.acacia'
 
 from app.models import User
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return User.query.get(user_id)
 
 def create_app():
     app = Flask(__name__, 
@@ -42,17 +43,39 @@ def create_app():
     # Load configuration
     app.config.from_object(Config)
     
-    # Configure Stripe AFTER loading config
-    stripe.api_key = app.config.get('STRIPE_API_KEY')
-    stripe.max_network_retries = 3  # Recommended for reliability
+    # Disable CSRF caching
+    app.config['WTF_CSRF_TIME_LIMIT'] = None
     
-    # Initialize extensions with app
+    # Initialize CSRF protection first, before other extensions
+    app.logger.debug("Initializing CSRF protection")
+    csrf = CSRFProtect()
+    
+    # Create a custom CSRF protection class
+    class CustomCSRFProtect(CSRFProtect):
+        def protect(self):
+            if request.endpoint == 'main.stripe_webhook':
+                app.logger.debug("Skipping CSRF check for webhook")
+                return
+            
+            app.logger.debug(f"Performing CSRF check for endpoint: {request.endpoint}")
+            return super().protect()
+    
+    # Use our custom CSRF protection
+    csrf = CustomCSRFProtect()
+    csrf.init_app(app)
+    app.logger.debug("CSRF protection initialized with custom protection")
+    
+    # Initialize other extensions after CSRF
     db.init_app(app)
     cache.init_app(app)
     mail.init_app(app)
     login_manager.init_app(app)
     bcrypt.init_app(app)
-
+    
+    # Configure Stripe AFTER loading config
+    stripe.api_key = app.config.get('STRIPE_API_KEY')
+    stripe.max_network_retries = 3  # Recommended for reliability
+    
     # Register Blueprints or routes
     from app.routes import main_bp
     app.register_blueprint(main_bp)
@@ -87,8 +110,9 @@ def create_app():
         r"/*": {
             "origins": ["http://127.0.0.1:5001", "http://localhost:5001", "https://*.onrender.com"],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True
+            "allow_headers": ["Content-Type", "Authorization", "X-CSRFToken"],
+            "supports_credentials": True,
+            "expose_headers": ["X-CSRFToken"]
         }
     })
     
@@ -118,21 +142,15 @@ def create_app():
                 try:
                     db.session.execute(text("""
                         CREATE SEQUENCE IF NOT EXISTS user_ticks_id_seq;
-                        CREATE SEQUENCE IF NOT EXISTS sport_pyramid_id_seq;
-                        CREATE SEQUENCE IF NOT EXISTS trad_pyramid_id_seq;
-                        CREATE SEQUENCE IF NOT EXISTS boulder_pyramid_id_seq;
+                        CREATE SEQUENCE IF NOT EXISTS performance_pyramid_id_seq;
                         CREATE SEQUENCE IF NOT EXISTS user_uploads_id_seq;
                         
                         ALTER TABLE user_ticks ALTER COLUMN id SET DEFAULT nextval('user_ticks_id_seq');
-                        ALTER TABLE sport_pyramid ALTER COLUMN id SET DEFAULT nextval('sport_pyramid_id_seq');
-                        ALTER TABLE trad_pyramid ALTER COLUMN id SET DEFAULT nextval('trad_pyramid_id_seq');
-                        ALTER TABLE boulder_pyramid ALTER COLUMN id SET DEFAULT nextval('boulder_pyramid_id_seq');
+                        ALTER TABLE performance_pyramid ALTER COLUMN id SET DEFAULT nextval('performance_pyramid_id_seq');
                         ALTER TABLE user_uploads ALTER COLUMN id SET DEFAULT nextval('user_uploads_id_seq');
     
                         SELECT setval('user_ticks_id_seq', 1, false);
-                        SELECT setval('sport_pyramid_id_seq', 1, false);
-                        SELECT setval('trad_pyramid_id_seq', 1, false);
-                        SELECT setval('boulder_pyramid_id_seq', 1, false);
+                        SELECT setval('performance_pyramid_id_seq', 1, false);
                         SELECT setval('user_uploads_id_seq', 1, false);
                     """))
                     db.session.commit()

@@ -145,19 +145,45 @@ class GradeProcessor:
             "V17-","V17","V17+",
         ]
     
-    def convert_grades_to_codes(self, grades: List[str]) -> List[int]:
-        """Convert climbing grades to numeric codes"""
-        grades = [str(grade) if grade is not None else 'unknown' for grade in grades]
+    def convert_grades_to_codes(self, grades: List[str], discipline: str = None) -> List[int]:
+        """Convert climbing grades to numeric codes
+        
+        Args:
+            grades: List of grade strings to convert
+            discipline: Optional discipline to ensure correct code range ('sport', 'trad', 'boulder', etc)
+        """
+        grades = [str(grade).strip() if grade is not None else 'unknown' for grade in grades]
         
         binned_code_lst = []
         for grade in grades:
-            grade_prefix = grade.split(' ')[0]
             code = 0  # default value
             
+            # Determine valid code ranges based on discipline
+            if discipline:
+                if discipline == 'boulder':
+                    valid_range = range(101, 121)  # Boulder codes: 101-120
+                elif discipline in ['sport', 'trad']:
+                    valid_range = range(1, 29)     # Route codes: 1-28
+                else:
+                    valid_range = None
+            else:
+                valid_range = None
+            
+            # First try exact match within valid range
             for key, values in self.binned_code_dict.items():
-                if any(substring == grade_prefix for substring in values):
-                    code = key
-                    break
+                if grade in values:
+                    if not valid_range or key in valid_range:
+                        code = key
+                        break
+            
+            # If no exact match found, try prefix match within valid range
+            if code == 0:
+                grade_prefix = grade.split(' ')[0]
+                for key, values in self.binned_code_dict.items():
+                    if any(substring == grade_prefix for substring in values):
+                        if not valid_range or key in valid_range:
+                            code = key
+                            break
                     
             binned_code_lst.append(code)
             

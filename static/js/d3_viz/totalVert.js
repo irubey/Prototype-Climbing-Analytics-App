@@ -1,35 +1,121 @@
 // Make function globally available
 function totalVertChart(targetId, userTicksData) {
+  // Clear existing chart
+  d3.select(targetId).select("svg").remove();
+
+  // Get filters
+  const discipline = d3
+    .select("input[name='total-vert-discipline-filter']:checked")
+    .node().value;
+  const timeFrame = d3
+    .select("input[name='total-vert-time-filter']:checked")
+    .node().value;
+
+  // Apply filters using CommonFilters
+  let filteredData = CommonFilters.filterByDiscipline(userTicksData, discipline);
+  filteredData = CommonFilters.filterByTime(filteredData, timeFrame);
+
   //rendering functions
   const formatDate = d3.timeFormat("%Y-%m-%d");
   const parseDate = d3.timeParse("%Y-%m-%d");
 
-  // Debug: Print initial data summary
-  const totalTicks = userTicksData.length;
-  const multipitchTicks = userTicksData.filter(
-    (d) => d.length_category === "multipitch"
-  ).length;
-  const validPitches = userTicksData.filter((d) => !isNaN(d.pitches)).length;
-
   function transformData(data) {
-    const transformed = data
-      .filter((d) => !isNaN(d.pitches) || d.length_category === "multipitch")
+    return data
+      .filter((d) => d.length || d.pitches) // Ensure we have either length or pitches
       .map((d) => ({
         date: parseDate(d.tick_date),
-        seasonCategory: d.season_category.slice(0, -6),
+        seasonCategory: d.season_category ? d.season_category.split(',')[0] : '',
         routeName: d.route_name,
-        length: d.length === 0 ? null : d.length,
-        pitches: d.length_category === "multipitch" ? 1 : d.pitches,
-        length_category: d.length_category,
+        length: d.length || null,
+        pitches: d.pitches || 1,
+        length_category: d.length_category || 'short',
+        discipline: d.discipline ? (typeof d.discipline === 'object' ? d.discipline.value : d.discipline).toLowerCase() : null
       }));
+  }
 
-    // Debug: Print transformed data summary
-    const totalTransformed = transformed.length;
-    const multipitchTransformed = transformed.filter(
-      (d) => d.length_category === "multipitch"
-    ).length;
+  function calculateDailyAverages(data) {
+    const dailyAverages = new Map();
 
-    return transformed;
+    data.forEach((d) => {
+      if (d.length) {
+        const dateString = formatDate(d.date);
+        if (!dailyAverages.has(dateString)) {
+          dailyAverages.set(dateString, { sum: d.length, count: 1 });
+        } else {
+          const entry = dailyAverages.get(dateString);
+          entry.sum += d.length;
+          entry.count++;
+        }
+      }
+    });
+
+    // Convert sums to averages
+    dailyAverages.forEach((value, key) => {
+      dailyAverages.set(key, value.sum / value.count);
+    });
+
+    return dailyAverages;
+  }
+
+  function calculateTotalVertical(data) {
+    // Calculate daily averages for length estimation
+    const dailyAverages = calculateDailyAverages(data);
+
+    const verticalMap = new Map();
+    data.forEach((d) => {
+      const dateString = formatDate(d.date);
+      let vertical;
+
+      // Calculate vertical feet based on discipline and available data
+      if (d.length) {
+        vertical = d.length_category === "multipitch" ? d.length : d.length * d.pitches;
+      } else {
+        // Use discipline-specific defaults if no length available
+        let defaultLength;
+        switch (d.discipline) {
+          case 'boulder':
+            defaultLength = 15; // Standard boulder height
+            break;
+          case 'sport':
+            defaultLength = 80; // Average sport route
+            break;
+          case 'trad':
+            defaultLength = 100; // Average trad route
+            break;
+          default:
+            defaultLength = 60; // General fallback
+        }
+
+        // Try daily average first, then use default
+        const dailyAvg = dailyAverages.get(dateString);
+        vertical = (dailyAvg || defaultLength) * d.pitches;
+      }
+
+      const mapKey = `${dateString}_${d.seasonCategory}`;
+      if (!verticalMap.has(mapKey)) {
+        verticalMap.set(mapKey, {
+          total: vertical,
+          seasonCategory: d.seasonCategory,
+        });
+      } else {
+        const current = verticalMap.get(mapKey);
+        current.total += vertical;
+      }
+    });
+
+    // Convert the map to array format
+    const output = [];
+    verticalMap.forEach((value, key) => {
+      const [dateString, _] = key.split("_");
+      const dateObj = parseDate(dateString);
+      output.push({
+        date: dateObj,
+        totalVertical: value.total,
+        seasonCategory: value.seasonCategory,
+      });
+    });
+
+    return output;
   }
 
   function calculateAverageLength(data) {
@@ -72,78 +158,6 @@ function totalVertChart(targetId, userTicksData) {
       .filter((d) => d.length !== null && d.length !== undefined);
   }
 
-  function calculateTotalVertical(data) {
-    // First calculate daily averages for non-multipitch routes
-    const dailyAverages = new Map();
-    data.forEach((d) => {
-      if (d.length_category !== "multipitch" && d.length) {
-        const dateString = formatDate(d.date);
-        if (!dailyAverages.has(dateString)) {
-          dailyAverages.set(dateString, { sum: d.length, count: 1 });
-        } else {
-          const entry = dailyAverages.get(dateString);
-          entry.sum += d.length;
-          entry.count++;
-        }
-      }
-    });
-
-    // Convert sums to averages
-    dailyAverages.forEach((value, key) => {
-      dailyAverages.set(key, value.sum / value.count);
-    });
-
-    const verticalMap = new Map();
-    data.forEach((d) => {
-      const dateString = formatDate(d.date);
-      let vertical;
-
-      // Calculate vertical feet based on route type and length availability
-      if (d.length) {
-        // If length is available, use it (multiplied by pitches for non-multipitch)
-        vertical =
-          d.length_category === "multipitch" ? d.length : d.length * d.pitches;
-      } else {
-        // If no length, try daily average or use 60ft fallback
-        const dailyAvg = dailyAverages.get(dateString);
-        vertical = (dailyAvg || 60) * d.pitches;
-      }
-
-      const mapKey = `${dateString}_${d.seasonCategory}`;
-      if (!verticalMap.has(mapKey)) {
-        verticalMap.set(mapKey, {
-          total: vertical,
-          seasonCategory: d.seasonCategory,
-        });
-      } else {
-        const current = verticalMap.get(mapKey);
-        current.total += vertical;
-      }
-    });
-
-    // Debug: Print vertical map summary
-    if (verticalMap.size > 0) {
-      const values = Array.from(verticalMap.values()).map((v) => v.total);
-    }
-
-    // Convert the map to the desired output format
-    const output = [];
-    verticalMap.forEach((value, key) => {
-      const [dateString, _] = key.split("_");
-      const dateObj = parseDate(dateString);
-      output.push({
-        date: dateObj,
-        totalVertical: value.total,
-        seasonCategory: value.seasonCategory,
-      });
-    });
-
-    // Debug: Print total
-    const total = output.reduce((sum, d) => sum + d.totalVertical, 0);
-
-    return output;
-  }
-
   function calcRunningTotalVertical(data) {
     // Sort the data by date
     data.sort((a, b) => a.date - b.date);
@@ -177,8 +191,7 @@ function totalVertChart(targetId, userTicksData) {
       .attr("height", height + margin.top + margin.bottom)
       .attr(
         "viewBox",
-        `0 0 ${width + margin.left + margin.right} ${
-          height + margin.top + margin.bottom
+        `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom
         }`
       )
       .attr("preserveAspectRatio", "xMidYMid meet");
@@ -465,22 +478,6 @@ function totalVertChart(targetId, userTicksData) {
     // Y-Axis
     g.append("g").attr("class", "viz-axis viz-y-axis").call(d3.axisLeft(y));
   }
-
-  d3.select(targetId).select("svg").remove();
-
-  var discipline = d3
-    .select("input[name='total-vert-discipline-filter']:checked")
-    .node().value;
-  var timeFrame = d3
-    .select("input[name='total-vert-time-filter']:checked")
-    .node().value;
-
-  // Apply filters
-  var filteredData = CommonFilters.filterByDiscipline(
-    userTicksData,
-    discipline
-  );
-  filteredData = CommonFilters.filterByTime(filteredData, timeFrame);
 
   const transformedData = transformData(filteredData);
   const averageLengthMap = calculateAverageLength(transformedData);

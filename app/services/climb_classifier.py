@@ -51,9 +51,12 @@ class ClimbClassifier:
                     'Sport': 'sport',
                     'Trad': 'trad',
                     'Boulder': 'boulder',
-                    'TR': 'tr'
+                    'TR': 'tr',
+                    'Ice': 'winter_ice',
+                    'Mixed': 'mixed',
+                    'Aid': 'aid'
                 }
-                return type_map.get(types[0])
+                return type_map.get(types[0], None)
             
             # Sport/TR combinations
             if ('Sport' in types and 'TR' in types):
@@ -90,6 +93,14 @@ class ClimbClassifier:
             if 'Alpine' in types and 'Trad' in types:
                 return 'trad'
             
+            # Handle Ice/Mixed combinations
+            if 'Ice' in types:
+                return 'winter_ice'
+            if 'Mixed' in types:
+                return 'mixed'
+            if 'Aid' in types:
+                return 'aid'
+            
             # Default cases based on primary type
             if 'Sport' in types:
                 return 'sport'
@@ -100,32 +111,80 @@ class ClimbClassifier:
             
             return None
         
-        return df.apply(determine_discipline, axis=1)
+        # Apply discipline classification and ensure lowercase
+        disciplines = df.apply(determine_discipline, axis=1)
+        
+        # Add debug logging
+        discipline_counts = disciplines.value_counts()
+        print("Discipline classification results:")
+        print(discipline_counts)
+        
+        return disciplines
     
     def classify_sends(self, df: pd.DataFrame) -> pd.Series:
         """Determine if climbs were successfully sent"""
+        # Add debug logging
+        print("Starting send classification")
+        print(f"Total rows: {len(df)}")
+        print(f"Discipline distribution: {df['discipline'].value_counts().to_dict()}")
+        print(f"Style distribution: {df['style'].value_counts().to_dict()}")
+        print(f"Lead style distribution: {df['lead_style'].value_counts().to_dict()}")
+        
         # For boulders:
         # - Style is Send/Flash -> True
         # - Style is Attempt -> False
-        # - Style is None/empty -> pass (handled by fillna(False))
+        # - Style is None/empty -> check notes for send indicators
         is_boulder = df['discipline'] == 'boulder'
-        is_roped = df['discipline'] != 'boulder'
+        is_roped = df['discipline'].isin(['sport', 'trad'])
+        is_tr = df['discipline'] == 'tr'
         
-        # Handle boulder sends/attempts
-        boulder_sends = is_boulder & df['style'].isin(self.boulder_sends)
-        boulder_attempts = is_boulder & (df['style'] == 'Attempt')
+        # Handle boulder sends/attempts - be more strict
+        boulder_sends = is_boulder & (
+            df['style'].isin(self.boulder_sends) |
+            (df['style'].isna() & df['notes'].fillna('').str.lower().str.contains('sent|topped|flash', na=False))
+        )
+        boulder_attempts = is_boulder & (
+            df['style'].isin(['Attempt', 'Working']) |
+            df['notes'].fillna('').str.lower().str.contains('attempt|working|project', na=False)
+        )
         
-        # Handle roped climbs with standard lead_sends classification
-        roped_sends = is_roped & (df['lead_style'].isin(self.lead_sends))
-
-        # Handle TR sends - only count if notes contain send indicators
-        send_keywords = {'sent', 'clean', 'rp', 'redpoint', 'flash', 'onsight', 'os', 's'}
-        tr_sends = (df['discipline'] == 'tr') & df['notes'].fillna('').str.lower().apply(
-            lambda x: any(keyword in x.split() for keyword in send_keywords)
+        # Handle roped climbs with stricter send classification
+        roped_sends = is_roped & (
+            df['lead_style'].isin(self.lead_sends) |
+            (df['lead_style'].isna() & 
+             df['style'].isin(['Lead', 'Flash', 'Onsight', 'Redpoint']) & 
+             df['notes'].fillna('').str.lower().str.contains('sent|redpoint|flash|onsight|clean', na=False) &
+             ~df['notes'].fillna('').str.lower().str.contains('fell|fall|hang|attempt|working|project|check|tried', na=False))
+        )
+        
+        # Handle TR sends with stricter criteria
+        send_keywords = {
+            'sent', 'redpoint', 'flash', 'onsight'
+        }
+        attempt_keywords = {
+            'attempt', 'working', 'project', 'fell', 'fall', 'hang'
+        }
+        tr_sends = is_tr & (
+            (df['style'].isin(['Flash', 'Onsight', 'Clean']) |
+             df['notes'].fillna('').str.lower().apply(
+                lambda x: any(keyword in x.split() for keyword in send_keywords)
+             )) &
+            ~df['notes'].fillna('').str.lower().apply(
+                lambda x: any(keyword in x.split() for keyword in attempt_keywords)
+            )
         )
         
         # Combine all conditions
-        return (boulder_sends | roped_sends & ~boulder_attempts | tr_sends).fillna(False)
+        sends = (boulder_sends | roped_sends | tr_sends) & ~boulder_attempts
+        
+        # Add debug logging for results
+        print(f"Total sends found: {sends.sum()}")
+        print(f"Sends by discipline:")
+        for disc in df['discipline'].unique():
+            disc_sends = sends & (df['discipline'] == disc)
+            print(f"  {disc}: {disc_sends.sum()}")
+        
+        return sends.fillna(False)
     
     def _is_multipitch_from_notes(self, notes: str) -> bool:
         """Check if route is multipitch based on note content"""

@@ -116,10 +116,8 @@ class User(UserMixin, db.Model):
     # Relationships
     climber_summary = db.relationship('ClimberSummary', backref='user', uselist=False)
     uploads = db.relationship('UserUpload', backref='user', lazy='dynamic')
-    boulder_pyramids = db.relationship('BoulderPyramid', backref='user', lazy='dynamic', foreign_keys='BoulderPyramid.user_id')
-    sport_pyramids = db.relationship('SportPyramid', backref='user', lazy='dynamic', foreign_keys='SportPyramid.user_id')
-    trad_pyramids = db.relationship('TradPyramid', backref='user', lazy='dynamic', foreign_keys='TradPyramid.user_id')
     ticks = db.relationship('UserTicks', backref='user', lazy='dynamic', foreign_keys='UserTicks.user_id')
+    performance_pyramids = db.relationship('PerformancePyramid', backref='user', lazy='dynamic', foreign_keys='PerformancePyramid.user_id')
     
     def get_id(self):
         return str(self.id)
@@ -143,90 +141,23 @@ class UserUpload(db.Model):
     content = db.Column(db.Text)  # Raw text storage for MVP
     uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))    
 
-class BoulderPyramid(BaseModel):
-    __tablename__ = 'boulder_pyramid'
+class PerformancePyramid(BaseModel):
+    __tablename__ = 'performance_pyramid'
     __table_args__ = (
-        db.Index('idx_boulder_pyramid_tick_date', 'first_send_date'),
-        db.Index('idx_boulder_pyramid_user_id', 'user_id'),
+        db.Index('idx_performance_pyramid_send_date', 'send_date'),
+        db.Index('idx_performance_pyramid_user_id', 'user_id'),
     )
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
     tick_id = db.Column(db.ForeignKey('user_ticks.id'), nullable=False)
-    route_name = db.Column(db.String(255), nullable=False)
-    first_send_date = db.Column(db.Date)
-    route_grade = db.Column(db.String(255))
-    binned_grade = db.Column(db.String(255))
-    binned_code = db.Column(db.Integer)
-    length = db.Column(db.Integer)
-    pitches = db.Column(db.Integer)
+    send_date = db.Column(db.Date, nullable=False)
     location = db.Column(db.String(255))
-    lead_style = db.Column(db.String(255))
-    discipline = db.Column(Enum(ClimbingDiscipline))
-    length_category = db.Column(db.String(255))
-    season_category = db.Column(db.String(255))
-    route_url = db.Column(db.String(255))
-    user_grade = db.Column(db.String(255))
-    crux_energy = db.Column(Enum(CruxEnergyType))
-    num_attempts = db.Column(db.Integer)
-    num_sends = db.Column(db.Integer)
     crux_angle = db.Column(Enum(CruxAngle))
-
-class SportPyramid(BaseModel):
-    __tablename__ = 'sport_pyramid'
-    __table_args__ = (
-        db.Index('idx_sport_pyramid_tick_date', 'first_send_date'),
-        db.Index('idx_sport_pyramid_user_id', 'user_id'),
-        db.Index('idx_sport_pyramid_lookup', 'user_id', 'route_name', 'first_send_date'),
-    )
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tick_id = db.Column(db.ForeignKey('user_ticks.id'), nullable=False)
-    user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
-    route_name = db.Column(db.String(255), nullable=False)
-    first_send_date = db.Column(db.Date)
-    route_grade = db.Column(db.String(255))
-    binned_grade = db.Column(db.String(255))
-    binned_code = db.Column(db.Integer)
-    length = db.Column(db.Integer)
-    pitches = db.Column(db.Integer)
-    location = db.Column(db.String(255))
-    lead_style = db.Column(db.String(255))
-    discipline = db.Column(Enum(ClimbingDiscipline))
-    length_category = db.Column(db.String(255))
-    season_category = db.Column(db.String(255))
-    route_url = db.Column(db.String(255))
-    user_grade = db.Column(db.String(255))
     crux_energy = db.Column(Enum(CruxEnergyType))
+    binned_code = db.Column(db.Integer, nullable=False)
     num_attempts = db.Column(db.Integer)
-    num_sends = db.Column(db.Integer)
-    crux_angle = db.Column(Enum(CruxAngle))
-
-class TradPyramid(BaseModel):
-    __tablename__ = 'trad_pyramid'
-    __table_args__ = (
-        db.Index('idx_trad_pyramid_tick_date', 'first_send_date'),
-        db.Index('idx_trad_pyramid_user_id', 'user_id'),
-    )
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tick_id = db.Column(db.ForeignKey('user_ticks.id'), nullable=False)
-    user_id = db.Column(db.ForeignKey('users.id'), nullable=False)
-    route_name = db.Column(db.String(255), nullable=False)
-    first_send_date = db.Column(db.Date)
-    route_grade = db.Column(db.String(255))
-    binned_grade = db.Column(db.String(255))
-    binned_code = db.Column(db.Integer)
-    length = db.Column(db.Integer)
-    pitches = db.Column(db.Integer)
-    location = db.Column(db.String(255))
-    lead_style = db.Column(db.String(255))
-    discipline = db.Column(Enum(ClimbingDiscipline))
-    length_category = db.Column(db.String(255))
-    season_category = db.Column(db.String(255))
-    route_url = db.Column(db.String(255))
-    user_grade = db.Column(db.String(255))
-    crux_energy = db.Column(Enum(CruxEnergyType))
-    num_attempts = db.Column(db.Integer)
-    num_sends = db.Column(db.Integer)
-    crux_angle = db.Column(Enum(CruxAngle))
+    days_attempts = db.Column(db.Integer)
+    description = db.Column(db.Text)
 
 class UserTicks(BaseModel):
     __tablename__ = 'user_ticks'

@@ -4,13 +4,25 @@
   CommonFilters.filterByDiscipline = function (data, discipline) {
     if (discipline === "all") return data;
     return data.filter(function (d) {
-      return d.discipline === discipline;
+      // Handle both string and enum values, and handle null/undefined cases
+      if (!d.discipline) return false;
+
+      // If discipline is an object with a value property (enum case)
+      if (typeof d.discipline === 'object' && d.discipline.value) {
+        return d.discipline.value.toLowerCase() === discipline.toLowerCase();
+      }
+
+      // If discipline is a string
+      if (typeof d.discipline === 'string') {
+        return d.discipline.toLowerCase() === discipline.toLowerCase();
+      }
+
+      return false;
     });
   };
 
   CommonFilters.filterByTime = function (data, timeFrame) {
     var now = new Date();
-
     var boundaryDate;
 
     switch (timeFrame) {
@@ -18,32 +30,29 @@
         boundaryDate = new Date(now);
         boundaryDate.setDate(now.getDate() - 7);
         break;
-
       case "lastMonth":
         boundaryDate = new Date(now);
         boundaryDate.setMonth(now.getMonth() - 1);
         break;
-
       case "lastThreeMonths":
         boundaryDate = new Date(now);
         boundaryDate.setMonth(now.getMonth() - 3);
         break;
-
       case "lastSixMonths":
         boundaryDate = new Date(now);
         boundaryDate.setMonth(now.getMonth() - 6);
         break;
-
       case "lastYear":
         boundaryDate = new Date(now);
         boundaryDate.setFullYear(now.getFullYear() - 1);
         break;
-
       case "lastTwoYears":
         boundaryDate = new Date(now);
         boundaryDate.setFullYear(now.getFullYear() - 2);
         break;
       case "allTime":
+        return data;
+      default:
         return data;
     }
 

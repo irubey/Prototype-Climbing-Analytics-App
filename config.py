@@ -1,6 +1,8 @@
 import os
 import secrets
 from dotenv import load_dotenv
+import logging
+from logging.handlers import RotatingFileHandler
 
 # Load environment variables
 load_dotenv()
@@ -64,4 +66,47 @@ class Config:
     STRIPE_PRICE_ID_BASIC = os.environ.get('STRIPE_PRICE_ID_BASIC')
     STRIPE_PRICE_ID_PREMIUM = os.environ.get('STRIPE_PRICE_ID_PREMIUM')
 
-    LOG_LEVEL = 'DEBUG'
+    # Logging Configuration
+    LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    LOG_LEVEL = logging.DEBUG
+    LOG_FILE = 'logs/climbapp.log'
+    LOG_MAX_SIZE = 10 * 1024 * 1024  # 10MB
+    LOG_BACKUP_COUNT = 5
+
+    # CSRF Configuration
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_CHECK_DEFAULT = True
+    WTF_CSRF_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
+
+    @staticmethod
+    def init_app(app):
+        # Ensure logs directory exists
+        os.makedirs('logs', exist_ok=True)
+        
+        # Configure logging
+        formatter = logging.Formatter(Config.LOG_FORMAT)
+        
+        # File handler
+        file_handler = RotatingFileHandler(
+            Config.LOG_FILE,
+            maxBytes=Config.LOG_MAX_SIZE,
+            backupCount=Config.LOG_BACKUP_COUNT
+        )
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(Config.LOG_LEVEL)
+        
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(Config.LOG_LEVEL)
+        
+        # Configure root logger
+        root_logger = logging.getLogger()
+        root_logger.setLevel(Config.LOG_LEVEL)
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
+        
+        # Set SQLAlchemy logging to WARNING
+        logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
+        
+        app.logger.info('Logging system initialized')

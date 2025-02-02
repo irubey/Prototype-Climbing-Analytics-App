@@ -4,18 +4,15 @@ function restDaysChart(targetElement, userTicksData) {
   d3.select(targetElement).select("svg").remove();
 
   // Get filters
-  var discipline = d3
+  const discipline = d3
     .select("input[name='rest-days-discipline-filter']:checked")
     .node().value;
-  var timeFrame = d3
+  const timeFrame = d3
     .select("input[name='rest-days-time-filter']:checked")
     .node().value;
 
   // Apply filters
-  var filteredData = CommonFilters.filterByDiscipline(
-    userTicksData,
-    discipline
-  );
+  let filteredData = CommonFilters.filterByDiscipline(userTicksData, discipline);
   filteredData = CommonFilters.filterByTime(filteredData, timeFrame);
 
   // Format date for x-axis
@@ -31,6 +28,7 @@ function restDaysChart(targetElement, userTicksData) {
 
   // Function to get color based on season
   const getSeasonColor = (seasonCategory) => {
+    if (!seasonCategory) return seasonColors.Spring; // Default color
     const season = seasonCategory.split(" ")[0].replace(",", "");
     return seasonColors[season] || "#4caf50";
   };
@@ -43,7 +41,7 @@ function restDaysChart(targetElement, userTicksData) {
       if (!acc[monthYearKey]) {
         acc[monthYearKey] = new Set();
         acc[monthYearKey].date = date;
-        acc[monthYearKey].seasonCategory = tick.season_category;
+        acc[monthYearKey].seasonCategory = tick.season_category || '';
       }
       acc[monthYearKey].add(date.toISOString().slice(0, 10));
     }
@@ -64,9 +62,7 @@ function restDaysChart(targetElement, userTicksData) {
   // Generate all months between start and end date
   const currentDate = new Date(startDate);
   while (currentDate <= endDate) {
-    const monthYearKey = `${
-      currentDate.getMonth() + 1
-    }-${currentDate.getFullYear()}`;
+    const monthYearKey = `${currentDate.getMonth() + 1}-${currentDate.getFullYear()}`;
     if (!monthsData[monthYearKey]) {
       // If month doesn't exist in data, create empty entry
       monthsData[monthYearKey] = new Set();
@@ -87,7 +83,7 @@ function restDaysChart(targetElement, userTicksData) {
         seasonCategory = `Winter, ${winterYear}-${winterYear + 1}`;
       } else {
         seasonCategory = `${season}, ${year}`;
-      }
+}
 
       monthsData[monthYearKey].seasonCategory = seasonCategory;
     }
@@ -102,14 +98,14 @@ function restDaysChart(targetElement, userTicksData) {
       const weeksInMonth = totalDaysInMonth / 7;
       const averageClimbing = daysSet.size / weeksInMonth;
 
-      return {
+  return {
         monthYear,
         date: daysSet.date,
         seasonCategory: daysSet.seasonCategory,
         averageClimbing,
         averageRest: 7 - averageClimbing,
-      };
-    }
+  };
+}
   );
 
   // Sort by date
@@ -141,7 +137,7 @@ function restDaysChart(targetElement, userTicksData) {
     .scaleOrdinal()
     .domain(["averageClimbing", "averageRest"])
     .range([(d) => getSeasonColor(d.data.seasonCategory), "#f5f5f5"]); // Dynamic color for climbing days
-
+  
   // Scales
   const x = d3
     .scaleBand()

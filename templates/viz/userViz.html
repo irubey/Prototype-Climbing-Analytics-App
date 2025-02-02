@@ -1,471 +1,713 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <!-- Google tag (gtag.js) -->
-    <script
-      async
-      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
-    ></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
-      }
-      gtag("js", new Date());
 
-      gtag("config", "G-QLKC35PVJB");
-    </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SendSage | User Dashboard</title>
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag("js", new Date());
 
-    <!-- Favicon -->
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="32x32"
-      href="{{ url_for('static', filename='images/brand/favicon-32x32.png') }}"
-    />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="16x16"
-      href="{{ url_for('static', filename='images/brand/favicon-16x16.png') }}"
-    />
-    <link
-      rel="apple-touch-icon"
-      sizes="180x180"
-      href="{{ url_for('static', filename='images/brand/apple-touch-icon.png') }}"
-    />
+    gtag("config", "G-QLKC35PVJB");
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SendSage | User Dashboard</title>
 
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
-    <script src="{{ url_for('static', filename='js/userManagement.js') }}"></script>
-  </head>
-  <body data-username="{{ username }}">
-    <header>
-      <a
-        href="{{ url_for('main.index') }}"
-        class="home-link"
-        title="Back to Homepage"
-      >
-        <i class="fas fa-home"></i>
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32"
+    href="{{ url_for('static', filename='images/brand/favicon-32x32.png') }}" />
+  <link rel="icon" type="image/png" sizes="16x16"
+    href="{{ url_for('static', filename='images/brand/favicon-16x16.png') }}" />
+  <link rel="apple-touch-icon" sizes="180x180"
+    href="{{ url_for('static', filename='images/brand/apple-touch-icon.png') }}" />
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+</head>
+
+<body data-username="{{ username }}">
+  <header>
+    <a href="{{ url_for('main.index') }}" class="home-link" title="Back to Homepage">
+      <i class="fas fa-home"></i>
+    </a>
+    <h1>{{ username }}</h1>
+    <div class="header-buttons">
+      <a href="{{ url_for('main.sage_chat', userId=userId) }}" class="sage-chat-button" title="Chat with Sage">
+        <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Sage" class="sage-icon">
+        Chat with Sage
       </a>
-      <h1>{{ username }}</h1>
-      <div class="header-buttons">
-        <a
-          href="{{ url_for('main.sage_chat', userId=userId) }}"
-          class="sage-chat-button"
-          title="Chat with Sage"
-        >
-          <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Sage" class="sage-icon">
-          Chat with Sage
-        </a>
-        <form
-          action="{{ url_for('main.refresh_data', userId=userId) }}"
-          method="POST"
-          style="display: inline"
-        >
-          <button type="submit" class="refresh-button" title="Refresh Data">
-            <i class="fas fa-sync-alt"></i> Refresh Data
+      <form action="{{ url_for('main.refresh_data', userId=userId) }}" method="POST" style="display: inline"
+        id="refresh-form">
+        {{ form.csrf_token }}
+        <button type="submit" class="refresh-button" title="Refresh Data">
+          <i class="fas fa-sync-alt"></i>
+          <span class="button-text">Refresh Data</span>
+          <div class="spinner hidden"></div>
+        </button>
+      </form>
+      <a href="https://www.buymeacoffee.com/irubey" class="buy-coffee-button" target="_blank">
+        <i class="fas fa-coffee"></i> Did I Bring You a Smile?
+      </a>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="container">
+      <!-- Quick Stats Card -->
+      <div class="dashboard-quick-stats">
+        <h3>Quick Stats</h3>
+        <div class="metrics-grid">
+          <div class="metric">
+            <span class="metric-label">Total Pitches</span>
+            <span class="metric-value">{{ metrics.total_pitches|default('0', true) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Unique Locations</span>
+            <span class="metric-value">{{ metrics.unique_locations|default('0', true) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Favorite Area</span>
+            <span class="metric-value">{{ metrics.favorite_area|default('None', true) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Days Outside</span>
+            <span class="metric-value">{{ metrics.days_outside|default('0', true) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <section class="dashboard-section">
+        <div class="section-header">
+          <h2>Experience Base - Deep Dive</h2>
+          <button class="info-button" onclick="openBaseVolumeModal()">
+            <i class="fas fa-info-circle"></i>
           </button>
-        </form>
-        <a
-          href="https://www.buymeacoffee.com/irubey"
-          class="buy-coffee-button"
-          target="_blank"
-        >
-          <i class="fas fa-coffee"></i> Did I Bring You a Smile?
-        </a>
+        </div>
+
+        <!-- Link Cards Row -->
+        <div class="links-row">
+          <div class="card">
+            <a href="{{ url_for('main.base_volume')}}" class="card-link">
+              <h3>
+                <i class="fas fa-chart-line"></i>
+                Base Volume
+              </h3>
+              <p>
+                View your climbing milestones, seasonal patterns, and work
+                capacity. Includes total vertical feet climbed, climbing
+                frequency, and daily volume analysis.
+              </p>
+              <span class="view-details">View Details</span>
+            </a>
+          </div>
+
+          <div class="card">
+            <a href="{{ url_for('main.progression', userId=userId) }}" class="card-link">
+              <h3>
+                <i class="fas fa-chart-line"></i>
+                Progression
+              </h3>
+              <p>
+                Analyze your climbing development through route length and
+                difficulty tiers. Track your volume progression across
+                different styles and grades over time.
+              </p>
+              <span class="view-details">View Details</span>
+            </a>
+          </div>
+
+          <div class="card">
+            <a href="{{ url_for('main.when_where', userId=userId) }}" class="card-link">
+              <h3>
+                <i class="fas fa-chart-line"></i>
+                When and Where
+              </h3>
+              <p>
+                Explore your climbing patterns through seasonal heatmaps,
+                location hierarchies, and an animated history of your
+                most-visited crags.
+              </p>
+              <span class="view-details">View Details</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Performance Quick Stats -->
+      <div class="performance-quick-stats">
+        <!-- Highest Grades Section -->
+        <div class="highest-grades-section">
+          <span class="metric-label">Highest Grades Sent Clean</span>
+          <div class="grade-list">
+            {% for discipline, grade in metrics.highest_grades.items() %}
+            <div class="grade-item">
+              <span class="discipline">{{ discipline.value|title if discipline.value else discipline|title }}</span>
+              <span class="grade">{{ grade }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Recent Sends Section -->
+        <div class="recent-sends-section">
+          <span class="metric-label">Recent Hard Sends</span>
+          <div class="recent-sends-list">
+            {% if metrics.latest_hard_sends %}
+            {% for send in metrics.latest_hard_sends %}
+            <div class="recent-send">
+              {% if send.route_url %}
+              <a href="{{ send.route_url }}" target="_blank" class="route-link route-name">
+                {{ send.route_name }}
+              </a>
+              {% else %}
+              <span class="route-name">{{ send.route_name }}</span>
+              {% endif %}
+
+              <span class="send-grade">{{ send.route_grade }}</span>
+
+              <span class="send-discipline {{ send.discipline }}">{{ send.discipline|title }}</span>
+
+              <span class="send-location" title="{{ send.location }}">
+                <i class="fas fa-map-marker-alt"></i> {{ send.location.split(',')[0]|trim }}
+              </span>
+
+              <span class="send-date">
+                <i class="fas fa-calendar"></i> {{ send.send_date|datetime }}
+              </span>
+
+              {% if send.lead_style %}
+              <span class="send-style">
+                <i class="fas fa-mountain"></i> {{ send.lead_style }}
+              </span>
+              {% else %}
+              <span class="send-style"></span>
+              {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="no-sends-message">
+              <p>No verified sends recorded yet. Start by verifying your performance data!</p>
+              <a href="{{ url_for('main.pyramid_input') }}" class="verify-data-link">
+                <i class="fas fa-edit"></i> Verify Performance Data
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
       </div>
-    </header>
 
-    <main class="main-content">
-      <div class="container">
-        <!-- Quick Stats Card -->
-        <div class="dashboard-quick-stats">
-          <h3>Quick Stats</h3>
-          <div class="metrics-grid">
-            <div class="metric">
-              <span class="metric-label">Total Pitches</span>
-              <span class="metric-value">{{ total_pitches }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Unique Locations</span>
-              <span class="metric-value">{{ unique_locations }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Favorite Area</span>
-              <span class="metric-value">{{ favorite_area }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Days Outside</span>
-              <span class="metric-value">{{ days_outside }}</span>
-            </div>
-          </div>
+      <section class="dashboard-section">
+        <div class="section-header">
+          <h2>Performance Climbing - Deep Dive</h2>
+          <button class="info-button" onclick="openPerformanceModal()">
+            <i class="fas fa-info-circle"></i>
+          </button>
         </div>
 
-        <section class="dashboard-section">
-          <div class="section-header">
-            <h2>Experience Base - Deep Dive</h2>
-            <button class="info-button" onclick="openBaseVolumeModal()">
-              <i class="fas fa-info-circle"></i>
-            </button>
-          </div>
-
-          <!-- Link Cards Row -->
-          <div class="links-row">
-            <div class="card">
-              <a
-                href="{{ url_for('main.base_volume', userId=userId) }}"
-                class="card-link"
-              >
-                <h3>
-                  <i class="fas fa-chart-line"></i>
-                  Base Volume
-                </h3>
-                <p>
-                  View your climbing milestones, seasonal patterns, and work
-                  capacity. Includes total vertical feet climbed, climbing
-                  frequency, and daily volume analysis.
-                </p>
-                <span class="view-details">View Details</span>
-              </a>
-            </div>
-
-            <div class="card">
-              <a
-                href="{{ url_for('main.progression', userId=userId) }}"
-                class="card-link"
-              >
-                <h3>
-                  <i class="fas fa-chart-line"></i>
-                  Progression
-                </h3>
-                <p>
-                  Analyze your climbing development through route length and
-                  difficulty tiers. Track your volume progression across
-                  different styles and grades over time.
-                </p>
-                <span class="view-details">View Details</span>
-              </a>
-            </div>
-
-            <div class="card">
-              <a
-                href="{{ url_for('main.when_where', userId=userId) }}"
-                class="card-link"
-              >
-                <h3>
-                  <i class="fas fa-chart-line"></i>
-                  When and Where
-                </h3>
-                <p>
-                  Explore your climbing patterns through seasonal heatmaps,
-                  location hierarchies, and an animated history of your
-                  most-visited crags.
-                </p>
-                <span class="view-details">View Details</span>
+        <!-- Link Cards Row -->
+        <div class="links-row">
+          <div class="card warning-card">
+            <div class="warning-content">
+              <h3>
+                <i class="fas fa-exclamation-circle"></i>
+                Important: Verify Your Performance Data First
+              </h3>
+              <p>
+                For accurate analysis, please verify and edit your climbing
+                data before viewing the visualizations below.
+              </p>
+              <a href="{{ url_for('main.pyramid_input')}}" class="accent-button">
+                <i class="fas fa-edit"></i> Edit Performance Data
               </a>
             </div>
           </div>
-        </section>
 
-        <!-- Performance Quick Stats -->
-        <div class="performance-quick-stats">
-          <!-- Highest Grades Section -->
-          <div class="highest-grades-section">
-            <span class="metric-label">Highest Grades Sent Clean</span>
-            <div class="grade-list">
-              <div class="grade-item">
-                <span class="discipline">Sport:</span>
-                <span class="grade"
-                  >{{ highest_sport_grade|default('-', true) }}</span
-                >
-              </div>
-              <div class="grade-item">
-                <span class="discipline">Trad:</span>
-                <span class="grade"
-                  >{{ highest_trad_grade|default('-', true) }}</span
-                >
-              </div>
-              <div class="grade-item">
-                <span class="discipline">Boulder:</span>
-                <span class="grade"
-                  >{{ highest_boulder_grade|default('-', true) }}</span
-                >
-              </div>
-            </div>
+          <div class="card performance-card">
+            <a href="{{ url_for('main.performance_pyramid')}}" class="card-link">
+              <h3>
+                <i class="fas fa-chart-line"></i>
+                Performance Pyramid
+              </h3>
+              <p>
+                Track your pyramid progress with interactive grade-by-grade
+                breakdowns, send rates, and detailed project history.
+              </p>
+              <span class="view-details">View Details</span>
+            </a>
           </div>
 
-          <!-- Recent Sends Section -->
-          <div class="recent-sends-section">
-            <span class="metric-label">Recent Hard Sends</span>
-            <div class="recent-sends-list">
-              {% for send in latest_sends %}
-              <div class="recent-send">
-                <span class="route-name">{{ send.route_name }}</span>
-                <span class="send-grade {{ send.discipline.lower() }}"
-                  >{{ send.binned_grade }}</span
-                >
-                <span class="send-location">{{ send.location }}</span>
-                <span class="send-date">{{ send.tick_date }}</span>
-                <span class="send-discipline {{ send.discipline.lower() }}"
-                  >{{ send.discipline }}</span
-                >
-              </div>
-              {% endfor %}
-            </div>
+          <div class="card performance-card">
+            <a href="{{ url_for('main.performance_characteristics') }}" class="card-link">
+              <h3>
+                <i class="fas fa-chart-line"></i>
+                Performance Characteristics
+              </h3>
+              <p>
+                Analyze your climbing style through energy systems, route
+                length, and angle preferences. See grade distributions across
+                different characteristics.
+              </p>
+              <span class="view-details">View Details</span>
+            </a>
           </div>
         </div>
+      </section>
+    </div>
+  </main>
 
-        <section class="dashboard-section">
-          <div class="section-header">
-            <h2>Performance Climbing - Deep Dive</h2>
-            <button class="info-button" onclick="openPerformanceModal()">
-              <i class="fas fa-info-circle"></i>
-            </button>
-          </div>
-
-          <!-- Link Cards Row -->
-          <div class="links-row">
-            <div class="card warning-card">
-              <div class="warning-content">
-                <h3>
-                  <i class="fas fa-exclamation-circle"></i>
-                  Important: Verify Your Performance Data First
-                </h3>
-                <p>
-                  For accurate analysis, please verify and edit your climbing
-                  data before viewing the visualizations below.
-                </p>
-                <a
-                  href="{{ url_for('main.pyramid_input', userId=userId)}}"
-                  class="accent-button"
-                >
-                  <i class="fas fa-edit"></i> Edit Performance Data
-                </a>
-              </div>
-            </div>
-
-            <div class="card performance-card">
-              <a
-                href="{{ url_for('main.performance_pyramid', userId=userId) }}"
-                class="card-link"
-              >
-                <h3>
-                  <i class="fas fa-chart-line"></i>
-                  Performance Pyramid
-                </h3>
-                <p>
-                  Track your pyramid progress with interactive grade-by-grade
-                  breakdowns, send rates, and detailed project history.
-                </p>
-                <span class="view-details">View Details</span>
-              </a>
-            </div>
-
-            <div class="card performance-card">
-              <a
-                href="{{ url_for('main.performance_characteristics', userId=userId) }}"
-                class="card-link"
-              >
-                <h3>
-                  <i class="fas fa-chart-line"></i>
-                  Performance Characteristics
-                </h3>
-                <p>
-                  Analyze your climbing style through energy systems, route
-                  length, and angle preferences. See grade distributions across
-                  different characteristics.
-                </p>
-                <span class="view-details">View Details</span>
-              </a>
-            </div>
-          </div>
-        </section>
+  <!-- Base Volume Info Modal -->
+  <div id="baseVolumeInfo" class="modal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeBaseVolumeModal()">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="modal-header">
+        <h3>About Base Volume Data</h3>
       </div>
-    </main>
-
-    <!-- Base Volume Info Modal -->
-    <div id="baseVolumeInfo" class="modal">
-      <div class="modal-content">
-        <button class="modal-close" onclick="closeBaseVolumeModal()">
-          <i class="fas fa-times"></i>
-        </button>
-        <div class="modal-header">
-          <h3>About Base Volume Data</h3>
-        </div>
-        <div class="modal-section">
-          <h4>Data Source</h4>
-          <p>
-            All data is pulled directly from your Mountain Project tick list,
-            including every climb you've logged on the platform.
-          </p>
-        </div>
-        <div class="modal-section">
-          <h4>Data Scope</h4>
-          <p>
-            This analysis includes your complete climbing history as recorded on
-            Mountain Project. No filtering is applied - all ticks, sends, and
-            attempts across all disciplines and grades are included.
-          </p>
-        </div>
+      <div class="modal-section">
+        <h4>Data Source</h4>
+        <p>
+          All data is pulled directly from your Mountain Project tick list,
+          including every climb you've logged on the platform.
+        </p>
+      </div>
+      <div class="modal-section">
+        <h4>Data Scope</h4>
+        <p>
+          This analysis includes your complete climbing history as recorded on
+          Mountain Project. No filtering is applied - all ticks, sends, and
+          attempts across all disciplines and grades are included.
+        </p>
       </div>
     </div>
+  </div>
 
-    <!-- Performance Info Modal -->
-    <div id="performanceInfo" class="modal">
-      <div class="modal-content">
-        <button class="modal-close" onclick="closePerformanceModal()">
-          <i class="fas fa-times"></i>
-        </button>
-        <div class="modal-header">
-          <h3>About Performance Data</h3>
-        </div>
-        <div class="modal-section">
-          <h4>Data Source</h4>
-          <p>
-            Performance data is filtered from your Mountain Project tick list,
-            focusing only on clean sends (no falls or hangs) across all
-            disciplines.
-          </p>
-        </div>
-        <div class="modal-section">
-          <h4>Data Scope</h4>
-          <p>
-            Analysis includes only your top 4 grades in each discipline. For
-            example, if your hardest sport climb is 5.12-, the analysis will
-            include sends from 5.12- down to 5.11-.
-          </p>
-        </div>
+  <!-- Performance Info Modal -->
+  <div id="performanceInfo" class="modal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closePerformanceModal()">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="modal-header">
+        <h3>About Performance Data</h3>
+      </div>
+      <div class="modal-section">
+        <h4>Data Source</h4>
+        <p>
+          Performance data is filtered from your Mountain Project tick list,
+          focusing only on clean sends (no falls or hangs) across all
+          disciplines.
+        </p>
+      </div>
+      <div class="modal-section">
+        <h4>Data Scope</h4>
+        <p>
+          Analysis includes only your top 4 grades in each discipline. For
+          example, if your hardest sport climb is 5.12-, the analysis will
+          include sends from 5.12- down to 5.11-.
+        </p>
       </div>
     </div>
+  </div>
 
-    <!-- Support Popup -->
-    <div id="coffee-popup" class="coffee-popup hidden">
-      <div class="coffee-popup-content">
-        <h3 class="coffee-popup-title">Enjoying the Analytics?</h3>
-        <h4 class="coffee-popup-text">
-          You're one of <span id="support-count" style="display: none">0</span
-          ><span class="loading-count">...</span> climbers discovering insights
-          through these visualizations!
-        </h4>
-        <a
-          href="https://www.buymeacoffee.com/irubey"
-          target="_blank"
-          class="coffee-button"
-        >
-          <i class="fas fa-coffee"></i>
-          Buy me a coffee
-        </a>
-      </div>
+  <!-- Support Popup -->
+  <div id="coffee-popup" class="coffee-popup hidden">
+    <div class="coffee-popup-content">
+      <h3 class="coffee-popup-title">Enjoying the Analytics?</h3>
+      <h4 class="coffee-popup-text">
+        You're one of <span id="support-count" style="display: none">0</span><span class="loading-count">...</span>
+        climbers discovering insights
+        through these visualizations!
+      </h4>
+      <a href="https://www.buymeacoffee.com/irubey" target="_blank" class="coffee-button">
+        <i class="fas fa-coffee"></i>
+        Buy me a coffee
+      </a>
     </div>
+  </div>
 
-    <footer>
-      <nav class="footer-nav">
-        <a href="{{ url_for('main.index') }}" class="footer-link">
-          <i class="fas fa-home"></i> Home
-        </a>
-        <a href="{{ url_for('main.terms_and_privacy') }}" class="footer-link">
-          <i class="fas fa-shield-alt"></i> Terms & Privacy
-        </a>
-        <a href="mailto:climbing.analytics@gmail.com" class="footer-link">
-          <i class="fas fa-envelope"></i> Feedback
-        </a>
-      </nav>
-    </footer>
+  <footer>
+    <nav class="footer-nav">
+      <a href="{{ url_for('main.index') }}" class="footer-link">
+        <i class="fas fa-home"></i> Home
+      </a>
+      <a href="{{ url_for('main.terms_and_privacy') }}" class="footer-link">
+        <i class="fas fa-shield-alt"></i> Terms & Privacy
+      </a>
+      <a href="mailto:climbing.analytics@gmail.com" class="footer-link">
+        <i class="fas fa-envelope"></i> Feedback
+      </a>
+    </nav>
+  </footer>
 
-    <!-- Modal JavaScript -->
-    <script>
-      function openBaseVolumeModal() {
-        document.getElementById("baseVolumeInfo").style.display = "block";
-        document.body.style.overflow = "hidden"; // Prevent scrolling when modal is open
+  <!-- Modal JavaScript -->
+  <script>
+    function openBaseVolumeModal() {
+      document.getElementById("baseVolumeInfo").style.display = "block";
+      document.body.style.overflow = "hidden"; // Prevent scrolling when modal is open
+    }
+
+    function closeBaseVolumeModal() {
+      document.getElementById("baseVolumeInfo").style.display = "none";
+      document.body.style.overflow = "auto"; // Restore scrolling
+    }
+
+    function openPerformanceModal() {
+      document.getElementById("performanceInfo").style.display = "block";
+      document.body.style.overflow = "hidden";
+    }
+
+    function closePerformanceModal() {
+      document.getElementById("performanceInfo").style.display = "none";
+      document.body.style.overflow = "auto";
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function (event) {
+      const baseVolumeModal = document.getElementById("baseVolumeInfo");
+      const performanceModal = document.getElementById("performanceInfo");
+
+      if (event.target == baseVolumeModal) {
+        closeBaseVolumeModal();
       }
-
-      function closeBaseVolumeModal() {
-        document.getElementById("baseVolumeInfo").style.display = "none";
-        document.body.style.overflow = "auto"; // Restore scrolling
+      if (event.target == performanceModal) {
+        closePerformanceModal();
       }
+    };
 
-      function openPerformanceModal() {
-        document.getElementById("performanceInfo").style.display = "block";
-        document.body.style.overflow = "hidden";
-      }
+    // Add this before the existing script content
+    document.getElementById('refresh-form').addEventListener('submit', function (e) {
+      const button = this.querySelector('button');
+      const icon = button.querySelector('i');
+      const text = button.querySelector('.button-text');
+      const spinner = button.querySelector('.spinner');
 
-      function closePerformanceModal() {
-        document.getElementById("performanceInfo").style.display = "none";
-        document.body.style.overflow = "auto";
-      }
+      // Disable button and show loading state
+      button.disabled = true;
+      icon.classList.add('hidden');
+      text.textContent = 'Refreshing...';
+      spinner.classList.remove('hidden');
+    });
+  </script>
 
-      // Close modal when clicking outside
-      window.onclick = function (event) {
-        const baseVolumeModal = document.getElementById("baseVolumeInfo");
-        const performanceModal = document.getElementById("performanceInfo");
+  <script src="{{ url_for('static', filename='js/utils/supportPopup.js') }}"></script>
 
-        if (event.target == baseVolumeModal) {
-          closeBaseVolumeModal();
-        }
-        if (event.target == performanceModal) {
-          closePerformanceModal();
-        }
-      };
-    </script>
+  <style>
+    .sage-chat-button {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--primary);
+      color: var(--color-white);
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--border-radius-md);
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      margin: 0;
+    }
 
-    <!-- Data initialization -->
-    <script>
-      const sportPyramidData = {{ sport_pyramid|tojson|safe }};
-      const tradPyramidData = {{ trad_pyramid|tojson|safe }};
-      const boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
-      const userTicksData = {{ user_ticks|tojson|safe }};
-      const binnedCodeDict = {{ binned_code_dict|tojson|safe }};
-    </script>
+    .header-buttons {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
 
-    <script src="{{ url_for('static', filename='js/supportPopup.js') }}"></script>
+    .sage-chat-button:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      background: var(--accent-dark-teal);
+    }
 
-    <style>
-      .sage-chat-button {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        background: var(--primary);
-        color: var(--color-white);
-        padding: 0.75rem 1.25rem;
-        border-radius: var(--border-radius-md);
-        text-decoration: none;
-        font-weight: 500;
-        transition: all 0.2s ease;
-        box-shadow: var(--shadow-sm);
-        margin: 0;
-      }
+    .sage-chat-button .sage-icon {
+      width: 24px;
+      height: 24px;
+      filter: brightness(0) invert(1);
+    }
 
-      .header-buttons {
-        display: flex;
-        align-items: center;
+    .recent-sends-list {
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 0.5rem;
+      border-radius: var(--border-radius-lg);
+      background: var(--bg-light);
+    }
+
+    .recent-send {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 2fr 1.5fr 1.5fr;
+      gap: 1rem;
+      align-items: center;
+      background: var(--bg-white);
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border-radius: var(--border-radius-md);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+    }
+
+    .recent-send:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .send-grid {
+      display: contents;
+    }
+
+    .send-item {
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+      color: var(--text-dark);
+    }
+
+    .route-name {
+      font-weight: 500;
+      color: var(--text-dark);
+    }
+
+    .send-grade {
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--border-radius-sm);
+      background: var(--bg-light);
+      color: var(--text-dark);
+    }
+
+    .send-discipline {
+      font-size: 0.8rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--border-radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .send-location,
+    .send-date,
+    .send-style {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .send-location i,
+    .send-date i,
+    .send-style i {
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+
+    .no-sends-message {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    .verify-data-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background: var(--primary);
+      color: var(--color-white);
+      text-decoration: none;
+      border-radius: var(--border-radius-md);
+      transition: all 0.2s ease;
+    }
+
+    .verify-data-link:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    /* Discipline-specific colors - only apply to discipline tags */
+    .send-discipline.sport {
+      background: var(--sport-color, #e63946);
+      color: white;
+    }
+
+    .send-discipline.trad {
+      background: var(--trad-color, #2a9d8f);
+      color: white;
+    }
+
+    .send-discipline.boulder {
+      background: var(--boulder-color, #e9c46a);
+      color: black;
+    }
+
+    .send-discipline.tr {
+      background: var(--tr-color, #264653);
+      color: white;
+    }
+
+    /* Performance Quick Stats Container */
+    .performance-quick-stats {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin: 1.5rem 0;
+      width: 100%;
+    }
+
+    .highest-grades-section,
+    .recent-sends-section {
+      background: var(--bg-white);
+      padding: 1.5rem;
+      border-radius: var(--border-radius-lg);
+      box-shadow: var(--shadow-md);
+      width: 100%;
+    }
+
+    .grade-list {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+
+    .grade-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: var(--bg-light);
+      border-radius: var(--border-radius-md);
+      min-width: 150px;
+      flex: 1;
+      max-width: 200px;
+      text-align: center;
+    }
+
+    .grade-item .discipline {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .grade-item .grade {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+
+    .metric-label {
+      display: block;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      border-bottom: 2px solid var(--bg-light);
+      padding-bottom: 0.5rem;
+    }
+
+    .send-characteristics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 0.5rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .characteristic {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: var(--bg-light);
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--border-radius-sm);
+    }
+
+    .characteristic i {
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+
+    .send-style {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: var(--bg-light);
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--border-radius-sm);
+    }
+
+    /* Dashboard Links Row Responsive Layout */
+    .links-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .links-row {
+        grid-template-columns: 1fr !important;
         gap: 1rem;
       }
 
-      .sage-chat-button:hover {
-        transform: translateY(-1px);
-        box-shadow: var(--shadow-md);
-        background: var(--accent-dark-teal);
+      .links-row .card {
+        width: 100%;
+      }
+    }
+
+    .refresh-button {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--primary);
+      color: var(--color-white);
+      padding: 0.75rem 1.25rem;
+      border: none;
+      border-radius: var(--border-radius-md);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .refresh-button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .refresh-button .hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--color-white);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
       }
 
-      .sage-chat-button .sage-icon {
-        width: 24px;
-        height: 24px;
-        filter: brightness(0) invert(1);
+      to {
+        transform: rotate(360deg);
       }
-    </style>
-  </body>
+    }
+  </style>
+</body>
+
 </html>

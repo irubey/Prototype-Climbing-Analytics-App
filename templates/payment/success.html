@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h2 class="card-title text-success mb-4">Payment Successful!</h2>
+                    <p class="card-text">Thank you for subscribing to SendSage. Your account has been upgraded and your
+                        new features are being activated.</p>
+                    <p class="card-text text-muted">You will receive a confirmation email shortly.</p>
+                    <div class="mt-4">
+                        <a href="{{ url_for('main.sage_chat') }}" class="btn btn-primary">Start Using SendSage</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

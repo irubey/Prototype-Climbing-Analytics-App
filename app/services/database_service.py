@@ -1,17 +1,22 @@
 from app.models import (
-    db, BinnedCodeDict, BoulderPyramid, SportPyramid, 
-    TradPyramid, UserTicks, ClimberSummary, UserUpload, User
+    db, BinnedCodeDict, UserTicks, ClimberSummary, UserUpload, User, PerformancePyramid
 )
 from sqlalchemy.exc import SQLAlchemyError, OperationalError, IntegrityError
 import pandas as pd
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
-from app.services.pyramid_builder import PyramidBuilder
 import os
 from functools import wraps
 import time
 from sqlalchemy import desc, func, and_, exists, case, text
 from sqlalchemy.orm import Query as BaseQuery
+from uuid import UUID
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+import logging
+from .exceptions import DataProcessingError
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 def retry_on_db_error(max_retries=3, delay=1):
     """Decorator to retry database operations on connection errors"""
@@ -24,11 +29,14 @@ def retry_on_db_error(max_retries=3, delay=1):
                     return func(*args, **kwargs)
                 except OperationalError as e:
                     retries += 1
+                    logger.warning(f"Database operation failed (attempt {retries}/{max_retries}): {str(e)}")
                     if retries == max_retries:
+                        logger.error(f"Max retries ({max_retries}) reached for database operation")
                         raise
                     db.session.rollback()
                     time.sleep(delay * retries)  # Exponential backoff
                 except SQLAlchemyError as e:
+                    logger.error(f"Database error: {str(e)}", exc_info=True)
                     db.session.rollback()
                     raise
             return None
@@ -41,126 +49,127 @@ class DatabaseService:
     @staticmethod
     @retry_on_db_error()
     def save_calculated_data(calculated_data: Dict[str, pd.DataFrame]) -> None:
-        """Save calculated pyramid and tick data to database"""
-        # Save UserTicks FIRST
-        if 'user_ticks' in calculated_data:
-            DatabaseService._batch_save_dataframe(
-                calculated_data['user_ticks'], 
-                'user_ticks'
-            )
+        """Save calculated data to database"""
+        logger.info("Starting to save calculated data")
         
-        # Then save pyramids with valid foreign keys
-        for table_name in ['sport_pyramid', 'trad_pyramid', 'boulder_pyramid']:
-            if table_name in calculated_data:
-                DatabaseService._batch_save_dataframe(
-                    calculated_data[table_name], 
-                    table_name
-                )
-        
-        # Reset sequences if using PostgreSQL
-        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
-            try:
-                db.session.execute(text("""
-                    SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
-                    SELECT setval(pg_get_serial_sequence('sport_pyramid', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM sport_pyramid), 0) + 1, false);
-                    SELECT setval(pg_get_serial_sequence('trad_pyramid', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM trad_pyramid), 0) + 1, false);
-                    SELECT setval(pg_get_serial_sequence('boulder_pyramid', 'id'), 
-                        COALESCE((SELECT MAX(id) FROM boulder_pyramid), 0) + 1, false);
-                """))
-                db.session.commit()
-            except Exception as e:
-                print(f"Warning: Failed to reset sequences: {e}")
-                db.session.rollback()
+        try:
+            # Use nested transaction if a transaction is already active
+            with db.session.begin_nested():
+                # Save UserTicks
+                if 'user_ticks' in calculated_data:
+                    logger.debug("Saving user ticks data")
+                    DatabaseService._batch_save_dataframe(
+                        calculated_data['user_ticks'], 
+                        'user_ticks'
+                    )
+                
+                # Reset sequences if using PostgreSQL
+                if 'postgresql' in os.environ.get('DATABASE_URL', ''):
+                    logger.debug("Resetting PostgreSQL sequences")
+                    try:
+                        db.session.execute(text("""
+                            SELECT setval(pg_get_serial_sequence('user_ticks', 'id'), 
+                                COALESCE((SELECT MAX(id) FROM user_ticks), 0) + 1, false);
+                        """))
+                    except Exception as e:
+                        logger.warning(f"Failed to reset sequences: {str(e)}")
+                        # Don't raise here, sequence reset is not critical
+                
+                # Save performance pyramid if present
+                if 'performance_pyramid' in calculated_data:
+                    logger.debug("Saving performance pyramid data")
+                    DatabaseService._batch_save_dataframe(
+                        calculated_data['performance_pyramid'],
+                        'performance_pyramid'
+                    )
+                
+                logger.info("Successfully saved all calculated data")
+                
+        except Exception as e:
+            logger.error(f"Error saving calculated data: {str(e)}", exc_info=True)
+            # Let the outer transaction handle the rollback if needed
+            raise DataProcessingError(f"Failed to save data: {str(e)}")
 
     @staticmethod
     def _batch_save_dataframe(df: pd.DataFrame, table_name: str) -> None:
-        """Batch save a dataframe to the appropriate database table"""
+        """Save DataFrame to database in batches"""
+        logger.debug(f"Starting batch save for {table_name}")
+        
+        # Get model class
         model_class = {
-            'sport_pyramid': SportPyramid,
-            'trad_pyramid': TradPyramid,
-            'boulder_pyramid': BoulderPyramid,
-            'user_ticks': UserTicks
+            'user_ticks': UserTicks,
+            'performance_pyramid': PerformancePyramid
         }.get(table_name)
         
         if not model_class:
-            raise ValueError(f"No model found for table name: {table_name}")
-
-        model_columns = [c.name for c in model_class.__table__.columns]
-        
-        # Validate user_id exists
-        if table_name in ['user_ticks', 'sport_pyramid', 'trad_pyramid', 'boulder_pyramid']:
-            if 'user_id' not in df.columns:
-                raise ValueError(f"Missing user_id column in {table_name} data")
-            if df['user_id'].isnull().any():
-                raise ValueError(f"Null user_id found in {table_name} data")
-        
-        if table_name == 'sport_pyramid' or table_name == 'trad_pyramid' or table_name == 'boulder_pyramid' and 'user_id' in df.columns:
-            if df['user_id'].isnull().any():
-                raise ValueError("Null user_id found in pyramid data")
-        if table_name == 'climber_summary' and 'user_id' in df.columns:
-            if df['user_id'].isnull().any():
-                raise ValueError("Null user_id found in climber_summary data")
-        
-        # Validate foreign keys
-        if table_name in ['sport_pyramid', 'trad_pyramid', 'boulder_pyramid']:
-            if 'tick_id' not in df.columns:
-                raise ValueError(f"Missing tick_id in {table_name} data")
+            raise ValueError(f"Invalid table name: {table_name}")
             
-            # Verify tick_ids exist in UserTicks
-            existing_ticks = UserTicks.query.filter(
-                UserTicks.id.in_(df['tick_id'].tolist())
-            ).with_entities(UserTicks.id).all()
-            
-            existing_ids = {t.id for t in existing_ticks}
-            missing = df[~df['tick_id'].isin(existing_ids)]
-            if not missing.empty:
-                raise ValueError(f"Invalid tick_ids found: {missing['tick_id'].tolist()}")
+        # Get column names and types from model
+        model_columns = {c.name: c.type for c in model_class.__table__.columns}
         
-        # Prepare batch of records
-        records_to_insert = []
-        
-        # If this is a pyramid table, get all tick IDs in one query
-        tick_ids = {}
-        if table_name != 'user_ticks' and 'tick_id' not in df.columns:
-            conditions = [(row['user_id'], row['route_name'], row['tick_date']) for _, row in df.iterrows()]
-            tick_records = UserTicks.query.filter(
-                db.tuple_(
-                    UserTicks.user_id,
-                    UserTicks.route_name,
-                    UserTicks.tick_date
-                ).in_(conditions)
-            ).all()
-            tick_ids = {(t.user_id, t.route_name, t.tick_date): t.id for t in tick_records}
-
-        # Prepare all records
-        for _, row in df.iterrows():
-            data_dict = {k: v for k, v in row.where(pd.notnull(row), None).to_dict().items() 
-                        if k in model_columns}
+        try:
+            # Prepare batch of records
+            logger.debug("Preparing records for batch insert")
+            records_to_insert = []
             
-            # Ensure user_id is int if present
-            if 'user_id' in data_dict:
-                data_dict['user_id'] = int(data_dict['user_id'])
+            # Prepare all records
+            for idx, row in df.iterrows():
+                data_dict = {k: v for k, v in row.where(pd.notnull(row), None).to_dict().items() 
+                            if k in model_columns}
+                
+                # Handle UUID user_id
+                if 'user_id' in data_dict:
+                    user_id = data_dict['user_id']
+                    if user_id is None:
+                        logger.error(f"Null user_id found in row {idx}")
+                        raise ValueError(f"user_id cannot be null (row {idx})")
+                    
+                    try:
+                        # Handle different input types
+                        if isinstance(user_id, UUID):
+                            pass  # Already in correct format
+                        elif isinstance(user_id, str):
+                            data_dict['user_id'] = UUID(user_id.strip())
+                        else:
+                            data_dict['user_id'] = UUID(str(user_id).strip())
+                    except (ValueError, AttributeError) as e:
+                        logger.error(f"Invalid UUID format for user_id in row {idx}: {user_id}")
+                        raise ValueError(f"Invalid UUID format for user_id in row {idx}: {user_id}")
+                else:
+                    logger.error(f"Missing user_id in row {idx}")
+                    raise ValueError(f"user_id is required (missing in row {idx})")
+                
+                # Convert data types based on model column types
+                for col, val in list(data_dict.items()):
+                    col_type = model_columns[col]
+                    try:
+                        if isinstance(col_type, PostgresUUID) and not isinstance(val, UUID):
+                            data_dict[col] = UUID(str(val).strip())
+                        elif str(col_type) == 'INTEGER' and val is not None:
+                            data_dict[col] = int(val)
+                        elif str(col_type) == 'BOOLEAN' and val is not None:
+                            data_dict[col] = bool(val)
+                        elif str(col_type) == 'FLOAT' and val is not None:
+                            data_dict[col] = float(val)
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Type conversion error for column {col} in row {idx}: {val}")
+                        raise ValueError(f"Type conversion error for column {col} in row {idx}: {val}")
+                
+                try:
+                    records_to_insert.append(model_class(**data_dict))
+                except TypeError as e:
+                    logger.error(f"Error creating model instance for row {idx}: {e}")
+                    raise ValueError(f"Error creating model instance for row {idx}: {e}")
             
-            # For pyramid tables, add the tick_id if not already present
-            if table_name != 'user_ticks' and 'tick_id' not in data_dict:
-                key = (data_dict['user_id'], data_dict['route_name'], data_dict['tick_date'])
-                data_dict['tick_id'] = tick_ids.get(key)
-            
-            records_to_insert.append(model_class(**data_dict))
-
-        # Bulk insert all records
-        if records_to_insert:
+            # Batch insert records
+            logger.debug(f"Inserting {len(records_to_insert)} records")
             db.session.bulk_save_objects(records_to_insert)
-        
-        # After bulk insert
-        if 'postgresql' in os.environ.get('DATABASE_URL', ''):
-            db.session.execute(text(
-                f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), "
-                f"COALESCE((SELECT MAX(id)+1 FROM {table_name}), 1), false)"
-            ))
+            
+            logger.info(f"Successfully saved {len(records_to_insert)} records to {table_name}")
+            
+        except Exception as e:
+            logger.error(f"Error saving data to {table_name}: {str(e)}", exc_info=True)
+            raise
 
     @staticmethod
     def init_binned_code_dict(binned_code_dict: Dict[int, List[str]]) -> None:
@@ -196,7 +205,7 @@ class DatabaseService:
 
     @staticmethod
     def delete_user_tick(tick_id: int) -> bool:
-        """Delete a tick and its associated pyramid entries"""
+        """Delete a tick and its associated performance pyramid entries"""
         try:
             # Get the tick to find its details
             user_tick = UserTicks.query.get(tick_id)
@@ -205,27 +214,12 @@ class DatabaseService:
                 
             user_id = user_tick.user_id
             
+            # Delete associated performance pyramid entries
+            PerformancePyramid.query.filter_by(tick_id=tick_id).delete()
+            
             # Delete the user tick
             db.session.delete(user_tick)
             db.session.commit()
-            
-            # Get remaining ticks for pyramid rebuild
-            remaining_ticks = DatabaseService.get_user_ticks_by_id(user_id)
-            
-            # Convert to DataFrame for pyramid building
-            df = pd.DataFrame([r.as_dict() for r in remaining_ticks])
-            
-            # Build fresh pyramids from remaining ticks - no prediction needed
-            pyramid_builder = PyramidBuilder()
-            sport_pyramid, trad_pyramid, boulder_pyramid = pyramid_builder.build_all_pyramids(df, db.session)
-            
-            # Clear existing pyramids and save new ones
-            DatabaseService.clear_pyramids(user_id=user_id)
-            DatabaseService.save_calculated_data({
-                'sport_pyramid': sport_pyramid,
-                'trad_pyramid': trad_pyramid,
-                'boulder_pyramid': boulder_pyramid
-            })
             
             return True
             
@@ -233,139 +227,31 @@ class DatabaseService:
             db.session.rollback()
             raise e
 
-    # Pyramid Operations
-    @staticmethod
-    @retry_on_db_error()
-    def get_pyramids_by_user_id(user_id: int) -> Dict[str, List[Any]]:
-        """Get all pyramids for a user by user_id"""
-        return {
-            'sport': SportPyramid.query.filter_by(user_id=user_id).order_by(SportPyramid.binned_code.desc()).all(),
-            'trad': TradPyramid.query.filter_by(user_id=user_id).order_by(TradPyramid.binned_code.desc()).all(),
-            'boulder': BoulderPyramid.query.filter_by(user_id=user_id).order_by(BoulderPyramid.binned_code.desc()).all()
-        }
-
-    @staticmethod
-    def update_pyramid(discipline: str, pyramid_id: int, field: str, value: Any) -> bool:
-        """Update a specific field in a pyramid"""
-        try:
-            model_class = {
-                'sport': SportPyramid,
-                'trad': TradPyramid,
-                'boulder': BoulderPyramid
-            }.get(discipline)
-            
-            if not model_class:
-                return False
-                
-            record = model_class.query.get(pyramid_id)
-            if record:
-                setattr(record, field, value)
-                db.session.commit()
-                return True
-            return False
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            raise e
-
-    @staticmethod
-    def get_binned_code_dict() -> List[BinnedCodeDict]:
-        """Get all binned code dictionary entries"""
-        try:
-            return BinnedCodeDict.query.all()
-        except SQLAlchemyError as e:
-            raise e
-
-    @staticmethod
-    def get_pyramid_by_id(discipline: str, pyramid_id: int) -> Optional[Union[SportPyramid, TradPyramid, BoulderPyramid]]:
-        """Get a specific pyramid entry by ID"""
-        try:
-            model_class = {
-                'sport': SportPyramid,
-                'trad': TradPyramid,
-                'boulder': BoulderPyramid
-            }.get(discipline)
-            
-            if not model_class:
-                return None
-                
-            return model_class.query.get(pyramid_id)
-        except SQLAlchemyError as e:
-            raise e
-
-    @staticmethod
-    def user_data_exists(user_id: int = None) -> bool:
-        """Check if user data exists in the database by user_id"""
-        try:
-            # Build the filter conditions
-            if user_id is not None:
-                user_filter = {'user_id': user_id}
-            else:
-                raise ValueError("user_id must be provided")
-
-            # Check for any user ticks
-            has_ticks = db.session.query(UserTicks.query.filter_by(**user_filter).exists()).scalar()
-            
-            # Check for pyramids
-            has_sport = db.session.query(SportPyramid.query.filter_by(**user_filter).exists()).scalar()
-            has_trad = db.session.query(TradPyramid.query.filter_by(**user_filter).exists()).scalar()
-            has_boulder = db.session.query(BoulderPyramid.query.filter_by(**user_filter).exists()).scalar()
-            
-            # Return True if user has ticks and at least one type of pyramid
-            return has_ticks and (has_sport or has_trad or has_boulder)
-        except SQLAlchemyError as e:
-            raise e
-
-    @staticmethod
-    def clear_pyramids(user_id: int = None) -> None:
-        """Clear all pyramids for a user by user_id"""
-        try:
-            if user_id is not None:
-                SportPyramid.query.filter_by(user_id=user_id).delete()
-                TradPyramid.query.filter_by(user_id=user_id).delete()
-                BoulderPyramid.query.filter_by(user_id=user_id).delete()
-            db.session.commit()
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            raise e
-
     @staticmethod
     @retry_on_db_error()
     def clear_user_data(user_id: int = None) -> None:
-        """Clear all data for a user (ticks and pyramids) and reset sequences"""
+        """Clear all data for a user (ticks and performance pyramid) and reset sequences"""
         try:
-            # Build the filter conditions
-            if user_id is not None:
-                user_filter = {'user_id': user_id}
-            else:
+            if user_id is None:
                 raise ValueError("user_id must be provided")
 
             # Delete all related data in correct order
-            BoulderPyramid.query.filter_by(**user_filter).delete(synchronize_session=False)
-            SportPyramid.query.filter_by(**user_filter).delete(synchronize_session=False)
-            TradPyramid.query.filter_by(**user_filter).delete(synchronize_session=False)
-            UserTicks.query.filter_by(**user_filter).delete(synchronize_session=False)
+            PerformancePyramid.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+            UserTicks.query.filter_by(user_id=user_id).delete(synchronize_session=False)
             
             # Commit the deletions
             db.session.commit()
             
-            # Get current max ID safely
-            max_id = db.session.query(func.max(User.id)).scalar() or 0
-            new_start = max_id + 1 if max_id > 0 else 1
-            
-            # Reset sequence using PostgreSQL-specific command
-            db.session.execute(text(
-                f"ALTER SEQUENCE users_id_seq RESTART WITH {new_start};"
-            ))
-            
-            db.session.commit()
-
             # Add this to ensure complete data isolation
             ClimberSummary.query.filter_by(user_id=user_id).delete()
             UserUpload.query.filter_by(user_id=user_id).delete()
+            
+            db.session.commit()
+            
         except SQLAlchemyError as e:
             db.session.rollback()
-            raise e  # Re-raise the exception after rollback
-        
+            raise e
+
     @staticmethod
     def get_highest_grade(user_id: int, discipline: str) -> Optional[UserTicks]:
         return UserTicks.query.filter_by(
@@ -409,27 +295,6 @@ class DatabaseService:
     @staticmethod
     def get_max_clean_send(query: BaseQuery) -> Optional[UserTicks]:
         return query.order_by(desc(UserTicks.binned_code)).first()
-    
-    @staticmethod
-    def get_style_analysis(user_id: int, model_class, style_column: str) -> list:
-        return db.session.query(
-            style_column,
-            func.count().label('count'),
-            func.max(model_class.binned_code).label('max_grade')
-        ).filter_by(user_id=user_id).group_by(style_column).all()
-
-    @staticmethod
-    def get_combined_style_data(user_id: int, column: str) -> list:
-        return db.session.query(
-            getattr(SportPyramid, column),
-            func.count().label('count')
-        ).filter_by(user_id=user_id).union_all(
-            db.session.query(getattr(TradPyramid, column), func.count())
-            .filter_by(user_id=user_id)
-        ).union_all(
-            db.session.query(getattr(BoulderPyramid, column), func.count())
-            .filter_by(user_id=user_id)
-        ).group_by(getattr(SportPyramid, column)).all()
     
     @staticmethod
     def get_recent_sends_count(user_id: int, days: int = 30) -> int:
@@ -481,14 +346,69 @@ class DatabaseService:
         ).limit(limit).all()
 
     @staticmethod
-    def validate_pyramid_data(user_id: int):
-        """Ensure all pyramid entries have valid user relationships"""
-        # Check sport pyramid
-        invalid_sport = db.session.query(SportPyramid).filter(
-            SportPyramid.user_id == user_id,
-            ~exists().where(UserTicks.id == SportPyramid.tick_id)
-        ).first()
-        if invalid_sport:
-            raise IntegrityError(f"Invalid sport pyramid tick: {invalid_sport.tick_id}")
+    def get_pyramids_by_user_id(user_id: UUID) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all pyramid data for a user by joining PerformancePyramid and UserTicks."""
+        logger = logging.getLogger(__name__)
+        logger.info(f"Fetching pyramid data for user {user_id}")
+        
+        try:
+            # Query joining PerformancePyramid and UserTicks
+            results = db.session.query(PerformancePyramid, UserTicks).join(
+                UserTicks, PerformancePyramid.tick_id == UserTicks.id
+            ).filter(PerformancePyramid.user_id == user_id).all()
+            
+            logger.info(f"Found {len(results)} total pyramid entries")
 
-        # Similar checks for trad and boulder pyramids...
+            # Initialize dictionaries for each discipline
+            pyramids = {
+                'sport': [],
+                'trad': [],
+                'boulder': []
+            }
+
+            # Process results
+            for pyramid, tick in results:
+                # Convert enum values to strings if they exist
+                crux_energy = pyramid.crux_energy.value if pyramid.crux_energy else None
+                crux_angle = pyramid.crux_angle.value if pyramid.crux_angle else None
+                
+                # Create combined data dictionary
+                combined_data = {
+                    'tick_id': pyramid.tick_id,
+                    'send_date': pyramid.send_date,
+                    'crux_energy': crux_energy,
+                    'crux_angle': crux_angle,
+                    'num_attempts': pyramid.num_attempts,
+                    'days_tried': pyramid.days_attempts,
+                    'description': pyramid.description,
+                    'route_name': tick.route_name,
+                    'route_grade': tick.route_grade,
+                    'binned_grade': tick.binned_grade,
+                    'binned_code': tick.binned_code,
+                    'length': tick.length,
+                    'length_category': tick.length_category,
+                    'pitches': tick.pitches,
+                    'location': tick.location,
+                    'location_raw': tick.location_raw,
+                    'lead_style': tick.lead_style,
+                    'route_url': tick.route_url,
+                    'route_stars': tick.route_stars,
+                    'user_stars': tick.user_stars
+                }
+
+                # Add to appropriate discipline list
+                discipline = tick.discipline.value if hasattr(tick.discipline, 'value') else tick.discipline
+                if discipline in pyramids:
+                    pyramids[discipline].append(combined_data)
+                    logger.debug(f"Added entry for {discipline}: {tick.route_name} ({tick.route_grade})")
+
+            # Sort each discipline's data and log counts
+            for discipline in pyramids:
+                pyramids[discipline].sort(key=lambda x: (-x['binned_code'], x['send_date']))
+                logger.info(f"Processed {len(pyramids[discipline])} entries for {discipline}")
+
+            return pyramids
+
+        except Exception as e:
+            logger.error(f"Error in get_pyramids_by_user_id: {str(e)}")
+            raise

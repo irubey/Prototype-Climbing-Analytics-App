@@ -1,239 +1,300 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from app.models import (
     db, 
-    SportPyramid, 
-    TradPyramid, 
-    BoulderPyramid, 
     UserTicks,
+    PerformancePyramid,
     CruxEnergyType,
-    CruxAngle
+    CruxAngle,
+    ClimbingDiscipline
 )
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import datetime
+from datetime import datetime, timezone
 from app.services.grade_processor import GradeProcessor
 from app.services.climb_classifier import ClimbClassifier
+from uuid import UUID
 import pandas as pd
-import time
+import logging
 
 class PyramidUpdateService:
-    def __init__(self):
+    def __init__(self, db_session=None):
         self.grade_processor = GradeProcessor()
         self.classifier = ClimbClassifier()
+        self.logger = logging.getLogger(__name__)
+        self.db_session = db_session or db.session
 
-    def process_changes(self, userId: int = None, changes_data: Dict[str, Any] = None) -> bool:
-        """Process changes to pyramid data including new fields."""
-        if not changes_data or not userId:
+    def process_changes(self, user_id: UUID, changes_data: Dict[str, Any]) -> bool:
+        """Process changes to performance pyramid data."""
+        self.logger.info(f"Starting to process changes for user {user_id}")
+        self.logger.debug(f"Received changes_data: {changes_data}")
+
+        if not changes_data or not user_id:
+            self.logger.warning("No changes_data or user_id provided")
             return False
 
         try:
-            for discipline, changes in changes_data.items():
-                model_class = self._get_model(discipline)
-                if not model_class:
-                    continue
+            # Process removals
+            if removals := changes_data.get('removed'):
+                self.logger.info(f"Processing {len(removals)} removals")
+                self._remove_entries(user_id, removals)
 
-                # Get valid grade range for this discipline
-                existing_entries = model_class.query.filter_by(userId=userId).all()
-                valid_codes = [e.binned_code for e in existing_entries] if existing_entries else []
-                min_code = min(valid_codes) if valid_codes else 0
-                max_code = max(valid_codes) if valid_codes else 0
+            # Process updates
+            for discipline in ['sport', 'trad', 'boulder']:
+                if discipline_data := changes_data.get(discipline, {}):
+                    if updates := discipline_data.get('updated', []):
+                        self.logger.info(f"Processing {len(updates)} updates for {discipline}")
+                        for update in updates:
+                            self.logger.debug(f"Processing update for tick_id: {update.get('tick_id')}")
+                            self._process_update(user_id, update)
 
-                # Process removals
-                if changes.get('removed'):
-                    valid_ids = [tid for tid in changes['removed'] if tid and tid != 'None']
-                    if valid_ids:
-                        self._remove_routes(discipline, userId, valid_ids)
-
-                # Process updates and additions
-                for route_id, updates in changes.get('updated', {}).items():
-                    if not route_id or route_id in ['attempts', 'characteristic', 'style']:
-                        continue
-
-                    if str(route_id).startswith('8'):  # New route
-                        self._handle_new_route(userId, model_class, discipline, route_id, updates)
-                    else:  # Existing route
-                        self._handle_existing_route(userId, model_class, discipline, route_id, updates, min_code, max_code)
-
-            db.session.commit()
-            db.session.expire_all()
+            self.db_session.commit()
+            self.logger.info("Successfully committed all changes to database")
             return True
 
         except SQLAlchemyError as e:
-            db.session.rollback()
+            self.logger.error(f"Database error while processing changes: {str(e)}", exc_info=True)
+            self.db_session.rollback()
+            raise e
+        except Exception as e:
+            self.logger.error(f"Unexpected error while processing changes: {str(e)}", exc_info=True)
+            self.db_session.rollback()
             raise e
 
-    def _handle_new_route(self, userId: int, model_class, discipline: str, route_id: str, updates: Dict):
-        """Handle creation of new pyramid entries."""
+    def _process_update(self, user_id: UUID, update_data: Dict):
+        """Process a single update entry."""
         try:
-            updates.update({
-                'userId': userId,
-                'discipline': discipline,
-                'tick_date': updates.get('tick_date', datetime.now().date()),
-                'tick_id': int(route_id)
-            })
-            
-            # Get username from existing ticks if missing
-            if 'username' not in updates:
-                user_tick = UserTicks.query.filter_by(userId=userId).first()
-                updates['username'] = user_tick.username if user_tick else "Unknown"
+            tick_id = update_data.get('tick_id')
+            self.logger.debug(f"Processing update for tick_id {tick_id}")
 
-            new_entry = self._create_pyramid_entry(model_class, updates)
-            db.session.add(new_entry)
+            # Update UserTicks
+            user_tick = UserTicks.query.filter_by(
+                user_id=user_id,
+                id=tick_id
+            ).first()
+
+            if user_tick:
+                self.logger.debug(f"Found existing UserTicks entry for tick_id {tick_id}")
+                self._update_user_tick(user_tick, update_data)
+                self.logger.debug(f"Successfully updated UserTicks for tick_id {tick_id}")
+            else:
+                self.logger.warning(f"No UserTicks entry found for tick_id {tick_id}")
+
+            # Update PerformancePyramid
+            perf_entry = PerformancePyramid.query.filter_by(
+                user_id=user_id,
+                tick_id=tick_id
+            ).first()
+
+            if perf_entry:
+                self.logger.debug(f"Found existing PerformancePyramid entry for tick_id {tick_id}")
+                self._update_entry(perf_entry, update_data)
+                self.logger.debug(f"Successfully updated PerformancePyramid for tick_id {tick_id}")
+            else:
+                self.logger.warning(f"No PerformancePyramid entry found for tick_id {tick_id}")
 
         except Exception as e:
-            raise ValueError(f"Error creating new route: {str(e)}")
+            self.logger.error(f"Error processing update for tick_id {tick_id}: {str(e)}", exc_info=True)
+            raise
 
-    def _handle_existing_route(self, userId: int, model_class, discipline: str, 
-                             route_id: str, updates: Dict, min_code: int, max_code: int):
-        """Handle updates to existing pyramid entries."""
-        entry = model_class.query.filter_by(userId=userId, tick_id=route_id).first()
-        if not entry:
-            return
-
-        # Update grade-related fields
-        if 'route_grade' in updates:
-            new_grade = updates['route_grade']
-            new_code = self.grade_processor.convert_grades_to_codes([new_grade])[0]
+    def _remove_entries(self, user_id: UUID, tick_ids: List[int]):
+        """Remove entries from performance pyramid and user ticks."""
+        try:
+            self.logger.info(f"Removing entries for tick_ids: {tick_ids}")
             
-            # Validate grade range
-            if min_code <= new_code <= max_code and abs(new_code - entry.binned_code) <= 3:
-                entry.binned_code = new_code
-                entry.binned_grade = self.grade_processor.get_grade_from_code(new_code)
-                entry.route_grade = new_grade
+            # Remove from PerformancePyramid
+            pyramid_result = PerformancePyramid.query.filter(
+                PerformancePyramid.user_id == user_id,
+                PerformancePyramid.tick_id.in_(tick_ids)
+            ).delete(synchronize_session=False)
+            
+            self.logger.debug(f"Removed {pyramid_result} entries from PerformancePyramid")
+            
+            # Remove from UserTicks
+            ticks_result = UserTicks.query.filter(
+                UserTicks.user_id == user_id,
+                UserTicks.id.in_(tick_ids)
+            ).delete(synchronize_session=False)
+            
+            self.logger.debug(f"Removed {ticks_result} entries from UserTicks")
 
-        # Update other fields
-        for field, value in updates.items():
-            if not hasattr(entry, field) or field in ['binned_code', 'binned_grade']:
-                continue
+        except Exception as e:
+            self.logger.error(f"Error removing entries: {str(e)}", exc_info=True)
+            raise
 
-            # Handle Enum conversions
-            if field == 'crux_energy':
-                try: value = CruxEnergyType(value)
-                except ValueError: continue
-            elif field == 'crux_angle':
-                try: value = CruxAngle(value)
-                except ValueError: continue
+    def _update_user_tick(self, user_tick: UserTicks, data: Dict):
+        """Update an existing UserTicks entry."""
+        try:
+            self.logger.debug(f"Updating UserTicks entry {user_tick.id} with data: {data}")
+            
+            # Update grade-related fields
+            if route_grade := data.get('route_grade'):
+                user_tick.route_grade = route_grade
+                discipline = user_tick.discipline.value if hasattr(user_tick.discipline, 'value') else user_tick.discipline
+                binned_code = self.grade_processor.convert_grades_to_codes([route_grade], discipline=discipline)[0]
+                user_tick.binned_code = binned_code
+                user_tick.binned_grade = self.grade_processor.get_grade_from_code(binned_code)
+                self.logger.debug(f"Updated grade fields: {route_grade} -> {user_tick.binned_grade}")
 
-            # Convert numeric fields
-            if field in ['num_attempts', 'num_sends']:
-                try: value = int(value)
-                except ValueError: continue
+            # Update attempts and days
+            if num_attempts := data.get('num_attempts'):
+                user_tick.num_attempts = int(num_attempts)
+            if days_tried := data.get('days_tried'):
+                user_tick.days_tried = int(days_tried)
 
-            setattr(entry, field, value)
+            # Update other fields
+            if description := data.get('description'):
+                user_tick.notes = description
+            if location := data.get('location'):
+                user_tick.location = location
+                user_tick.location_raw = location
 
-        # Ensure required fields
-        entry.discipline = discipline
-        entry.tick_date = entry.tick_date or datetime.now().date()
+            self.logger.debug(f"Successfully updated UserTicks entry {user_tick.id}")
 
-    def _create_pyramid_entry(self, model_class, data: Dict) -> Any:
-        """Create a new pyramid entry with full field support."""
-        # Convert Enums
-        crux_energy = self._safe_enum_conversion(data.get('crux_energy'), CruxEnergyType)
-        crux_angle = self._safe_enum_conversion(data.get('crux_angle'), CruxAngle)
+        except Exception as e:
+            self.logger.error(f"Error updating UserTicks entry {user_tick.id}: {str(e)}", exc_info=True)
+            raise
 
-        # Convert dates
-        tick_date = self._parse_date(data.get('tick_date'))
+    def _update_entry(self, entry: PerformancePyramid, data: Dict):
+        """Update an existing performance pyramid entry."""
+        try:
+            self.logger.debug(f"Updating PerformancePyramid entry {entry.tick_id} with data: {data}")
+            
+            # Update grade-related fields if provided
+            if route_grade := data.get('route_grade'):
+                discipline = data.get('discipline', 'sport')  # Default to sport if not specified
+                binned_code = self.grade_processor.convert_grades_to_codes([route_grade], discipline=discipline)[0]
+                entry.binned_code = binned_code
+                entry.route_grade = route_grade
+                self.logger.debug(f"Updated grade fields: {route_grade} -> {binned_code}")
 
-        # Calculate derived fields
-        binned_code = self.grade_processor.get_code_from_grade(data.get('route_grade', ''))
-        season_category = self._get_season_category(tick_date)
-        lead_style = self._determine_lead_style(data.get('discipline'), data.get('num_attempts', 1))
+            # Update attempts and days
+            if num_attempts := data.get('num_attempts'):
+                entry.num_attempts = int(num_attempts)
+            if days_tried := data.get('days_tried'):
+                entry.days_tried = int(days_tried)
 
-        return model_class(
-            userId=data['userId'],
-            username=data.get('username', 'Unknown'),
+            # Update other fields
+            if description := data.get('description'):
+                entry.description = description
+
+            self.logger.debug(f"Successfully updated PerformancePyramid entry {entry.tick_id}")
+
+        except Exception as e:
+            self.logger.error(f"Error updating PerformancePyramid entry {entry.tick_id}: {str(e)}", exc_info=True)
+            raise
+
+    def _create_user_tick(self, user_id: UUID, data: Dict) -> UserTicks:
+        """Create a new UserTicks entry."""
+        # Grade processing
+        route_grade = data.get('route_grade', '')
+        discipline = data.get('discipline', 'sport')  # Default to sport if not specified
+        binned_code = self.grade_processor.convert_grades_to_codes([route_grade], discipline=discipline)[0]
+        binned_grade = self.grade_processor.get_grade_from_code(binned_code)
+        
+        # Get discipline from user input
+        if not data.get('discipline'):
+            raise ValueError("Discipline is required")
+            
+        try:
+            discipline = ClimbingDiscipline(data['discipline'])
+        except ValueError:
+            raise ValueError(f"Invalid discipline value: {data.get('discipline')}")
+        
+        # Process date and get season
+        try:
+            send_date = datetime.strptime(data.get('send_date', ''), '%Y-%m-%d').date() if data.get('send_date') else datetime.now().date()
+        except ValueError:
+            send_date = datetime.now().date()
+
+        # Use classifier for length categorization
+        length = data.get('length')
+        pitches = data.get('pitches', 1)
+        df = pd.DataFrame([{
+            'length': length,
+            'pitches': pitches,
+            'notes': data.get('description', '')
+        }])
+        length_category = self.classifier.classify_length(df).iloc[0]
+
+        # Use classifier for season categorization
+        df['tick_date'] = send_date
+        season_category = self.classifier.classify_season(df).iloc[0].split(',')[0].lower()
+
+        return UserTicks(
+            user_id=user_id,
             route_name=data.get('route_name', 'Unknown Route'),
-            route_grade=data.get('route_grade', 'Unknown Grade'),
+            route_grade=route_grade,
+            binned_grade=binned_grade,
             binned_code=binned_code,
-            binned_grade=self.grade_processor.get_grade_from_code(binned_code),
-            tick_date=tick_date,
-            crux_energy=crux_energy,
-            crux_angle=crux_angle,
-            num_attempts=int(data.get('num_attempts', 1)),
-            num_sends=int(data.get('num_sends', 1)),
-            discipline=data.get('discipline', ''),
-            tick_id=data.get('tick_id', int(time.time())),
-            location=data.get('location', 'User Added'),
-            lead_style=lead_style,
+            length=length,
+            pitches=pitches,
+            location=data.get('location'),
+            location_raw=data.get('location'),
+            lead_style=data.get('lead_style'),
+            discipline=discipline,
+            send_bool=True,  # Performance pyramid entries are sends
+            length_category=length_category,
             season_category=season_category,
-            length_category=self._get_length_category(data.get('length')),
-            pitches=int(data.get('pitches', 1)),
             route_url=data.get('route_url'),
-            user_grade=data.get('user_grade')
+            route_stars=data.get('route_stars'),
+            user_stars=data.get('user_stars'),
+            tick_date=send_date,
+            notes=data.get('description'),
+            created_at=datetime.now(timezone.utc)
         )
 
-    def _safe_enum_conversion(self, value, enum_type):
-        """Safely convert string values to Enum instances."""
+    def _create_entry(self, user_id: UUID, data: Dict) -> PerformancePyramid:
+        """Create a new performance pyramid entry."""
+        # Convert grade to binned code
+        route_grade = data.get('route_grade', '')
+        discipline = data.get('discipline', 'sport')  # Default to sport if not specified
+        binned_code = self.grade_processor.convert_grades_to_codes([route_grade], discipline=discipline)[0]
+
+        # Convert enums
         try:
-            return enum_type(value) if value else None
+            crux_angle = CruxAngle(data.get('crux_angle')) if data.get('crux_angle') else None
         except ValueError:
-            return None
+            crux_angle = None
 
-    def _parse_date(self, date_input):
-        """Parse date from various input formats."""
-        if isinstance(date_input, datetime):
-            return date_input.date()
-        if isinstance(date_input, str):
-            try:
-                return datetime.strptime(date_input, '%Y-%m-%d').date()
-            except ValueError:
-                pass
-        return datetime.now().date()
+        try:
+            crux_energy = CruxEnergyType(data.get('crux_energy')) if data.get('crux_energy') else None
+        except ValueError:
+            crux_energy = None
 
-    def _get_season_category(self, date_obj):
-        """Classify the season based on date."""
-        date_df = pd.DataFrame({'tick_date': [date_obj]})
-        return self.classifier.classify_season(date_df).iloc[0]
+        # Parse date
+        try:
+            send_date = datetime.strptime(data.get('send_date', ''), '%Y-%m-%d').date() if data.get('send_date') else datetime.now().date()
+        except ValueError:
+            send_date = datetime.now().date()
 
-    def _determine_lead_style(self, discipline: str, attempts: int) -> str:
-        """Determine lead style based on discipline and attempt count."""
-        if discipline in ['sport', 'trad']:
-            return 'Redpoint' if attempts > 1 else 'Flash'
-        return 'Send' if attempts > 1 else 'Flash'
+        # Handle numeric fields with proper validation
+        try:
+            length = int(data.get('length')) if data.get('length') is not None else None
+        except (ValueError, TypeError):
+            length = None
 
-    @staticmethod
-    def _remove_routes(discipline: str, userId: int, tick_ids: List):
-        """Remove routes from specified discipline."""
-        model_class = PyramidUpdateService._get_model(discipline)
-        if not model_class:
-            return
+        try:
+            num_attempts = max(1, int(data.get('num_attempts', 1)))
+        except (ValueError, TypeError):
+            num_attempts = 1
 
-        model_class.query.filter(
-            model_class.userId == userId,
-            model_class.tick_id.in_(tick_ids)
-        ).delete(synchronize_session=False)
+        try:
+            days_tried = max(1, int(data.get('days_tried', 1)))
+        except (ValueError, TypeError):
+            days_tried = 1
 
-    @staticmethod
-    def _get_model(discipline: str):
-        """Get model class for specified discipline."""
-        return {
-            'sport': SportPyramid,
-            'trad': TradPyramid,
-            'boulder': BoulderPyramid
-        }.get(discipline)
-
-    def _get_length_category(self, length: int) -> str:
-        """Classify route length (example implementation)."""
-        if not length:
-            return None
-        if length <= 15:
-            return 'Short'
-        if length <= 30:
-            return 'Medium'
-        return 'Long'
-    
-    @staticmethod
-    def _remove_routes(discipline: str, userId: int, tick_ids: List):
-        model_class = PyramidUpdateService._get_model(discipline)
-        if model_class:
-            model_class.query.filter(
-                model_class.userId == userId,
-                model_class.tick_id.in_(tick_ids)
-            ).delete(synchronize_session=False)
-
-    @staticmethod
-    def _get_model(discipline: str):
-        return {
-            'sport': SportPyramid,
-            'trad': TradPyramid,
-            'boulder': BoulderPyramid
-        }.get(discipline)
+        # Create new entry using the tick_id from UserTicks
+        return PerformancePyramid(
+            user_id=user_id,
+            tick_id=data['tick_id'],  # This will be set from the UserTicks id
+            route_name=data.get('route_name', 'Unknown Route'),
+            route_grade=route_grade,
+            binned_code=binned_code,
+            send_date=send_date,
+            location=data.get('location'),
+            crux_angle=crux_angle,
+            crux_energy=crux_energy,
+            num_attempts=num_attempts,
+            days_tried=days_tried,
+            length=length,
+            description=data.get('description')
+        )

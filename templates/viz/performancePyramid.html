@@ -1,436 +1,218 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <!-- Google tag (gtag.js) -->
-    <script
-      async
-      src="https://www.googletagmanager.com/gtag/js?id=G-QLKC35PVJB"
-    ></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
+{% extends "viz/base_viz.html" %}
+
+{% block title %}Performance Pyramid{% endblock %}
+
+{% block page_title %}Performance Pyramid Analysis{% endblock %}
+
+{% block head_scripts %}
+<!-- Load visualization scripts first -->
+<script src="{{ url_for('static', filename='js/d3_viz/performancePyramid.js') }}"></script>
+<script src="{{ url_for('static', filename='js/d3_viz/projectsTable.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  {% block data_vars %}
+  <script>
+    // Initialize data with proper JSON parsing
+    var sportPyramidData = {{ sport_pyramid| tojson | safe }};
+    var tradPyramidData = {{ trad_pyramid| tojson | safe }};
+    var boulderPyramidData = {{ boulder_pyramid| tojson | safe }};
+    var userTicksData = {{ user_ticks| tojson | safe }};
+    var binnedCodeDict = {{ binned_code_dict| tojson | safe }};
+
+    // Debug logs
+    console.log('Data loaded:', {
+      sport: {
+        type: typeof sportPyramidData,
+        length: sportPyramidData?.length,
+        sample: sportPyramidData?.[0]
+      },
+      trad: {
+        type: typeof tradPyramidData,
+        length: tradPyramidData?.length,
+        sample: tradPyramidData?.[0]
+      },
+      boulder: {
+        type: typeof boulderPyramidData,
+        length: boulderPyramidData?.length,
+        sample: boulderPyramidData?.[0]
       }
-      gtag("js", new Date());
+    });
+  </script>
+  {% endblock %}
 
-      gtag("config", "G-QLKC35PVJB");
-    </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SendSage | Performance Pyramid</title>
-
-    <!-- Favicon -->
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="32x32"
-      href="{{ url_for('static', filename='images/brand/favicon-32x32.png') }}"
-    />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="16x16"
-      href="{{ url_for('static', filename='images/brand/favicon-16x16.png') }}"
-    />
-    <link
-      rel="apple-touch-icon"
-      sizes="180x180"
-      href="{{ url_for('static', filename='images/brand/apple-touch-icon.png') }}"
-    />
-
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/visualizations.css') }}"
-    />
-    <script src="{{ url_for('static', filename='js/userManagement.js') }}"></script>
-  </head>
-  <body>
-    <header>
-      <a
-        href="{{ url_for('userviz', userId=userId) }}"
-        class="home-link"
-        title="Back to Dashboard"
-      >
-        <i class="fas fa-home"></i>
-      </a>
-      <h1>Performance Pyramid Analysis</h1>
-      <a
-        href="https://www.buymeacoffee.com/irubey"
-        class="buy-coffee-button"
-        target="_blank"
-      >
-        <i class="fas fa-coffee"></i> Did I Bring You a Smile?
-      </a>
-    </header>
-
-    <main class="main-content">
-      <div class="container">
-        <section class="dashboard-section">
-          <!-- Filters Row -->
-          <div
-            class="viz-filters"
-            style="
-              margin-bottom: 20px;
-              display: flex;
-              justify-content: center;
-              gap: var(--spacing-lg);
-            "
-          >
-            <!-- Discipline Filter -->
-            <div class="viz-filter-section">
-              <h3>Discipline</h3>
-              <div class="viz-radio-group">
-                <input
-                  type="radio"
-                  id="filter-pyramid-sport"
-                  name="performance-pyramid-discipline-filter"
-                  value="sport"
-                  checked
-                />
-                <label for="filter-pyramid-sport">Sport</label>
-                <input
-                  type="radio"
-                  id="filter-pyramid-trad"
-                  name="performance-pyramid-discipline-filter"
-                  value="trad"
-                />
-                <label for="filter-pyramid-trad">Trad</label>
-                <input
-                  type="radio"
-                  id="filter-pyramid-boulder"
-                  name="performance-pyramid-discipline-filter"
-                  value="boulder"
-                />
-                <label for="filter-pyramid-boulder">Boulder</label>
-              </div>
-            </div>
-
-            <!-- Time Range Filter -->
-            <div class="viz-filter-section">
-              <h3>Time Range</h3>
-              <div class="viz-radio-group">
-                <input
-                  type="radio"
-                  id="filter-pyramid-allTime"
-                  name="performance-pyramid-time-filter"
-                  value="allTime"
-                  checked
-                />
-                <label for="filter-pyramid-allTime">All Time</label>
-                <input
-                  type="radio"
-                  id="filter-pyramid-pastYear"
-                  name="performance-pyramid-time-filter"
-                  value="lastYear"
-                />
-                <label for="filter-pyramid-pastYear">Past Year</label>
-                <input
-                  type="radio"
-                  id="filter-pyramid-lastSixMonths"
-                  name="performance-pyramid-time-filter"
-                  value="lastSixMonths"
-                />
-                <label for="filter-pyramid-lastSixMonths">Last 6mo.</label>
-              </div>
-            </div>
-
-            <!-- Goal Pyramid Filter -->
-            <div class="viz-filter-section">
-              <h3>Goal Pyramid</h3>
-              <div class="viz-radio-group">
-                <input
-                  type="radio"
-                  id="filter-pyramid-conservative"
-                  name="pyramid-pace"
-                  value="conservative"
-                />
-                <label
-                  for="filter-pyramid-conservative"
-                  title="Wide base, gradual progression [1, 3, 6, 12, 24]"
-                  >Conservative</label
-                >
-                <input
-                  type="radio"
-                  id="filter-pyramid-normal"
-                  name="pyramid-pace"
-                  value="normal"
-                  checked
-                />
-                <label
-                  for="filter-pyramid-normal"
-                  title="Balanced progression [1, 3, 5, 8, 16]"
-                  >Normal</label
-                >
-                <input
-                  type="radio"
-                  id="filter-pyramid-fast"
-                  name="pyramid-pace"
-                  value="fast"
-                />
-                <label
-                  for="filter-pyramid-fast"
-                  title="Narrow base, rapid progression [1, 3, 4, 6, 9]"
-                  >Fast</label
-                >
-              </div>
-            </div>
-          </div>
-
-          <div class="viz-header">
-            <div class="viz-title">
-              <h2>
-                Performance Pyramid
-                <button class="info-button" onclick="openPyramidModal()">
-                  <i class="fas fa-info-circle"></i>
-                </button>
-              </h2>
-              <a
-                href="{{ url_for('pyramid_input', userId=userId) }}"
-                class="edit-button"
-                style="margin-top: var(--spacing-xs); display: inline-block"
-              >
-                <i class="fas fa-edit"></i>
-                Edit Performance Data
-              </a>
-            </div>
-          </div>
-
-          <!-- Visualization Container -->
-          <div id="performance-pyramid"></div>
-
-          <!-- Projects Table -->
-          <div class="viz-header" style="margin-top: 40px">
-            <div class="viz-title">
-              <h2>
-                Active Projects
-                <button class="info-button" onclick="openProjectsModal()">
-                  <i class="fas fa-info-circle"></i>
-                </button>
-              </h2>
-            </div>
-          </div>
-
-          <div class="projects-table-container">
-            <table id="projects-table" class="data-table">
-              <thead>
-                <tr>
-                  <th>Route</th>
-                  <th>Grade</th>
-                  <th>Location</th>
-                  <th>Days Projected</th>
-                  <th>Total Attempts</th>
-                  <th>Last Attempted</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-
-          <!-- Notes Modal -->
-          <div id="notesModal" class="modal">
-            <div class="modal-content">
-              <span class="close" onclick="closeNotesModal()">&times;</span>
-              <h3>Route Notes</h3>
-              <div id="notesHistory" class="notes-history">
-                <!-- Notes will be populated here -->
-              </div>
-              <div class="notes-input-section">
-                <textarea
-                  id="newNote"
-                  placeholder="Add a new note..."
-                  rows="3"
-                ></textarea>
-                <button onclick="addNote()" class="add-note-btn">
-                  Add Note
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Projects Info Modal -->
-          <div id="projectsModal" class="modal">
-            <div class="modal-content">
-              <span class="close" onclick="closeProjectsModal()">&times;</span>
-              <h3>About Projects Table</h3>
-              <div class="modal-section">
-                <h4>Project Definition</h4>
-                <p>
-                  Routes listed here are those at or above your pyramid's
-                  minimum grade that you have attempted but not yet sent clean.
-                </p>
-              </div>
-              <div class="modal-section">
-                <h4>Table Information</h4>
-                <ul>
-                  <li>
-                    Routes are sorted by grade and most recently attempted
-                  </li>
-                  <li>
-                    Days Projected shows the number of unique days you've worked
-                    the route
-                  </li>
-                  <li>Total Attempts includes all burns on the route</li>
-                  <li>Limited to showing your 100 most recent projects</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <!-- Performance Pyramid Info Modal -->
-          <div id="pyramidModal" class="modal">
-            <div class="modal-content">
-              <span class="close" onclick="closePyramidModal()">&times;</span>
-              <h3>About the Data Calculations</h3>
-              <div class="modal-section">
-                <h4>Pyramid Structure</h4>
-                <p>
-                  The pyramid shows your top 4 grades sent clean, arranged in
-                  descending order of difficulty.
-                </p>
-              </div>
-              <div class="modal-section">
-                <h4>Grade Distribution</h4>
-                <p>
-                  Each level shows the number of routes completed at that grade,
-                  helping visualize your climbing progression and volume at
-                  different difficulties.
-                </p>
-              </div>
-              <div class="modal-section">
-                <h4>Clean Sends</h4>
-                <p>
-                  Only routes that were sent without falls or takes are included
-                  in this visualization to represent your solid performance
-                  level.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
+  <section class="dashboard-section">
+    <!-- Filters Row -->
+    <div class="viz-filters">
+      <div class="viz-filter-section">
+        <h3>Discipline</h3>
+        <div class="viz-radio-group">
+          <input type="radio" id="filter-pyramid-sport" name="performance-pyramid-discipline-filter" value="sport"
+            checked />
+          <label for="filter-pyramid-sport">Sport</label>
+          <input type="radio" id="filter-pyramid-trad" name="performance-pyramid-discipline-filter" value="trad" />
+          <label for="filter-pyramid-trad">Trad</label>
+          <input type="radio" id="filter-pyramid-boulder" name="performance-pyramid-discipline-filter"
+            value="boulder" />
+          <label for="filter-pyramid-boulder">Boulder</label>
+        </div>
       </div>
-    </main>
 
-    <footer>
-      <nav class="footer-nav">
-        <a
-          href="{{ url_for('userviz', userId=userId) }}"
-          class="footer-link"
-        >
-          <i class="fas fa-chart-line"></i> Dashboard
+      <div class="viz-filter-section">
+        <h3>Time Range</h3>
+        <div class="viz-radio-group">
+          <input type="radio" id="filter-pyramid-allTime" name="performance-pyramid-time-filter" value="allTime"
+            checked />
+          <label for="filter-pyramid-allTime">All Time</label>
+          <input type="radio" id="filter-pyramid-pastYear" name="performance-pyramid-time-filter" value="lastYear" />
+          <label for="filter-pyramid-pastYear">Past Year</label>
+          <input type="radio" id="filter-pyramid-lastSixMonths" name="performance-pyramid-time-filter"
+            value="lastSixMonths" />
+          <label for="filter-pyramid-lastSixMonths">Last 6mo.</label>
+        </div>
+      </div>
+
+      <div class="viz-filter-section">
+        <h3>Goal Pyramid</h3>
+        <div class="viz-radio-group">
+          <input type="radio" id="filter-pyramid-conservative" name="pyramid-pace" value="conservative" />
+          <label for="filter-pyramid-conservative"
+            title="Wide base, gradual progression [1, 3, 6, 12, 24]">Conservative</label>
+          <input type="radio" id="filter-pyramid-normal" name="pyramid-pace" value="normal" checked />
+          <label for="filter-pyramid-normal" title="Balanced progression [1, 3, 5, 8, 16]">Normal</label>
+          <input type="radio" id="filter-pyramid-fast" name="pyramid-pace" value="fast" />
+          <label for="filter-pyramid-fast" title="Narrow base, rapid progression [1, 3, 4, 6, 9]">Fast</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="viz-header">
+      <div class="viz-title">
+        <h2>
+          Performance Pyramid
+          <button class="info-button" onclick="openPyramidModal()">
+            <i class="fas fa-info-circle"></i>
+          </button>
+        </h2>
+        <a href="{{ url_for('main.pyramid_input') }}" class="edit-button">
+          <i class="fas fa-edit"></i>
+          Edit Performance Data
         </a>
-        <a href="{{ url_for('terms_and_privacy') }}" class="footer-link">
-          <i class="fas fa-shield-alt"></i> Terms & Privacy
-        </a>
-        <a href="mailto:climbing.analytics@gmail.com" class="footer-link">
-          <i class="fas fa-envelope"></i> Feedback
-        </a>
-      </nav>
-    </footer>
+      </div>
+    </div>
 
-    <!-- Load required JS files first -->
-    <script src="{{ url_for('static', filename='js/commonFilters.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/performancePyramid.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/projectsTable.js') }}"></script>
+    <!-- Visualization Container -->
+    <div class="viz-container" id="performance-pyramid"></div>
 
-    <!-- Initialize data after loading required files -->
-    <script>
-      // Initialize data in global scope
-      window.sportPyramidData = {{ sport_pyramid|tojson|safe }};
-      window.tradPyramidData = {{ trad_pyramid|tojson|safe }};
-      window.boulderPyramidData = {{ boulder_pyramid|tojson|safe }};
-      window.userTicksData = {{ user_ticks|tojson|safe }};
-      window.binnedCodeDict = {{ binned_code_dict|tojson|safe }};
+    <!-- Projects Table Section -->
+    <div class="viz-header">
+      <div class="viz-title">
+        <h2>
+          Active Projects
+          <button class="info-button" onclick="openProjectsModal()">
+            <i class="fas fa-info-circle"></i>
+          </button>
+        </h2>
+      </div>
+    </div>
 
-      // Function to check if all required data and functions are loaded
-      function isDataAndFunctionsLoaded() {
-        return (
-          window.sportPyramidData &&
-          window.tradPyramidData &&
-          window.boulderPyramidData &&
-          window.userTicksData &&
-          window.binnedCodeDict &&
-          typeof pyramidVizChart === "function" &&
-          typeof determineData === "function"
-        );
+    <div class="projects-table-container">
+      <table id="projects-table" class="data-table">
+        <thead>
+          <tr>
+            <th>Route</th>
+            <th>Grade</th>
+            <th>Location</th>
+            <th>Days Projected</th>
+            <th>Total Attempts</th>
+            <th>Last Attempted</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Info Modals -->
+    {% include 'viz/modals/pyramid_info_modal.html' %}
+    {% include 'viz/modals/projects_info_modal.html' %}
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  // Initialize visualization when DOM is loaded
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof pyramidVizChart === "function" && typeof projectsTable === "function") {
+      // Initialize pyramid visualization
+      pyramidVizChart("#performance-pyramid", {
+        sport: sportPyramidData,
+        trad: tradPyramidData,
+        boulder: boulderPyramidData
+      }, userTicksData, binnedCodeDict);
+
+      // Initialize projects table
+      projectsTable("#projects-table", userTicksData);
+
+      // Add filter event listeners
+      addFilterEventListeners();
+    } else {
+      console.error("Required visualization functions not loaded");
+    }
+  });
+
+  function addFilterEventListeners() {
+    // Discipline filter
+    document.querySelectorAll('input[name="performance-pyramid-discipline-filter"]')
+      .forEach(input => input.addEventListener('change', updateVisualization));
+
+    // Time range filter
+    document.querySelectorAll('input[name="performance-pyramid-time-filter"]')
+      .forEach(input => input.addEventListener('change', updateVisualization));
+
+    // Pyramid pace filter
+    document.querySelectorAll('input[name="pyramid-pace"]')
+      .forEach(input => input.addEventListener('change', updateVisualization));
+  }
+
+  function updateVisualization() {
+    if (typeof pyramidVizChart === "function") {
+      pyramidVizChart("#performance-pyramid", {
+        sport: sportPyramidData,
+        trad: tradPyramidData,
+        boulder: boulderPyramidData
+      }, userTicksData, binnedCodeDict);
+    }
+  }
+
+  // Modal functions
+  function openPyramidModal() {
+    document.getElementById("pyramidModal").style.display = "block";
+  }
+
+  function closePyramidModal() {
+    document.getElementById("pyramidModal").style.display = "none";
+  }
+
+  function openProjectsModal() {
+    document.getElementById("projectsModal").style.display = "block";
+  }
+
+  function closeProjectsModal() {
+    document.getElementById("projectsModal").style.display = "none";
+  }
+
+  // Close modals when clicking outside
+  window.onclick = function (event) {
+    const modals = ["pyramidModal", "projectsModal"];
+    modals.forEach(modalId => {
+      const modal = document.getElementById(modalId);
+      if (event.target === modal) {
+        modal.style.display = "none";
       }
-
-      // Function to initialize visualization with retry
-      function initializeVisualization(retryCount = 0) {
-        if (retryCount > 5) {
-          console.error("Failed to load visualization data after 5 retries");
-          return;
-        }
-
-        if (!isDataAndFunctionsLoaded()) {
-          console.log("Data or functions not yet loaded, retrying...");
-          setTimeout(() => initializeVisualization(retryCount + 1), 500);
-          return;
-        }
-
-        try {
-          const data = determineData();
-          pyramidVizChart(
-            "#performance-pyramid",
-            data.pyramidData,
-            data.userTicksData,
-            window.binnedCodeDict
-          );
-        } catch (error) {
-          console.error("Error initializing pyramid visualization:", error);
-          if (retryCount < 5) {
-            setTimeout(() => initializeVisualization(retryCount + 1), 500);
-          }
-        }
-      }
-
-      // Start initialization when DOM is loaded
-      document.addEventListener("DOMContentLoaded", function() {
-        initializeVisualization();
-      });
-    </script>
-
-    <!-- Modal Scripts -->
-    <script>
-      function openPyramidModal() {
-        document.getElementById("pyramidModal").style.display = "block";
-      }
-
-      function closePyramidModal() {
-        document.getElementById("pyramidModal").style.display = "none";
-      }
-
-      function openProjectsModal() {
-        document.getElementById("projectsModal").style.display = "block";
-      }
-
-      function closeProjectsModal() {
-        document.getElementById("projectsModal").style.display = "none";
-      }
-
-      // Close modals when clicking outside
-      window.onclick = function (event) {
-        const pyramidModal = document.getElementById("pyramidModal");
-        const projectsModal = document.getElementById("projectsModal");
-
-        if (event.target == pyramidModal) {
-          pyramidModal.style.display = "none";
-        }
-        if (event.target == projectsModal) {
-          projectsModal.style.display = "none";
-        }
-      };
-    </script>
-  </body>
-</html>
+    });
+  };
+</script>
+{% endblock %}
