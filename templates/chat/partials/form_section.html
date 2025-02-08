@@ -1,0 +1,275 @@
+{% macro form_section(title, fields) %}
+<div class="form-section">
+    <h4 class="form-section__title">{{ title }}</h4>
+    <div class="form-section__content">
+        {% for name, field in fields.items() %}
+        <div class="form-group">
+            <label class="form-label">{{ field.label }}</label>
+            {% if field.type == 'textarea' %}
+            <textarea name="{{ name }}" class="form-control form-control--textarea"
+                placeholder="{{ field.placeholder or '' }}" {% if field.required %}required{% endif
+                %}>{{ field.value or '' }}</textarea>
+            {% elif field.type == 'select' and field.multiple %}
+            <div class="multiselect-wrapper">
+                <div class="multiselect-container">
+                    <div class="multiselect-trigger form-control" onclick="toggleDropdown(this)">
+                        <span class="multiselect-selected">{{ field.placeholder or 'Select ' ~ field.label ~ '...'
+                            }}</span>
+                        <span class="multiselect-arrow">▼</span>
+                    </div>
+                    <div class="multiselect-dropdown">
+                        {% for option in field.options %}
+                        <label class="multiselect-option">
+                            <input type="checkbox" name="{{ name }}" value="{{ option }}" {% if field.value and option
+                                in field.value %}checked{% endif %} onchange="updateMultiselect(this)">
+                            <span>{{ field.display_names[option] if field.display_names else option }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% elif field.type == 'select' %}
+            <div class="select-wrapper">
+                <select name="{{ name }}" class="form-control" {% if field.required %}required{% endif %}>
+                    <option value="">{{ field.placeholder or 'Select ' ~ field.label ~ '...' }}</option>
+                    {% for option in field.options %}
+                    <option value="{{ option }}" {% if field.value==option %}selected{% endif %}>
+                        {{ field.display_names[option] if field.display_names else option }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% elif field.type == 'number' %}
+            <input type="number" name="{{ name }}" class="form-control" placeholder="{{ field.placeholder or '' }}"
+                value="{{ field.value or '' }}" {% if field.min is defined %}min="{{ field.min }}" {% endif %} {% if
+                field.max is defined %}max="{{ field.max }}" {% endif %} {% if field.step is defined
+                %}step="{{ field.step }}" {% else %}step="1" {% endif %} {% if field.required %}required{% endif %}
+                oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                onkeypress="return event.charCode >= 48 && event.charCode <= 57">
+            {% elif field.type == 'checkbox' %}
+            <div class="checkbox-group">
+                <label class="checkbox">
+                    <input type="checkbox" name="{{ name }}" {% if field.value %}checked{% endif %}>
+                    <span class="checkbox__label">{{ field.label }}</span>
+                </label>
+            </div>
+            {% else %}
+            <input type="{{ field.type }}" name="{{ name }}" class="form-control"
+                placeholder="{{ field.placeholder or '' }}" value="{{ field.value or '' }}" {% if field.required
+                %}required{% endif %}>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .form-section {
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .form-section__title {
+        font-size: var(--font-size-lg);
+        margin-bottom: var(--spacing-md);
+        color: var(--text-color);
+    }
+
+    .form-section__content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .form-label {
+        font-weight: 500;
+        color: var(--text-color);
+    }
+
+    .form-control {
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        background-color: var(--input-bg);
+        color: var(--text-color);
+        font-size: var(--font-size-base);
+        line-height: 1.5;
+        transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
+    }
+
+    .form-control--textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    /* Multiselect Styles */
+    .multiselect-wrapper {
+        position: relative;
+        margin-bottom: 0;
+        transition: margin-bottom 0.3s ease;
+    }
+
+    .multiselect-wrapper.active {
+        margin-bottom: var(--expanded-height, 0px);
+    }
+
+    .multiselect-container {
+        position: relative;
+    }
+
+    .multiselect-trigger {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .multiselect-arrow {
+        font-size: 0.8em;
+        transition: transform 0.3s ease;
+    }
+
+    .multiselect-wrapper.active .multiselect-arrow {
+        transform: rotate(180deg);
+    }
+
+    .multiselect-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: var(--input-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        opacity: 0;
+        transform: translateY(-10px);
+        visibility: hidden;
+        transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .multiselect-wrapper.active .multiselect-dropdown {
+        opacity: 1;
+        transform: translateY(0);
+        visibility: visible;
+    }
+
+    .multiselect-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    .multiselect-option:hover {
+        background-color: rgba(var(--primary-color-rgb), 0.1);
+    }
+
+    .multiselect-option input[type="checkbox"] {
+        margin: 0;
+    }
+
+    .multiselect-selected {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Regular select styles */
+    .select-wrapper {
+        position: relative;
+    }
+
+    .select-wrapper::after {
+        content: '';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 5px solid var(--text-color);
+        pointer-events: none;
+    }
+
+    select.form-control {
+        width: 100%;
+        appearance: none;
+        padding-right: 30px;
+    }
+
+    .checkbox-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .checkbox {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        cursor: pointer;
+    }
+
+    .checkbox__label {
+        user-select: none;
+    }
+</style>
+
+<script>
+    function toggleDropdown(trigger) {
+        const wrapper = trigger.closest('.multiselect-wrapper');
+        const wasActive = wrapper.classList.contains('active');
+
+        // Close all other dropdowns
+        document.querySelectorAll('.multiselect-wrapper.active').forEach(w => {
+            if (w !== wrapper) w.classList.remove('active');
+        });
+
+        if (!wasActive) {
+            // Calculate and set the expanded height when opening
+            const dropdown = wrapper.querySelector('.multiselect-dropdown');
+            const dropdownHeight = dropdown.scrollHeight;
+            wrapper.style.setProperty('--expanded-height', `${dropdownHeight + 8}px`);
+        }
+
+        wrapper.classList.toggle('active', !wasActive);
+    }
+
+    function updateMultiselect(checkbox) {
+        const wrapper = checkbox.closest('.multiselect-wrapper');
+        const trigger = wrapper.querySelector('.multiselect-selected');
+        const selectedOptions = Array.from(wrapper.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(cb => cb.nextElementSibling.textContent);
+
+        trigger.textContent = selectedOptions.length > 0
+            ? selectedOptions.join(', ')
+            : `Select ${checkbox.name}...`;
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function (event) {
+        if (!event.target.closest('.multiselect-wrapper')) {
+            document.querySelectorAll('.multiselect-wrapper.active').forEach(wrapper => {
+                wrapper.classList.remove('active');
+            });
+        }
+    });
+</script>
+{% endmacro %}

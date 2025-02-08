@@ -1,42 +1,80 @@
 {% macro chat_interface() %}
-<div class="chat-interface" id="chat_interface" style="display: {{ 'flex' if initial_data_complete else 'none' }}">
-    <div class="chat-header">
-        <h3>Chat with Sage</h3>
-        <div class="model-toggle">
-            <span class="toggle-label chat-label active">Chat</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="model_toggle">
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label reasoner-label">Reasoner</span>
-        </div>
-        <button type="button" onclick="toggleView()" class="icon-button" title="Toggle Context">
-            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Toggle Context">
-            <span class="label">{% if data_complete %}Settings{% else %}Chat{% endif %}</span>
-        </button>
-    </div>
-    <div class="chat-messages" id="chat_messages">
-        <!-- Loading spinner moved outside of chat messages -->
-    </div>
-    <!-- Loading spinner placed between messages and input -->
-    <div class="loading-spinner" id="loading_spinner">
-        <div class="skeleton-message">
-            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Loading...">
-            <div class="skeleton-text">Sage is thinking...</div>
+<div class="chat" id="chat_interface">
+    <div class="chat__header">
+        <div class="chat__header-content">
+            <h3 class="chat__title">Chat with Sage</h3>
+            <button class="btn btn--icon" id="new_chat" title="New chat">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"></path>
+                </svg>
+            </button>
         </div>
     </div>
-    <!-- Chat Input Form -->
-    <div class="chat-input-container">
-        <form id="chat_form">
+
+    <div class="chat__messages" id="chat_messages">
+        <div class="chat__welcome">
+            <h1 class="chat__welcome-title">What can I help with?</h1>
+
+            <div class="suggested-prompts">
+                <button class="prompt-button">
+                    <span class="prompt-icon">🎯</span>
+                    <span class="prompt-title">Set climbing goals</span>
+                </button>
+                <button class="prompt-button">
+                    <span class="prompt-icon">📊</span>
+                    <span class="prompt-title">Analyze my progress</span>
+                </button>
+                <button class="prompt-button">
+                    <span class="prompt-icon">💪</span>
+                    <span class="prompt-title">Get technique tips</span>
+                </button>
+                <button class="prompt-button">
+                    <span class="prompt-icon">🏔️</span>
+                    <span class="prompt-title">Plan grade progression</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="chat__message-list" id="message_list">
+            <!-- Messages will be dynamically inserted here -->
+        </div>
+    </div>
+
+    <div class="loading-indicator" id="loading_spinner">
+        <div class="loading-indicator__content">
+            <div class="loading-indicator__spinner"></div>
+            <div class="loading-indicator__text">Sage is thinking...</div>
+        </div>
+    </div>
+
+    <div class="chat__input">
+        <form id="chat_form" class="chat-form">
             <div class="input-group">
-                <input type="text" 
-                       id="user_prompt" 
-                       name="user_prompt" 
-                       class="form-control" 
-                       placeholder="Ask Sage anything about climbing...">
-                <button type="submit" class="btn btn-primary">Send</button>
+                <textarea id="user_prompt" name="user_prompt" class="form-control form-control--chat"
+                    placeholder="Message Sage..." rows="1" data-min-rows="1" data-max-rows="5"
+                    autocomplete="off"></textarea>
+                <button type="submit" class="btn btn--primary btn--send" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="send-icon">
+                        <path d="M12 19l-5-5m0 0l5-5m-5 5h12" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                </button>
             </div>
         </form>
     </div>
 </div>
+
+<template id="message_template">
+    <div class="chat__message">
+        <div class="chat__message-avatar">
+            <img src="" alt="">
+        </div>
+        <div class="chat__message-content">
+            <div class="chat__message-text"></div>
+            <div class="chat__message-metadata">
+                <span class="chat__message-time"></span>
+            </div>
+        </div>
+    </div>
+</template>
 {% endmacro %}

@@ -185,9 +185,9 @@ class DatabaseService:
 
     @staticmethod
     @retry_on_db_error(max_retries=3)
-    def get_user_ticks_by_id(user_id: int) -> List[UserTicks]:
-        """Get all ticks for a user by user_id"""
-        return UserTicks.query.filter_by(user_id=user_id).all()
+    def get_user_ticks_by_id(user_id: int) -> BaseQuery:
+        """Get query for all ticks for a user by user_id"""
+        return UserTicks.query.filter_by(user_id=user_id)
 
     @staticmethod
     def update_user_tick(tick_id: int, **kwargs) -> Optional[UserTicks]:
@@ -253,11 +253,14 @@ class DatabaseService:
             raise e
 
     @staticmethod
-    def get_highest_grade(user_id: int, discipline: str) -> Optional[UserTicks]:
-        return UserTicks.query.filter_by(
+    def get_highest_grade(user_id: UUID, discipline: str) -> Optional[Dict[str, Any]]:
+        """Get the highest grade tick for a user in a specific discipline"""
+        tick = UserTicks.query.filter_by(
             user_id=user_id, 
             discipline=discipline
         ).order_by(desc(UserTicks.binned_code)).first()
+        
+        return tick.as_dict() if tick else None
 
     @staticmethod
     def get_discipline_counts(user_id: int) -> tuple:

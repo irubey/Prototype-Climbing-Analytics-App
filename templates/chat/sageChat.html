@@ -11,6 +11,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>SendSage - Chat with Sage</title>
     
     <!-- Base Styles -->
@@ -879,7 +881,7 @@
 
             <!-- Onboarding Form -->
             <form id="onboarding_form" class="form">
-
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <!-- Goals and preferences -->
                 <div class="form-section">
                 <h4>Goals and Preferences</h4>
@@ -1254,8 +1256,7 @@
                         {% set energy_types = [
                             ("Power", "Power"),
                             ("Power Endurance", "Power_Endurance"),
-                            ("Endurance", "Endurance"),
-                            ("Technique", "Technique")
+                            ("Endurance", "Endurance")
                         ] %}
                         {% for display, value in energy_types %}
                                 <label>
@@ -1428,7 +1429,9 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                         },
+                        credentials: 'same-origin',
                         body: JSON.stringify({
                             user_prompt: 'Please introduce yourself and describe what you know about me, end with an open ended question allowing me to specify what I want to do with this chat session. Also mention that I can click the sage icon to change my settings at any time',
                             is_first_message: true,
@@ -1598,6 +1601,10 @@
                 
                 fetch('/sage-chat/onboard?userId=' + window.state.userId, {
                     method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    credentials: 'same-origin',
                     body: formData
                 })
                 .then(response => response.json())
@@ -1622,7 +1629,9 @@
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
+                                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                                     },
+                                    credentials: 'same-origin',
                                     body: JSON.stringify({
                                         user_prompt: 'Please introduce yourself and describe what you know about me, end with an open ended question allowing me to specify what I want to do with this chat session. Also mention that I can click the sage icon to change my settings at any time',
                                         is_first_message: true,
@@ -1690,11 +1699,13 @@
                         content: userPrompt
                     });
 
-                    const response = await fetch('/sage-chat/message?userId=' + window.state.userId, {
+                    const response = await fetch('/sage-chat/message', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                         },
+                        credentials: 'same-origin',
                         body: JSON.stringify({
                             user_prompt: userPrompt,
                             is_first_message: window.state.isFirstMessage,
@@ -1785,6 +1796,10 @@
             try {
                 const response = await fetch('/sage-chat/onboard?userId=' + window.state.userId, {
                     method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    credentials: 'same-origin',
                     body: formData
                 });
 

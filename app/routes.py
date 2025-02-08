@@ -9,9 +9,6 @@ from flask_login import current_user, login_user, logout_user, login_required
 import stripe
 import os
 from flask_wtf.csrf import CSRFProtect
-
-logger = logging.getLogger(__name__)
-
 from app.models import (
     BinnedCodeDict, 
     UserTicks, 
@@ -22,12 +19,16 @@ from app.models import (
     ClimbingDiscipline,
     CruxAngle,
     CruxEnergyType,
+    HoldType,
+    SleepScore,
+    NutritionScore,
+    SessionLength,
 )
 from app.services import DataProcessor, DataProcessingError
 from app.services.database_service import DatabaseService
 from app.services.analytics_service import AnalyticsService
 from app.services.climber_summary import ClimberSummaryService, UserInputData
-from app.services.ai.api import get_completion, get_climber_context
+from app.services.ai.old_code.api import get_completion, get_climber_context
 from app.services.auth.auth_service import generate_reset_token, validate_reset_token
 from app.services.user.user_service import UserService, UserCreationError, UserType
 from datetime import date, datetime, timedelta
@@ -47,7 +48,14 @@ from app.services.payment.stripe_handler import (
     handle_invoice_payment_succeeded,
     handle_subscription_created
 )
+from app.services.ai.chat.orchestrator import ChatOrchestrator
+from app.services.ai.model_wrappers.v3_client import DeepseekV3Client
+from app.services.ai.model_wrappers.r1_client import R1Client
+from app.services.context.context_formatter import ContextFormatter
+from app.services.context.data_integrator import DataIntegrator
+import enum
 
+logger = logging.getLogger(__name__)
 
 # Create the Blueprint with CSRF exempt views
 main_bp = Blueprint('main', __name__)
@@ -86,11 +94,31 @@ def temp_user_check(f):
         return f(*args, **kwargs)
     return decorated
 
+# Add at the top with other constants
+VALID_TIERS = {'basic', 'premium'}
+VALID_PAYMENT_STATUSES = {'unpaid', 'pending', 'active'}
+BASIC_TIER_DAILY_MESSAGE_LIMIT = 25
+
 def payment_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if current_user.payment_status != 'active':
+        if not current_user.is_authenticated:
+            return redirect(url_for('main.login', next=request.url))
+            
+        if current_user.payment_status not in VALID_PAYMENT_STATUSES:
+            current_app.logger.warning(f"Invalid payment status for user {current_user.id}: {current_user.payment_status}")
+            current_user.payment_status = 'unpaid'
+            db.session.commit()
+            
+        if current_user.payment_status != 'active' and request.endpoint != 'main.payment':
+            flash('Please complete your payment to access this feature.', 'warning')
             return redirect(url_for('main.payment'))
+            
+        if current_user.tier not in VALID_TIERS:
+            current_app.logger.error(f"Invalid tier for user {current_user.id}: {current_user.tier}")
+            current_user.tier = 'basic'  # Reset to default tier
+            db.session.commit()
+            
         return f(*args, **kwargs)
     return decorated
 
@@ -394,6 +422,16 @@ def stripe_webhook():
 @main_bp.route("/", methods=['GET'])
 def index():
     if current_user.is_authenticated:
+        # Check payment status
+        if current_user.payment_status not in VALID_PAYMENT_STATUSES or current_user.payment_status != 'active':
+            current_user.payment_status = 'unpaid'
+            db.session.commit()
+            return redirect(url_for('main.payment'))
+            
+        if current_user.tier not in VALID_TIERS:
+            current_user.tier = 'basic'
+            db.session.commit()
+            
         return redirect(url_for('main.sage_chat'))
     
     return render_template('index.html', 
@@ -950,191 +988,310 @@ def sage_chat():
     user_id = current_user.id
     current_app.logger.info(f"Sage chat request for user_id: {user_id}")
     
-    # First check if user exists in UserTicks
-    user_ticks = UserTicks.query.filter_by(user_id=user_id).first()
-    if not user_ticks:
-        current_app.logger.error(f"User not found in UserTicks: {user_id}")
-        return "User not found", 404
-
     try:
-        # Get or create ClimberSummary using the service
-        summary_service = ClimberSummaryService(user_id=user_id, username=user_ticks.username)
-        summary = ClimberSummary.query.get(user_id)
+        # Get existing ClimberSummary without updating
+        initial_summary = ClimberSummary.query.get(user_id)
         
-        if not summary:
+        if not initial_summary:
             current_app.logger.info(f"Creating new ClimberSummary for user: {user_id}")
-            # This will create a complete summary with all available data
-            summary = summary_service.update_summary()
-        else:
-            # Update existing summary to ensure all fields are populated
-            summary = summary_service.update_summary()
+            summary_service = ClimberSummaryService(user_id=user_id)
+            initial_summary = summary_service.update_summary()
         
-        current_app.logger.info(f"Found/created climber summary for user: {summary.username}")
-        data_complete = check_data_completeness(summary)
-        current_app.logger.info(f"Data completeness check: {data_complete}")
+        # Create form instance
+        form = ClimberSummaryForm()
+        
+        # Check data completeness
+        data_complete = check_data_completeness(initial_summary)
         
         # Initialize grade processor for grade lists
         grade_processor = GradeProcessor()
         
-        # Get performance pyramid data
-        performance_pyramid = PerformancePyramid.query.filter_by(user_id=user_id).all()
+        # Get user's subscription tier for message limit display
+        user_tier = current_user.tier if hasattr(current_user, 'tier') else 'basic'
+        messages_remaining = None
+        if user_tier == 'basic':
+            today = date.today()
+            if current_user.last_message_date != today:
+                messages_remaining = 25
+            else:
+                messages_remaining = max(0, 25 - (current_user.daily_message_count or 0))
         
-        return render_template('sage_chat.html',
-                             summary=summary,
-                             data_complete=data_complete,
-                             performance_pyramid=performance_pyramid,
-                             grade_processor=grade_processor)
+        return render_template('chat/main.html',
+                             user_id=user_id,
+                             initial_summary=initial_summary,
+                             initial_data_complete=data_complete,
+                             routes_grade_list=grade_processor.routes_grade_list,
+                             boulders_grade_list=grade_processor.boulders_grade_list,
+                             user_tier=user_tier,
+                             messages_remaining=messages_remaining,
+                             form=form)
                              
     except Exception as e:
-        current_app.logger.error(f"Error in sage_chat: {str(e)}")
-        return "An error occurred", 500
+        current_app.logger.error(f"Error in sage_chat: {str(e)}", exc_info=True)
+        flash('An error occurred while loading the chat. Please try again.', 'error')
+        return redirect(url_for('main.payment'))
 
 @main_bp.route("/sage-chat/onboard", methods=['POST'])
 @login_required
 @temp_user_check
-def sage_chat_onboard(user_id):
-    summary = ClimberSummary.query.get_or_404(user_id)
+def sage_chat_onboard():
+    user_id = current_user.id
+    current_app.logger.info(f"Processing onboarding data for user: {user_id}")
     
     try:
+        summary = ClimberSummary.query.get_or_404(user_id)
+        form_data = request.form.to_dict()
+        
+        # Convert boolean fields
+        boolean_fields = ['access_to_commercial_gym']
+        for field in boolean_fields:
+            if field in form_data:
+                form_data[field] = form_data[field].lower() == 'true'
+        
+        # Convert numeric fields
+        numeric_fields = {
+            'total_climbs': int,
+            'years_climbing': int,
+            'activity_last_30_days': int
+        }
+        
+        for field, converter in numeric_fields.items():
+            if field in form_data and form_data[field]:
+                try:
+                    form_data[field] = converter(form_data[field])
+                except (ValueError, TypeError):
+                    current_app.logger.warning(f"Invalid {field} value: {form_data[field]}")
+                    form_data[field] = None
+        
         # Create UserInputData from form data
         user_input = UserInputData(
             # Core progression metrics
-            highest_sport_grade_tried=request.form.get('highest_sport_grade_tried'),
-            highest_trad_grade_tried=request.form.get('highest_trad_grade_tried'),
-            highest_boulder_grade_tried=request.form.get('highest_boulder_grade_tried'),
-            total_climbs=int(request.form.get('total_climbs')) if request.form.get('total_climbs') else None,
-            favorite_discipline=request.form.get('favorite_discipline'),
-            years_climbing_outside=int(request.form.get('years_climbing_outside')) if request.form.get('years_climbing_outside') else None,
-            preferred_crag_last_year=request.form.get('preferred_crag_last_year'),
+            highest_sport_grade_tried=form_data.get('highest_sport_grade_tried'),
+            highest_trad_grade_tried=form_data.get('highest_trad_grade_tried'),
+            highest_boulder_grade_tried=form_data.get('highest_boulder_grade_tried'),
+            total_climbs=form_data.get('total_climbs'),
+            favorite_discipline=form_data.get('favorite_discipline'),
+            years_climbing=form_data.get('years_climbing'),
+            preferred_crag_last_year=form_data.get('preferred_crag_last_year'),
             
-            # Training context
-            training_frequency=request.form.get('training_frequency'),
-            typical_session_length=request.form.get('typical_session_length'),
-            has_hangboard=request.form.get('has_hangboard', '').lower() == 'true',
-            has_home_wall=request.form.get('has_home_wall', '').lower() == 'true',
-            goes_to_gym=request.form.get('goes_to_gym', '').lower() == 'true',
+            # Core Context
+            climbing_goals=form_data.get('climbing_goals'),
+            current_training_description=form_data.get('current_training_description'),
+            interests=form_data.get('interests'),
+            injury_information=form_data.get('injury_information'),
+            additional_notes=form_data.get('additional_notes'),
+            
+            # Advanced Settings - Training Context
+            current_training_frequency=form_data.get('current_training_frequency'),
+            typical_session_length=form_data.get('typical_session_length'),
+            typical_session_intensity=form_data.get('typical_session_intensity'),
+            home_equipment=form_data.get('home_equipment'),
+            access_to_commercial_gym=form_data.get('access_to_commercial_gym', False),
+            supplemental_training=form_data.get('supplemental_training'),
+            training_history=form_data.get('training_history'),
             
             # Performance metrics
-            highest_grade_sport_sent_clean_on_lead=request.form.get('highest_grade_sport_sent_clean_on_lead'),
-            highest_grade_tr_sent_clean=request.form.get('highest_grade_tr_sent_clean'),
-            highest_grade_trad_sent_clean_on_lead=request.form.get('highest_grade_trad_sent_clean_on_lead'),
-            highest_grade_boulder_sent_clean=request.form.get('highest_grade_boulder_sent_clean'),
-            onsight_grade_sport=request.form.get('onsight_grade_sport'),
-            onsight_grade_trad=request.form.get('onsight_grade_trad'),
-            flash_grade_boulder=request.form.get('flash_grade_boulder'),
+            highest_grade_sport_sent_clean_on_lead=form_data.get('highest_grade_sport_sent_clean_on_lead'),
+            highest_grade_tr_sent_clean=form_data.get('highest_grade_tr_sent_clean'),
+            highest_grade_trad_sent_clean_on_lead=form_data.get('highest_grade_trad_sent_clean_on_lead'),
+            highest_grade_boulder_sent_clean=form_data.get('highest_grade_boulder_sent_clean'),
+            onsight_grade_sport=form_data.get('onsight_grade_sport'),
+            onsight_grade_trad=form_data.get('onsight_grade_trad'),
+            flash_grade_boulder=form_data.get('flash_grade_boulder'),
             
-            # Injury history and limitations
-            current_injuries=request.form.get('current_injuries'),
-            injury_history=request.form.get('injury_history'),
-            physical_limitations=request.form.get('physical_limitations'),
+            # Health and Limitations
+            physical_limitations=form_data.get('physical_limitations'),
             
-            # Goals and preferences
-            climbing_goals=request.form.get('climbing_goals'),
-            willing_to_train_indoors=request.form.get('willing_to_train_indoors', '').lower() == 'true',
-            
-            # Recent activity
-            sends_last_30_days=int(request.form.get('sends_last_30_days')) if request.form.get('sends_last_30_days') else None,
+            # Recent Activity
+            activity_last_30_days=form_data.get('activity_last_30_days'),
             
             # Style preferences
-            favorite_angle=request.form.get('favorite_angle'),
-            favorite_hold_types=request.form.get('favorite_hold_types'),
-            weakest_style=request.form.get('weakest_style'),
-            strongest_style=request.form.get('strongest_style'),
-            favorite_energy_type=request.form.get('favorite_energy_type'),
+            favorite_angle=form_data.get('favorite_angle'),
+            strongest_angle=form_data.get('strongest_angle'),
+            weakest_angle=form_data.get('weakest_angle'),
+            favorite_hold_types=form_data.get('favorite_hold_types'),
+            strongest_hold_types=form_data.get('strongest_hold_types'),
+            weakest_hold_types=form_data.get('weakest_hold_types'),
+            favorite_energy_type=form_data.get('favorite_energy_type'),
+            strongest_energy_type=form_data.get('strongest_energy_type'),
+            weakest_energy_type=form_data.get('weakest_energy_type'),
             
             # Lifestyle
-            sleep_score=request.form.get('sleep_score'),
-            nutrition_score=request.form.get('nutrition_score'),
-            
-            # Additional notes
-            additional_notes=request.form.get('additional_notes')
+            sleep_score=form_data.get('sleep_score'),
+            nutrition_score=form_data.get('nutrition_score')
         )
         
-        # Validate required fields
-        if not user_input.climbing_goals:
-            return jsonify({"error": "climbing_goals is required"}), 400
-            
         # Use service to update summary
-        summary_service = ClimberSummaryService(user_id=user_id, username=summary.username)
-        summary = summary_service.update_summary(user_input=user_input)
+        summary_service = ClimberSummaryService(user_id=user_id)
+        updated_summary = summary_service.update_summary(user_input=user_input)
         
-        # Return success with reset_chat flag to trigger frontend reset
+        # Verify data completeness after update
+        if not check_data_completeness(updated_summary):
+            current_app.logger.warning(f"Incomplete data after update for user: {user_id}")
+            return jsonify({
+                "error": "Required fields are missing or invalid",
+                "success": False
+            }), 400
+        
+        current_app.logger.info(f"Successfully updated climber summary for user: {user_id}")
         return jsonify({
             "success": True,
-            "reset_chat": True  # Add this flag to indicate chat should be reset
+            "message": "Profile updated successfully",
+            "reset_chat": True
         })
+        
     except Exception as e:
-        current_app.logger.error(f"Error in sage_chat_onboard: {str(e)}")
+        current_app.logger.error(f"Error in sage_chat_onboard: {str(e)}", exc_info=True)
         db.session.rollback()
-        return jsonify({"error": "Failed to update profile"}), 400
+        return jsonify({
+            "error": "Failed to update profile",
+            "message": str(e),
+            "success": False
+        }), 500
+
+def check_data_completeness(summary):
+    """
+    Check if a ClimberSummary has all required fields filled out.
+    Returns True if all required fields are properly filled out.
+    """
+    if not summary:
+        return False
+
+    required_fields = {
+        # Core progression metrics
+        'favorite_discipline': ClimbingDiscipline,
+        'years_climbing': (int, type(None)),
+        
+        # Core Context
+        'climbing_goals': str,
+        'current_training_description': str,
+        'interests': (list, type(None)),
+        'injury_information': str,
+    }
+    
+    for field, expected_type in required_fields.items():
+        value = getattr(summary, field, None)
+        
+        # Check if value exists
+        if value is None:
+            current_app.logger.debug(f"Field {field} is None")
+            return False
+            
+        # Handle Enum types
+        if isinstance(expected_type, type) and issubclass(expected_type, enum.Enum):
+            if not isinstance(value, expected_type):
+                current_app.logger.debug(f"Field {field} is not a valid {expected_type.__name__}")
+                return False
+        # Handle string fields
+        elif expected_type == str:
+            if not isinstance(value, str) or not value.strip():
+                current_app.logger.debug(f"Field {field} is not a valid string")
+                return False
+        # Handle boolean fields
+        elif expected_type == bool:
+            if not isinstance(value, bool):
+                current_app.logger.debug(f"Field {field} is not a valid boolean")
+                return False
+        # Handle numeric fields with None option
+        elif isinstance(expected_type, tuple) and type(None) in expected_type:
+            valid_types = tuple(t for t in expected_type if t is not type(None))
+            if value is not None and not isinstance(value, valid_types):
+                current_app.logger.debug(f"Field {field} is not a valid numeric type or None")
+                return False
+        # Handle list fields with None option
+        elif isinstance(expected_type, tuple) and list in expected_type:
+            if value is not None and not isinstance(value, list):
+                current_app.logger.debug(f"Field {field} is not a valid list")
+                return False
+    
+    return True
 
 @main_bp.route("/sage-chat/message", methods=['POST'])
 @login_required
 @temp_user_check
-def sage_chat_message(user_id):
-    summary = ClimberSummary.query.get_or_404(user_id)
-    
-    # Check daily message limit for basic tier users
-    if current_user.tier == 'basic':
-        from datetime import date
-        today = date.today()
-        
-        # Reset counter if it's a new day
-        if current_user.last_message_date != today:
-            current_user.daily_message_count = 0
-            current_user.last_message_date = today
-            
-        # Check if user has reached daily limit
-        if current_user.daily_message_count >= 25:
-            return jsonify({"error": "Daily message limit reached. Upgrade to premium for unlimited messages."}), 429
-            
-        # Increment message count
-        current_user.daily_message_count += 1
-        db.session.commit()
-    
-    data = request.get_json()
-    user_prompt = data.get('user_prompt')
-    if not user_prompt:
-        return jsonify({"error": "Message cannot be empty"}), 400
-        
-    is_first_message = data.get('is_first_message', False)
-    conversation_history = data.get('conversation_history', [])
-    use_reasoner = data.get('use_reasoner', False)
-    
-    # For first message with reasoner, get the context
-    initial_user_message = None
-    if is_first_message and use_reasoner:
-        additional_context = get_climber_context(user_id)
-        context_str = "\n".join(f"- {k}: {v}" for k, v in additional_context.items())
-        initial_user_message = f"Here is my climbing context:\n\n{context_str}\n\n{user_prompt}"
-    
-    ai_response = get_completion(
-        user_prompt, 
-        climber_id=user_id, 
-        is_first_message=is_first_message,
-        messages=conversation_history,
-        use_reasoner=use_reasoner
-    )
+async def sage_chat_message():
+    try:
+        # Validate user tier
+        if current_user.tier not in VALID_TIERS:
+            current_app.logger.error(f"Invalid tier for user {current_user.id}: {current_user.tier}")
+            return jsonify({"error": "Invalid subscription tier"}), 400
 
-    # Prepare response data
-    response_data = {}
-    if use_reasoner:
-        response_data["response"] = ai_response[0]
-        response_data["reasoning"] = ai_response[1]
-        if initial_user_message:
-            response_data["initial_user_message"] = initial_user_message
-    else:
-        response_data["response"] = ai_response
-        response_data["reasoning"] = None
+        # Check daily message limit for basic tier users
+        if current_user.tier == 'basic':
+            today = date.today()
+            
+            # Reset counter if it's a new day
+            if current_user.last_message_date != today:
+                current_user.daily_message_count = 0
+                current_user.last_message_date = today
+                
+            # Check if user has reached daily limit
+            if current_user.daily_message_count >= BASIC_TIER_DAILY_MESSAGE_LIMIT:
+                return jsonify({
+                    "error": "Daily message limit reached",
+                    "message": "You've reached your daily message limit. Upgrade to premium for unlimited messages!",
+                    "limit_reached": True
+                }), 429
+                
+            # Increment message count
+            current_user.daily_message_count += 1
+            
+            try:
+                db.session.commit()
+            except SQLAlchemyError as e:
+                current_app.logger.error(f"Database error updating message count: {str(e)}")
+                db.session.rollback()
+                return jsonify({"error": "Error updating message count"}), 500
 
-    # Add context for first message (only for regular chat)
-    if is_first_message and not use_reasoner:
-        additional_context = get_climber_context(user_id)
-        context_str = "\n".join(f"- {k}: {v}" for k, v in additional_context.items())
-        response_data["context"] = f"Here is your climbing context that I'll reference throughout our conversation:\n\n{context_str}"
-        response_data["context_role"] = "assistant"
-    
-    return jsonify(response_data)
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        user_prompt = data.get('user_prompt')
+        if not user_prompt:
+            return jsonify({"error": "Message cannot be empty"}), 400
+            
+        is_first_message = data.get('is_first_message', False)
+        conversation_history = data.get('conversation_history', [])
+        custom_context = data.get('custom_context')
+
+        # Initialize services
+        v3_client = DeepseekV3Client(api_key=current_app.config['DEEPSEEK_API_KEY'])
+        r1_client = R1Client(api_key=current_app.config['DEEPSEEK_API_KEY'])
+        context_formatter = ContextFormatter()
+        data_integrator = DataIntegrator()
+
+        # Create orchestrator
+        orchestrator = ChatOrchestrator(
+            db=db.session,
+            v3_client=v3_client,
+            r1_client=r1_client,
+            context_formatter=context_formatter,
+            data_integrator=data_integrator
+        )
+
+        # Process message
+        response = await orchestrator.process_chat_message(
+            user_id=str(current_user.id),
+            message=user_prompt,
+            conversation_history=conversation_history,
+            custom_context=custom_context
+        )
+
+        # Add message count to response for basic tier users
+        if current_user.tier == 'basic':
+            messages_remaining = BASIC_TIER_DAILY_MESSAGE_LIMIT - current_user.daily_message_count
+            response['messages_remaining'] = messages_remaining
+
+        return jsonify(response)
+
+    except Exception as e:
+        current_app.logger.error(f"Error in sage_chat_message: {str(e)}", exc_info=True)
+        return jsonify({
+            "error": "An error occurred processing your message",
+            "details": str(e)
+        }), 500
 
 @main_bp.route('/upload', methods=['POST'])
 @login_required
@@ -1147,10 +1304,18 @@ def upload_file():
     if not file.filename:
         return jsonify({"error": "No file selected"}), 400
         
+    # Validate user tier
+    if current_user.tier not in VALID_TIERS:
+        return jsonify({"error": "Invalid subscription tier"}), 400
+        
     # Check file size based on user tier
     max_size = 10_000_000 if current_user.tier == 'premium' else 1_000_000  # 10MB for premium, 1MB for basic
-    if file.content_length > max_size:
-        return jsonify({"error": f"File size exceeds {max_size/1_000_000}MB limit for your tier"}), 413
+    content_length = request.content_length
+    if content_length and content_length > max_size:
+        return jsonify({
+            "error": f"File size exceeds {max_size/1_000_000}MB limit for your tier",
+            "tier": current_user.tier
+        }), 413
         
     # Check file type (only allow txt and csv)
     allowed_extensions = {'txt', 'csv'}
@@ -1169,32 +1334,16 @@ def upload_file():
         )
         db.session.add(upload)
         db.session.commit()
-        return jsonify({"success": True, "message": "File uploaded successfully"})
+        return jsonify({
+            "success": True, 
+            "message": "File uploaded successfully",
+            "file_size": len(content),
+            "tier_limit": max_size
+        })
     except Exception as e:
+        current_app.logger.error(f"Error uploading file: {str(e)}", exc_info=True)
         db.session.rollback()
         return jsonify({"error": f"Error uploading file: {str(e)}"}), 500
-
-def check_data_completeness(summary):
-    required_fields = [
-        'climbing_goals',  # Goals and preferences
-        'favorite_discipline',  # Core progression
-        'typical_session_length',  # Training context
-        'favorite_angle',  # Style preferences
-        'favorite_hold_types',  # Style preferences
-        'weakest_style',  # Style preferences
-        'strongest_style',  # Style preferences
-        'favorite_energy_type',  # Style preferences
-        'sleep_score',  # Lifestyle
-        'nutrition_score'  # Lifestyle
-    ]
-    for field in required_fields:
-        if getattr(summary, field) in [None, '']:
-            return False
-    return True
-
-
-
-
 
 # Health Check Routes--------------------------------
 @main_bp.route("/health")
@@ -1228,11 +1377,6 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
-    
-
-
-
-
 
 @main_bp.route("/update-climber-summary", methods=['GET', 'POST'])
 @login_required
@@ -1254,6 +1398,11 @@ def update_climber_summary():
     
     if form.validate_on_submit():
         try:
+            # Log all form data for debugging
+            current_app.logger.debug("Form Data Submitted:")
+            for field_name, field in form._fields.items():
+                current_app.logger.debug(f"{field_name}: {field.data}")
+
             # Create UserInputData from form
             user_input = UserInputData(
                 # Core progression metrics
@@ -1262,15 +1411,24 @@ def update_climber_summary():
                 highest_boulder_grade_tried=form.highest_boulder_grade_tried.data,
                 total_climbs=form.total_climbs.data,
                 favorite_discipline=form.favorite_discipline.data,
-                years_climbing_outside=form.years_climbing_outside.data,
+                years_climbing=form.years_climbing.data,
                 preferred_crag_last_year=form.preferred_crag_last_year.data,
                 
-                # Training context
-                training_frequency=form.training_frequency.data,
+                # Core Context
+                climbing_goals=form.climbing_goals.data,
+                current_training_description=form.current_training_description.data,
+                interests=form.interests.data,
+                injury_information=form.injury_information.data,
+                additional_notes=form.additional_notes.data,
+                
+                # Advanced Settings - Training Context
+                current_training_frequency=form.current_training_frequency.data,
                 typical_session_length=form.typical_session_length.data,
-                has_hangboard=form.has_hangboard.data,
-                has_home_wall=form.has_home_wall.data,
-                goes_to_gym=form.goes_to_gym.data,
+                typical_session_intensity=form.typical_session_intensity.data,
+                home_equipment=form.home_equipment.data,
+                access_to_commercial_gym=form.access_to_commercial_gym.data,
+                supplemental_training=form.supplemental_training.data,
+                training_history=form.training_history.data,
                 
                 # Performance metrics
                 highest_grade_sport_sent_clean_on_lead=form.highest_grade_sport_sent_clean_on_lead.data,
@@ -1281,14 +1439,11 @@ def update_climber_summary():
                 onsight_grade_trad=form.onsight_grade_trad.data,
                 flash_grade_boulder=form.flash_grade_boulder.data,
                 
-                # Injury history and limitations
-                current_injuries=form.current_injuries.data,
-                injury_history=form.injury_history.data,
+                # Health and Limitations
                 physical_limitations=form.physical_limitations.data,
                 
-                # Goals and preferences
-                climbing_goals=form.climbing_goals.data,
-                willing_to_train_indoors=form.willing_to_train_indoors.data,
+                # Recent Activity
+                activity_last_30_days=form.activity_last_30_days.data,
                 
                 # Style preferences
                 favorite_angle=form.favorite_angle.data,
@@ -1303,11 +1458,12 @@ def update_climber_summary():
                 
                 # Lifestyle
                 sleep_score=form.sleep_score.data,
-                nutrition_score=form.nutrition_score.data,
-                
-                # Additional notes
-                additional_notes=form.additional_notes.data
+                nutrition_score=form.nutrition_score.data
             )
+            
+            # Log UserInputData for debugging
+            current_app.logger.debug("UserInputData created:")
+            current_app.logger.debug(user_input.__dict__)
             
             # Update summary using service
             summary_service = ClimberSummaryService(user_id=current_user.id)
@@ -1317,11 +1473,19 @@ def update_climber_summary():
             return redirect(url_for('main.sage_chat'))
             
         except Exception as e:
-            current_app.logger.error(f"Error updating climber summary: {str(e)}")
+            current_app.logger.error(f"Error updating climber summary: {str(e)}", exc_info=True)
             flash('Error updating profile. Please try again.', 'danger')
             db.session.rollback()
+    else:
+        # Log form validation errors if any
+        if form.errors:
+            current_app.logger.debug("Form Validation Errors:")
+            for field_name, errors in form.errors.items():
+                current_app.logger.debug(f"{field_name}: {errors}")
+                flash(f"Error in {field_name}: {', '.join(errors)}", 'danger')
     
-    return render_template('update_climber_summary.html', form=form)
+    # If we get here, either it's a GET request or form validation failed
+    return redirect(url_for('main.sage_chat'))
 
 @main_bp.route("/create-ticks", methods=['POST'])
 @login_required

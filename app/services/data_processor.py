@@ -299,8 +299,7 @@ class DataProcessor:
             energy_keywords = {
                 'Power': ['power', 'powerful', 'dynamic', 'explosive'],
                 'Power_Endurance': ['power endurance', 'sustained', 'pumpy'],
-                'Endurance': ['endurance', 'stamina', 'long'],
-                'Technique': ['technical', 'balance', 'precise']
+                'Endurance': ['endurance', 'stamina', 'long']
             }
             
             # Extract hold type information

@@ -1,81 +1,93 @@
-# SendSage - Climbing Analytics Platform
+# SendSage - AI-Powered Climbing Coach & Analytics Platform
 
-📊 **Transform your climbing data into actionable insights**
+🤖 **Your Personal Climbing AI Coach with Deep Analytics**
 
 ## About
 
-SendSage is a sophisticated analytics platform that transforms Mountain Project tick lists into comprehensive climbing insights. Built for climbers who want to understand their performance deeply, it provides interactive visualizations and metrics across all climbing disciplines. Whether you're tracking your progression, analyzing your style preferences, or planning your next projects, SendSage turns your climbing history into a powerful tool for improvement.
+SendSage combines cutting-edge **AI coaching** with comprehensive analytics to transform your climbing journey. At its core is **SageChat**, a context-aware AI climbing coach that understands your performance data, climbing history, and goals to provide personalized guidance. While maintaining our powerful visualization suite for free users, our premium offering focuses on intelligent, data-driven coaching conversations.
 
 Key highlights:
 
-- 🎯 Instant conversion of Mountain Project data into actionable insights
-- 📈 Interactive grade pyramids and progression tracking
-- 🗺️ Geographic analysis of climbing patterns
-- 📊 Deep-dive performance metrics and style analysis
-- 🔄 Real-time data updates and verification system
+- 🧠 **SageChat:** Context-aware AI climbing coach that understands your data
+- 📊 Free interactive visualization suite
+- 🎯 Personalized training recommendations
+- 📈 Performance tracking and analysis
+- 🔄 Real-time Mountain Project data integration
 
-## Features
+## Core Features
 
-### Dashboard Overview
+### SageChat AI Coach
 
-- **Quick Stats:** Total pitches, unique locations, favorite areas, and days outside
-- **Experience Base Analytics:**
-  - Base Volume: Climbing milestones, seasonal patterns, and work capacity analysis
-  - Progression: Route length and difficulty tier development tracking
-  - When & Where: Seasonal heatmaps, location hierarchies, and animated crag history
+- **Contextual Understanding:** Analyzes your climbing history, style, and preferences
+- **Personalized Guidance:**
+  - Training program recommendations
+  - Technical advice based on your climbing style
+  - Project selection and preparation strategies
+  - Recovery and injury prevention insights
+- **Data-Driven Coaching:** Leverages your performance metrics for targeted advice
 
-### Performance Analytics
+### Analytics Dashboard (Free)
 
-- **Grade Tracking:** Highest clean sends across Sport, Trad, and Boulder
-- **Recent Achievements:** Latest hard sends with attempt counts and locations
-- **Advanced Analysis:**
-  - Performance Pyramid: Interactive grade pyramids with send rates and project history
-  - Performance Characteristics: Style analysis through energy systems, route length, and angle preferences
+- **Performance Metrics:** Grade pyramids, progression tracking, and style analysis
+- **Interactive Visualizations:** Geographic patterns and seasonal trends
+- **Data Integration:** Seamless Mountain Project sync
+- **Custom Analytics:** Deep-dive performance characteristics and achievement tracking
 
-### Data Management
+## How It Works
 
-- **Easy Data Input:** Mountain Project Profile URL integration
-- **Data Refresh:** On-demand data updates
-- **Performance Data Verification:** Manual verification system for accurate analysis
+### Step 1: Connect Your Data
 
-## Technologies Used
+- Link your Mountain Project profile
 
-### Backend
+### Step 2: Access Your Tools
+
+- Explore free visualization suite
+- Premium users: Engage with SageChat for personalized coaching
+
+### Step 3: Get Personalized Guidance
+
+- Receive data-driven insights
+- Interact with SageChat for specific advice and training plans
+- Track progress and adjust goals
+
+## Pricing Tiers
+
+### Free Tier - Analytics Explorer
+
+- Complete visualization suite
+- Mountain Project integration
+- Basic performance metrics
+
+### Premium Tier - AI Coaching
+
+- Everything in Free tier
+- Unlimited SageChat access
+- Advanced performance analysis
+- Personalized training recommendations
+- Progress tracking and goal setting
+
+## Technologies
+
+### AI & Machine Learning
+
+- **Natural Language Processing:** Advanced context understanding
+- **Performance Analysis:** Pattern recognition and prediction
+- **Recommendation Engine:** Personalized training and project suggestions
+
+### Backend & Data
 
 - **Python Flask:** Core web framework
-- **SQLAlchemy:** Database ORM and management
 - **PostgreSQL:** Relational database
-- **Custom Services:** Modular architecture with specialized services for analytics, data processing, and climb classification
+- **Custom Analytics:** Specialized climbing metrics processing
 
 ### Frontend
 
-- **JavaScript/D3.js:** Interactive data visualizations and charts
-- **HTML/CSS:** Modern, responsive design with modular CSS architecture
-- **Custom Components:** Specialized visualization modules for different climbing metrics
+- **Interactive UI:** Modern, responsive design
+- **D3.js:** Dynamic data visualizations
+- **Real-time Updates:** Instant coaching feedback
 
-### Deployment & Infrastructure
+## Try SendSage Today
 
-- **Heroku:** Cloud platform hosting
-- **Git:** Version control
-- **Database Migrations:** SQL-based schema management
+[Access SendSage](https://send-sage.com/)
 
-## Step By Step- easy as 1,2,3
-
-### Step 1: User inputs Mountain Project Profile URL
-
-- App sends request to Mountain Project API.
-
-### Step 2: Calculations are Performed
-
-- Athlete data is cleaned and transformed into an appropriate analytical structure.
-- Performance metrics and aggregate data are pre-calculated server-side.
-- Data is stored in a relational database for efficient querying.
-
-### Step 3: User can explore visualizations
-
-- The database is queried to generate interactive visualizations of relevant data trends.
-- Users can explore various aspects of their climbing performance through engaging and informative charts.
-
-## Try it out!
-
-[Click here to access SendSage](https://prototype-climbing-analytics-app.onrender.com/)
+Transform your climbing with AI-powered coaching and comprehensive analytics.

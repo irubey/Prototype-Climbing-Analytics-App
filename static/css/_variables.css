@@ -207,4 +207,36 @@
     3vw,
     var(--font-size-lg)
   );
+
+  /* New variables from the code block */
+  --surface-dark: #2c4957;
+  --surface-hover: rgba(255, 255, 255, 0.1);
+  --surface-active: rgba(255, 255, 255, 0.15);
+  --surface-danger: rgba(255, 59, 48, 0.1);
+  --text-white: #ffffff;
+  --text-light: rgba(255, 255, 255, 0.9);
+  --text-muted: rgba(255, 255, 255, 0.7);
+  --text-danger: #ff3b30;
+  --border-color: rgba(255, 255, 255, 0.1);
+
+  /* Chat Interface Colors */
+  --chat-bg: #343541;
+  --chat-surface: #444654;
+  --chat-input-bg: #40414f;
+  --chat-border: #565869;
+  --chat-text: #ececf1;
+  --chat-text-muted: #9fa1b3;
+
+  /* Prompt Button Colors */
+  --prompt-button-bg: #40414f;
+  --prompt-button-hover: #2a2b32;
+  --prompt-button-border: #565869;
+
+  /* Chat Spacing */
+  --chat-container-width: 768px;
+  --chat-input-height: 52px;
+  --chat-header-height: 48px;
+
+  /* Chat Transitions */
+  --chat-transition: all 0.15s ease;
 }

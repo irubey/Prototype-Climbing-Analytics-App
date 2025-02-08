@@ -1,5 +1,5 @@
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional, Union
+from datetime import datetime, timedelta, timezone
 from app.models import (
     ClimberSummary,
     ClimbingDiscipline,
@@ -29,15 +29,24 @@ class UserInputData:
         highest_boulder_grade_tried: Optional[str] = None,
         total_climbs: Optional[int] = None,
         favorite_discipline: Optional[str] = None,
-        years_climbing_outside: Optional[int] = None,
+        years_climbing: Optional[int] = None,
         preferred_crag_last_year: Optional[str] = None,
         
-        # Training context
-        training_frequency: Optional[str] = None,
+        # Core Context
+        climbing_goals: Optional[str] = None,
+        current_training_description: Optional[str] = None,
+        interests: Optional[List[str]] = None,
+        injury_information: Optional[str] = None,
+        additional_notes: Optional[str] = None,
+        
+        # Advanced Settings - Training Context
+        current_training_frequency: Optional[str] = None,
         typical_session_length: Optional[str] = None,
-        has_hangboard: Optional[bool] = None,
-        has_home_wall: Optional[bool] = None,
-        goes_to_gym: Optional[bool] = None,
+        typical_session_intensity: Optional[str] = None,
+        home_equipment: Optional[str] = None,
+        access_to_commercial_gym: Optional[bool] = None,
+        supplemental_training: Optional[str] = None,
+        training_history: Optional[str] = None,
         
         # Performance metrics
         highest_grade_sport_sent_clean_on_lead: Optional[str] = None,
@@ -48,17 +57,11 @@ class UserInputData:
         onsight_grade_trad: Optional[str] = None,
         flash_grade_boulder: Optional[str] = None,
         
-        # Injury history and limitations
-        current_injuries: Optional[str] = None,
-        injury_history: Optional[str] = None,
+        # Health and Limitations
         physical_limitations: Optional[str] = None,
         
-        # Goals and preferences
-        climbing_goals: Optional[str] = None,
-        willing_to_train_indoors: Optional[bool] = None,
-        
-        # Recent activity
-        sends_last_30_days: Optional[int] = None,
+        # Recent Activity
+        activity_last_30_days: Optional[int] = None,
         
         # Style preferences
         favorite_angle: Optional[str] = None,
@@ -73,10 +76,7 @@ class UserInputData:
         
         # Lifestyle
         sleep_score: Optional[str] = None,
-        nutrition_score: Optional[str] = None,
-
-        # Additional notes
-        additional_notes: Optional[str] = None
+        nutrition_score: Optional[str] = None
     ):
         # Core progression metrics
         self.highest_sport_grade_tried = highest_sport_grade_tried
@@ -84,15 +84,24 @@ class UserInputData:
         self.highest_boulder_grade_tried = highest_boulder_grade_tried
         self.total_climbs = total_climbs
         self.favorite_discipline = getattr(ClimbingDiscipline, favorite_discipline) if favorite_discipline else None
-        self.years_climbing_outside = years_climbing_outside
+        self.years_climbing = years_climbing
         self.preferred_crag_last_year = preferred_crag_last_year
         
-        # Training context
-        self.training_frequency = training_frequency
+        # Core Context
+        self.climbing_goals = climbing_goals
+        self.current_training_description = current_training_description
+        self.interests = interests
+        self.injury_information = injury_information
+        self.additional_notes = additional_notes
+        
+        # Advanced Settings - Training Context
+        self.current_training_frequency = current_training_frequency
         self.typical_session_length = getattr(SessionLength, typical_session_length) if typical_session_length else None
-        self.has_hangboard = has_hangboard
-        self.has_home_wall = has_home_wall
-        self.goes_to_gym = goes_to_gym
+        self.typical_session_intensity = typical_session_intensity
+        self.home_equipment = home_equipment
+        self.access_to_commercial_gym = access_to_commercial_gym
+        self.supplemental_training = supplemental_training
+        self.training_history = training_history
         
         # Performance metrics
         self.highest_grade_sport_sent_clean_on_lead = highest_grade_sport_sent_clean_on_lead
@@ -103,17 +112,11 @@ class UserInputData:
         self.onsight_grade_trad = onsight_grade_trad
         self.flash_grade_boulder = flash_grade_boulder
         
-        # Injury history and limitations
-        self.current_injuries = current_injuries
-        self.injury_history = injury_history
+        # Health and Limitations
         self.physical_limitations = physical_limitations
         
-        # Goals and preferences
-        self.climbing_goals = climbing_goals
-        self.willing_to_train_indoors = willing_to_train_indoors
-        
-        # Recent activity
-        self.sends_last_30_days = sends_last_30_days
+        # Recent Activity
+        self.activity_last_30_days = activity_last_30_days
         
         # Style preferences
         self.favorite_angle = getattr(CruxAngle, favorite_angle) if favorite_angle else None
@@ -129,9 +132,6 @@ class UserInputData:
         # Lifestyle
         self.sleep_score = getattr(SleepScore, sleep_score) if sleep_score else None
         self.nutrition_score = getattr(NutritionScore, nutrition_score) if nutrition_score else None
-
-        # Additional notes
-        self.additional_notes = additional_notes
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert user input to dictionary, excluding None values and converting enums to their values"""
@@ -151,12 +151,24 @@ class ClimberSummaryService:
         self.user = User.query.get(user_id)
         self.username = self.user.username
         
-    def get_grade_from_tick(self, tick: UserTicks) -> str:
-        """Get standardized grade from a tick using GradeProcessor."""
-        return self.grade_processor.get_grade_from_code(tick.binned_code) if tick else None
+    def get_grade_from_tick(self, tick: Union[UserTicks, Dict, None]) -> Optional[str]:
+        """Get standardized grade from a tick using GradeProcessor.
+        
+        Args:
+            tick: Can be either a UserTicks model instance or a dictionary containing tick data
+        """
+        if tick is None:
+            return None
+            
+        # Handle both model instances and dictionaries
+        binned_code = tick.binned_code if isinstance(tick, UserTicks) else tick.get('binned_code')
+        return self.grade_processor.get_grade_from_code(binned_code) if binned_code is not None else None
         
     def get_core_progression_metrics(self) -> Dict[str, Any]:
         """Calculate core progression metrics using DatabaseService"""
+        # Get the query object
+        user_ticks_query = DatabaseService.get_user_ticks_by_id(self.user_id)
+        
         return {
             "highest_sport_grade_tried": self.get_grade_from_tick(
                 DatabaseService.get_highest_grade(self.user_id, 'sport')
@@ -167,10 +179,10 @@ class ClimberSummaryService:
             "highest_boulder_grade_tried": self.get_grade_from_tick(
                 DatabaseService.get_highest_grade(self.user_id, 'boulder')
             ),
-            "total_climbs": DatabaseService.get_user_ticks_by_id(self.user_id).count(),
+            "total_climbs": user_ticks_query.count(),  # Using SQLAlchemy's count() on query object
             "favorite_discipline": (discipline_counts := DatabaseService.get_discipline_counts(self.user_id)) 
                 and discipline_counts.discipline,
-            "years_climbing_outside": self._calculate_years_climbing(),
+            "years_climbing": self._calculate_years_climbing(),
             "preferred_crag_last_year": (preferred_crag := DatabaseService.get_preferred_crag(self.user_id)) 
                 and preferred_crag.location
         }
@@ -228,42 +240,34 @@ class ClimberSummaryService:
         }
         
     def get_style_preferences(self) -> Dict[str, Any]:
-        """Analyze climbing style preferences using PerformancePyramid"""
-        # Query performance pyramid data joined with user ticks
-        style_data = db.session.query(
-            PerformancePyramid.crux_angle,
-            PerformancePyramid.crux_energy,
-            UserTicks.binned_code,
-            func.count().label('count')
-        ).join(
-            UserTicks, 
-            and_(
-                PerformancePyramid.tick_id == UserTicks.id,
-                PerformancePyramid.user_id == self.user_id
-            )
-        ).group_by(
-            PerformancePyramid.crux_angle,
-            PerformancePyramid.crux_energy,
-            UserTicks.binned_code
-        ).all()
-
+        """Analyze climbing style preferences using pyramid data"""
+        # Get pyramid data from DatabaseService
+        pyramids = DatabaseService.get_pyramids_by_user_id(self.user_id)
+        
+        # Combine all entries for analysis
+        all_entries = []
+        for discipline, entries in pyramids.items():
+            all_entries.extend(entries)
+            
         # Analyze angles
         angle_counts = {}
         angle_grades = {}
-        for data in style_data:
-            if data.crux_angle:
-                angle_counts[data.crux_angle] = angle_counts.get(data.crux_angle, 0) + data.count
-                current_grade = angle_grades.get(data.crux_angle, 0)
-                angle_grades[data.crux_angle] = max(current_grade, data.binned_code)
+        for entry in all_entries:
+            if entry.get('crux_angle'):
+                angle = entry['crux_angle']
+                angle_counts[angle] = angle_counts.get(angle, 0) + 1
+                current_grade = angle_grades.get(angle, 0)
+                angle_grades[angle] = max(current_grade, entry.get('binned_code', 0))
 
         # Analyze energy systems
         energy_counts = {}
         energy_grades = {}
-        for data in style_data:
-            if data.crux_energy:
-                energy_counts[data.crux_energy] = energy_counts.get(data.crux_energy, 0) + data.count
-                current_grade = energy_grades.get(data.crux_energy, 0)
-                energy_grades[data.crux_energy] = max(current_grade, data.binned_code)
+        for entry in all_entries:
+            if entry.get('crux_energy'):
+                energy = entry['crux_energy']
+                energy_counts[energy] = energy_counts.get(energy, 0) + 1
+                current_grade = energy_grades.get(energy, 0)
+                energy_grades[energy] = max(current_grade, entry.get('binned_code', 0))
 
         # Get favorites and strengths
         favorite_angle = max(angle_counts.items(), key=lambda x: x[1])[0] if angle_counts else None
@@ -274,39 +278,36 @@ class ClimberSummaryService:
         strongest_energy = max(energy_grades.items(), key=lambda x: x[1])[0] if energy_grades else None
         weakest_energy = min(energy_grades.items(), key=lambda x: x[1])[0] if energy_grades else None
 
-        # Hold type analysis (remains similar as it's in-memory processing)
-        hold_type_counts = self._analyze_hold_types()
+        # Hold type analysis
+        hold_type_counts = self._analyze_hold_types(all_entries)
         favorite_hold = max(hold_type_counts.items(), key=lambda x: x[1])[0] if hold_type_counts else None
         strongest_hold = max(hold_type_counts.items(), key=lambda x: x[1])[0] if hold_type_counts else None
         weakest_hold = min(hold_type_counts.items(), key=lambda x: x[1])[0] if hold_type_counts else None
 
+        # Convert string values to enums
         return {
-            "favorite_angle": favorite_angle,
-            "strongest_angle": strongest_angle,
-            "weakest_angle": weakest_angle,
-            "favorite_energy_type": favorite_energy,
-            "strongest_energy_type": strongest_energy,
-            "weakest_energy_type": weakest_energy,
-            "favorite_hold_types": favorite_hold,
-            "strongest_hold_types": strongest_hold,
-            "weakest_hold_types": weakest_hold
+            "favorite_angle": CruxAngle(favorite_angle) if favorite_angle else None,
+            "strongest_angle": CruxAngle(strongest_angle) if strongest_angle else None,
+            "weakest_angle": CruxAngle(weakest_angle) if weakest_angle else None,
+            "favorite_energy_type": CruxEnergyType(favorite_energy) if favorite_energy else None,
+            "strongest_energy_type": CruxEnergyType(strongest_energy) if strongest_energy else None,
+            "weakest_energy_type": CruxEnergyType(weakest_energy) if weakest_energy else None,
+            "favorite_hold_types": HoldType(favorite_hold) if favorite_hold else None,
+            "strongest_hold_types": HoldType(strongest_hold) if strongest_hold else None,
+            "weakest_hold_types": HoldType(weakest_hold) if weakest_hold else None
         }
 
-    def _analyze_hold_types(self) -> Dict[HoldType, int]:
-        hold_type_counts = {hold_type: 0 for hold_type in HoldType}
-        all_sends = (
-            DatabaseService.get_pyramids_by_user_id(self.user_id)['sport'] +
-            DatabaseService.get_pyramids_by_user_id(self.user_id)['trad'] +
-            DatabaseService.get_pyramids_by_user_id(self.user_id)['boulder']
-        )
+    def _analyze_hold_types(self, entries: List[Dict[str, Any]]) -> Dict[str, int]:
+        """Analyze hold types from route names in pyramid entries"""
+        hold_type_counts = {hold_type.value: 0 for hold_type in HoldType}
         
-        for send in all_sends:
-            route_name = (send.route_name or "").lower()
-            if "crimp" in route_name: hold_type_counts[HoldType.Crimps] += 1
-            if "sloper" in route_name: hold_type_counts[HoldType.Slopers] += 1
-            if "pocket" in route_name or "mono" in route_name: hold_type_counts[HoldType.Pockets] += 1
-            if "pinch" in route_name: hold_type_counts[HoldType.Pinches] += 1
-            if "crack" in route_name: hold_type_counts[HoldType.Cracks] += 1
+        for entry in entries:
+            route_name = entry.get('route_name', '').lower()
+            if "crimp" in route_name: hold_type_counts[HoldType.Crimps.value] += 1
+            if "sloper" in route_name: hold_type_counts[HoldType.Slopers.value] += 1
+            if "pocket" in route_name or "mono" in route_name: hold_type_counts[HoldType.Pockets.value] += 1
+            if "pinch" in route_name: hold_type_counts[HoldType.Pinches.value] += 1
+            if "crack" in route_name: hold_type_counts[HoldType.Cracks.value] += 1
             
         return hold_type_counts
         
@@ -348,7 +349,7 @@ class ClimberSummaryService:
         """Calculate recent activity metrics using DatabaseService"""
         projects = DatabaseService.get_current_projects(self.user_id)
         return {
-            "sends_last_30_days": DatabaseService.get_recent_sends_count(self.user_id),
+            "activity_last_30_days": DatabaseService.get_recent_sends_count(self.user_id),
             "current_projects": [{
                 "name": p.route_name,
                 "grade": p.route_grade,
@@ -391,7 +392,6 @@ class ClimberSummaryService:
         # Combine all metrics
         summary_data = {
             "user_id": self.user_id,
-            "username": self.username,
             **core_metrics,
             **performance_metrics,
             **style_preferences,
@@ -399,54 +399,67 @@ class ClimberSummaryService:
             "grade_pyramid_trad": grade_pyramids["trad"],
             "grade_pyramid_boulder": grade_pyramids["boulder"],
             **recent_activity,
-            "recent_favorite_routes": recent_favorite_routes
+            "recent_favorite_routes": recent_favorite_routes,
+            "current_info_as_of": datetime.now(timezone.utc)  # Update timestamp
         }
         
-        # Add user input if provided
-        if user_input:
-            user_input_dict = user_input.to_dict()
-            # Update summary data with user input, preserving non-None values
-            summary_data.update({k: v for k, v in user_input_dict.items() if v is not None})
-        
-        # Update or create summary
+        # Get existing summary
         summary = ClimberSummary.query.get(self.user_id)
+        
         if summary:
-            # Preserve existing user input if not provided in update
+            # Preserve user input fields if not provided in update
+            user_input_fields = [
+                'current_training_frequency',
+                'typical_session_length',
+                'typical_session_intensity',
+                'home_equipment',
+                'access_to_commercial_gym',
+                'supplemental_training',
+                'training_history',
+                'physical_limitations',
+                'climbing_goals',
+                'current_training_description',
+                'interests',
+                'injury_information',
+                'sleep_score',
+                'nutrition_score',
+                'additional_notes'
+            ]
+            
             if not user_input:
-                existing_user_data = {
-                    'training_frequency': summary.training_frequency,
-                    'typical_session_length': summary.typical_session_length,
-                    'has_hangboard': summary.has_hangboard,
-                    'has_home_wall': summary.has_home_wall,
-                    'goes_to_gym': summary.goes_to_gym,
-                    'current_injuries': summary.current_injuries,
-                    'injury_history': summary.injury_history,
-                    'physical_limitations': summary.physical_limitations,
-                    'climbing_goals': summary.climbing_goals,
-                    'willing_to_train_indoors': summary.willing_to_train_indoors,
-                    'favorite_angle': summary.favorite_angle,
-                    'strongest_angle': summary.strongest_angle,
-                    'weakest_angle': summary.weakest_angle,
-                    'favorite_energy_type': summary.favorite_energy_type,
-                    'strongest_energy_type': summary.strongest_energy_type,
-                    'weakest_energy_type': summary.weakest_energy_type,
-                    'favorite_hold_types': summary.favorite_hold_types,
-                    'strongest_hold_types': summary.strongest_hold_types,
-                    'weakest_hold_types': summary.weakest_hold_types,
-                    'sleep_score': summary.sleep_score,
-                    'nutrition_score': summary.nutrition_score,
-                    'additional_notes': summary.additional_notes
-                }
-                # Only update with existing values that are not None
-                summary_data.update({k: v for k, v in existing_user_data.items() if v is not None})
+                # Preserve existing user input data
+                for field in user_input_fields:
+                    existing_value = getattr(summary, field)
+                    if existing_value is not None:
+                        summary_data[field] = existing_value
             
             # Update fields
             for key, value in summary_data.items():
-                if hasattr(summary, key):  # Only update if field exists
+                if hasattr(summary, key):
                     setattr(summary, key, value)
         else:
+            # Create new summary
+            if not user_input:
+                # Set default values for required fields
+                summary_data.update({
+                    'current_training_frequency': None,
+                    'typical_session_length': None,
+                    'typical_session_intensity': None,
+                    'home_equipment': None,
+                    'access_to_commercial_gym': False,
+                    'supplemental_training': None,
+                    'training_history': None,
+                    'created_at': datetime.now(timezone.utc)
+                })
             summary = ClimberSummary(**summary_data)
             db.session.add(summary)
+            
+        # Apply user input if provided
+        if user_input:
+            user_input_dict = user_input.to_dict()
+            for key, value in user_input_dict.items():
+                if hasattr(summary, key):
+                    setattr(summary, key, value)
             
         db.session.commit()
         return summary

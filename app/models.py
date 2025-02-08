@@ -48,7 +48,6 @@ class CruxEnergyType(enum.Enum):
     Power = "Power"
     Power_Endurance = "Power Endurance"
     Endurance = "Endurance"
-    Technique = "Technique"
 
 class HoldType(enum.Enum):
     Crimps = "Crimps"
@@ -199,23 +198,24 @@ class ClimberSummary(BaseModel):
     # Primary Key
     user_id = db.Column(db.ForeignKey('users.id'), primary_key=True)
     
-    # Core progression metrics
+    # Settings - Core Context additions
+    climbing_goals = db.Column(db.Text)
+    years_climbing = db.Column(db.Integer)
+    current_training_description = db.Column(db.Text)
+    interests = db.Column(db.JSON)
+    injury_information = db.Column(db.Text)
+    additional_notes = db.Column(db.Text)
+    
+    # Advanced Settings - Experience Base Metrics
+    total_climbs = db.Column(db.Integer)
+    favorite_discipline = db.Column(Enum(ClimbingDiscipline))
+    preferred_crag_last_year = db.Column(db.String(255))
+    
+
+    # Advanced Settings - Performance Metrics 
     highest_sport_grade_tried = db.Column(db.String(255))
     highest_trad_grade_tried = db.Column(db.String(255))
     highest_boulder_grade_tried = db.Column(db.String(255))
-    total_climbs = db.Column(db.Integer)
-    favorite_discipline = db.Column(Enum(ClimbingDiscipline))
-    years_climbing_outside = db.Column(db.Integer)
-    preferred_crag_last_year = db.Column(db.String(255))
-    
-    # Training context
-    training_frequency = db.Column(db.String(255))
-    typical_session_length = db.Column(Enum(SessionLength, values_callable=lambda x: [e.value for e in x]))
-    has_hangboard = db.Column(db.Boolean)
-    has_home_wall = db.Column(db.Boolean)
-    goes_to_gym = db.Column(db.Boolean)
-    
-    # Performance metrics
     highest_grade_sport_sent_clean_on_lead = db.Column(db.String(255))
     highest_grade_tr_sent_clean = db.Column(db.String(255))
     highest_grade_trad_sent_clean_on_lead = db.Column(db.String(255))
@@ -223,26 +223,31 @@ class ClimberSummary(BaseModel):
     onsight_grade_sport = db.Column(db.String(255))
     onsight_grade_trad = db.Column(db.String(255))
     flash_grade_boulder = db.Column(db.String(255))
-    
-    # Grade Pyramids (stored as JSON strings)
     grade_pyramid_sport = db.Column(db.JSON)
     grade_pyramid_trad = db.Column(db.JSON)
     grade_pyramid_boulder = db.Column(db.JSON)
     
-    # Injury history and limitations
-    current_injuries = db.Column(db.Text)
-    injury_history = db.Column(db.Text)
+    # Advanced Settings - Training Context modifications
+    current_training_frequency = db.Column(db.String(255))  # Renamed from training_frequency
+    typical_session_length = db.Column(Enum(SessionLength, values_callable=lambda x: [e.value for e in x]))
+    typical_session_intensity = db.Column(db.String(255))  # New Field
+    home_equipment = db.Column(db.Text)  # New Field replacing has_hangboard and has_home_wall
+    access_to_commercial_gym = db.Column(db.Boolean, default=False)  # Renamed from goes_to_gym
+    supplemental_training = db.Column(db.Text)  # New Field
+    training_history = db.Column(db.Text)  # New Field
+    
+    # Advanced Settings - Lifestyle
     physical_limitations = db.Column(db.Text)
+    sleep_score = db.Column(Enum(SleepScore, values_callable=lambda x: [e.value for e in x]))
+    nutrition_score = db.Column(Enum(NutritionScore, values_callable=lambda x: [e.value for e in x]))
     
-    # Goals and preferences
-    climbing_goals = db.Column(db.Text)
-    willing_to_train_indoors = db.Column(db.Boolean)
     
-    # Recent activity
-    sends_last_30_days = db.Column(db.Integer)
-    current_projects = db.Column(db.JSON)  # List of current projects stored as JSON
+    # Advanced Settings - Recent Activity 
+    activity_last_30_days = db.Column(db.Integer)
+    current_projects = db.Column(db.JSON)
+    recent_favorite_routes = db.Column(db.JSON)
     
-    # Style preferences
+    # Advanced Settings - Style Preferences
     favorite_angle = db.Column(Enum(CruxAngle, values_callable=lambda x: [e.value for e in x]))
     weakest_angle = db.Column(Enum(CruxAngle, values_callable=lambda x: [e.value for e in x]))
     strongest_angle = db.Column(Enum(CruxAngle, values_callable=lambda x: [e.value for e in x]))
@@ -252,16 +257,7 @@ class ClimberSummary(BaseModel):
     favorite_hold_types = db.Column(Enum(HoldType, values_callable=lambda x: [e.value for e in x]))
     weakest_hold_types = db.Column(Enum(HoldType, values_callable=lambda x: [e.value for e in x]))
     strongest_hold_types = db.Column(Enum(HoldType, values_callable=lambda x: [e.value for e in x]))
-
-    #Lifestyle
-    sleep_score = db.Column(Enum(SleepScore, values_callable=lambda x: [e.value for e in x]))
-    nutrition_score = db.Column(Enum(NutritionScore, values_callable=lambda x: [e.value for e in x]))
-
-    #Favorite Routes
-    recent_favorite_routes = db.Column(db.JSON) #List of latest 10 routes with 5 stars and notes
-
-    #additional notes
-    additional_notes = db.Column(db.Text)
+    
 
     # Metadata
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

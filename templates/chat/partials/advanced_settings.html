@@ -1,0 +1,366 @@
+{% from "gradeSelect.html" import grade_select %}
+{% from "chat/partials/form_section.html" import form_section %}
+
+{% macro advanced_settings(initial_summary, routes_grade_list, boulders_grade_list) %}
+<div class="advanced-settings">
+    <nav class="advanced-settings__nav">
+        <div class="advanced-settings__nav-content">
+            <button type="button" id="toggle_advanced_settings" class="app__nav-link" title="Advanced Options">
+                <div class="toggle-content">
+                    <span class="toggle-text">Additional Info</span>
+                    <svg class="app__nav-icon advanced-settings__toggle-icon" viewBox="0 0 24 24" width="16" height="16"
+                        stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </div>
+            </button>
+        </div>
+    </nav>
+
+    <div id="advanced_settings_container" class="advanced-settings__content" style="display: none;">
+        <!-- Experience Base Metrics -->
+        {{ form_section('Experience Base Metrics', {
+        'total_climbs': {
+        'type': 'number',
+        'label': 'Total Climbs',
+        'placeholder': 'Estimate your total number of climbs...',
+        'value': initial_summary.total_climbs,
+        'min': 0
+        },
+        'favorite_discipline': {
+        'type': 'select',
+        'label': "What's your favorite discipline?",
+        'placeholder': 'Select discipline',
+        'options': ['tr', 'boulder', 'sport', 'trad', 'mixed', 'winter_ice', 'aid'],
+        'display_names': {
+        'tr': 'Top Rope',
+        'boulder': 'Bouldering',
+        'sport': 'Sport Climbing',
+        'trad': 'Traditional Climbing',
+        'mixed': 'Mixed Climbing',
+        'winter_ice': 'Winter/Ice Climbing',
+        'aid': 'Aid Climbing'
+        },
+        'value': initial_summary.favorite_discipline.value if initial_summary.favorite_discipline else None
+        },
+        'preferred_crag_last_year': {
+        'type': 'text',
+        'label': 'Most Frequented Crag',
+        'placeholder': 'Which climbing area did you visit most in the past year?',
+        'value': initial_summary.preferred_crag_last_year
+        }
+        }) }}
+
+        <!-- Performance Metrics -->
+        <div class="form-section">
+            <h4 class="form-section__title">Performance Metrics</h4>
+            <div class="form-section__content">
+                <div class="form-group">
+                    <label class="form-label">Sport Climbing</label>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Sport Grade Attempted</label>
+                        {{ grade_select("highest_sport_grade_tried", routes_grade_list,
+                        initial_summary.highest_sport_grade_tried) }}
+                    </div>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Sport Clean Send on Lead</label>
+                        {{ grade_select("highest_grade_sport_sent_clean_on_lead", routes_grade_list,
+                        initial_summary.highest_grade_sport_sent_clean_on_lead) }}
+                    </div>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Sport Onsight Grade</label>
+                        {{ grade_select("onsight_grade_sport", routes_grade_list, 
+                        initial_summary.onsight_grade_sport) }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Trad Climbing</label>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Trad Grade Attempted</label>
+                        {{ grade_select("highest_trad_grade_tried", routes_grade_list,
+                        initial_summary.highest_trad_grade_tried) }}
+                    </div>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Clean Trad Send on Lead</label>
+                        {{ grade_select("highest_grade_trad_sent_clean_on_lead", routes_grade_list,
+                        initial_summary.highest_grade_trad_sent_clean_on_lead) }}
+                    </div>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Trad Onsight Grade</label>
+                        {{ grade_select("onsight_grade_trad", routes_grade_list, 
+                        initial_summary.onsight_grade_trad) }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Bouldering</label>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Boulder Grade Attempted</label>
+                        {{ grade_select("highest_boulder_grade_tried", boulders_grade_list,
+                        initial_summary.highest_boulder_grade_tried) }}
+                    </div>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Clean Boulder Send</label>
+                        {{ grade_select("highest_grade_boulder_sent_clean", boulders_grade_list,
+                        initial_summary.highest_grade_boulder_sent_clean) }}
+                    </div>
+                    <div class="grade-field">
+                        <label class="grade-label">Highest Boulder Flash Grade</label>
+                        {{ grade_select("flash_grade_boulder", boulders_grade_list, 
+                        initial_summary.flash_grade_boulder) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training Context -->
+        {{ form_section('Training Context', {
+        'current_training_frequency': {
+        'type': 'select',
+        'label': 'How often do you train?',
+        'placeholder': 'Select frequency',
+        'options': ['1-2x/week', '2-3x/week', '3-4x/week', '4-5x/week', '5+/week'],
+        'value': initial_summary.current_training_frequency
+        },
+        'typical_session_length': {
+        'type': 'select',
+        'label': 'What is the length of your typical training session?',
+        'placeholder': 'Select length',
+        'options': ['LESS_THAN_1_HOUR', 'ONE_TO_TWO_HOURS', 'TWO_TO_THREE_HOURS', 'THREE_TO_FOUR_HOURS', 'FOUR_PLUS_HOURS'],
+        'display_names': {
+            'LESS_THAN_1_HOUR': 'Less than 1 hour',
+            'ONE_TO_TWO_HOURS': '1-2 hours',
+            'TWO_TO_THREE_HOURS': '2-3 hours',
+            'THREE_TO_FOUR_HOURS': '3-4 hours',
+            'FOUR_PLUS_HOURS': '4+ hours'
+        },
+        'value': initial_summary.typical_session_length.name if initial_summary.typical_session_length else None
+        },
+        'typical_session_intensity': {
+        'type': 'select',
+        'label': 'How intense are your typical sessions?',
+        'placeholder': 'Select intensity',
+        'options': ['Light', 'Moderate', 'Hard', 'Very Hard'],
+        'value': initial_summary.typical_session_intensity
+        },
+        'home_equipment': {
+        'type': 'textarea',
+        'label': 'What climbing equipment do you have at home?',
+        'placeholder': 'Home wall, hangboard, weights, etc.',
+        'value': initial_summary.home_equipment
+        },
+        'access_to_commercial_gym': {
+        'type': 'checkbox',
+        'label': 'Do you have access to a commercial gym?',
+        'value': initial_summary.access_to_commercial_gym
+        },
+        'supplemental_training': {
+        'type': 'textarea',
+        'label': 'Supplemental Training',
+        'placeholder': 'Describe any additional training you do (flexibility, strength, cardio, etc.)...',
+        'value': initial_summary.supplemental_training
+        },
+        'training_history': {
+        'type': 'textarea',
+        'label': 'Training History',
+        'placeholder': 'Describe your training background and experience...',
+        'value': initial_summary.training_history
+        }
+        }) }}
+
+        <!-- Style Preferences -->
+        {{ form_section('Style Preferences', {
+        'favorite_angle': {
+        'type': 'select',
+        'label': 'Favorite Angle',
+        'placeholder': 'Select your preferred wall angle',
+        'options': ['Slab', 'Vertical', 'Overhang', 'Roof'],
+        'value': initial_summary.favorite_angle.name if initial_summary.favorite_angle else None
+        },
+        'strongest_angle': {
+        'type': 'select',
+        'label': 'Strongest Angle',
+        'placeholder': 'Select your strongest wall angle',
+        'options': ['Slab', 'Vertical', 'Overhang', 'Roof'],
+        'value': initial_summary.strongest_angle.name if initial_summary.strongest_angle else None
+        },
+        'weakest_angle': {
+        'type': 'select',
+        'label': 'Weakest Angle',
+        'placeholder': 'Select your weakest wall angle',
+        'options': ['Slab', 'Vertical', 'Overhang', 'Roof'],
+        'value': initial_summary.weakest_angle.name if initial_summary.weakest_angle else None
+        },
+        'favorite_energy_type': {
+        'type': 'select',
+        'label': 'Favorite Energy Type',
+        'placeholder': 'Select your preferred style',
+        'options': ['Power', 'Power_Endurance', 'Endurance'],
+        'display_names': {
+            'Power': 'Power',
+            'Power_Endurance': 'Power Endurance',
+            'Endurance': 'Endurance'
+        },
+        'value': initial_summary.favorite_energy_type.name if initial_summary.favorite_energy_type else None
+        },
+        'strongest_energy_type': {
+        'type': 'select',
+        'label': 'Strongest Energy Type',
+        'placeholder': 'Select your strongest style',
+        'options': ['Power', 'Power_Endurance', 'Endurance'],
+        'display_names': {
+            'Power': 'Power',
+            'Power_Endurance': 'Power Endurance',
+            'Endurance': 'Endurance'
+        },
+        'value': initial_summary.strongest_energy_type.name if initial_summary.strongest_energy_type else None
+        },
+        'weakest_energy_type': {
+        'type': 'select',
+        'label': 'Weakest Energy Type',
+        'placeholder': 'Select your weakest style',
+        'options': ['Power', 'Power_Endurance', 'Endurance'],
+        'display_names': {
+            'Power': 'Power',
+            'Power_Endurance': 'Power Endurance',
+            'Endurance': 'Endurance'
+        },
+        'value': initial_summary.weakest_energy_type.name if initial_summary.weakest_energy_type else None
+        },
+        'favorite_hold_types': {
+        'type': 'select',
+        'label': 'Favorite Hold Types',
+        'placeholder': 'Select your preferred holds',
+        'options': ['Crimps', 'Slopers', 'Pockets', 'Pinches', 'Cracks'],
+        'value': initial_summary.favorite_hold_types.value if initial_summary.favorite_hold_types else None
+        },
+        'strongest_hold_types': {
+        'type': 'select',
+        'label': 'Strongest Hold Types',
+        'placeholder': 'Select your strongest holds',
+        'options': ['Crimps', 'Slopers', 'Pockets', 'Pinches', 'Cracks'],
+        'value': initial_summary.strongest_hold_types.value if initial_summary.strongest_hold_types else None
+        },
+        'weakest_hold_types': {
+        'type': 'select',
+        'label': 'Weakest Hold Types',
+        'placeholder': 'Select your weakest holds',
+        'options': ['Crimps', 'Slopers', 'Pockets', 'Pinches', 'Cracks'],
+        'value': initial_summary.weakest_hold_types.value if initial_summary.weakest_hold_types else None
+        }
+        }) }}
+
+        <!-- Recent Activity -->
+        {{ form_section('Recent Activity', {
+        'activity_last_30_days': {
+        'type': 'number',
+        'label': 'Activity Last 30 Days',
+        'placeholder': 'How many sends in the last month?',
+        'value': initial_summary.activity_last_30_days,
+        'min': 0
+        }
+        }) }}
+
+        <!-- Lifestyle -->
+        {{ form_section('Lifestyle', {
+        'physical_limitations': {
+        'type': 'textarea',
+        'label': 'Physical Limitations',
+        'placeholder': 'Describe any physical limitations that affect your climbing...',
+        'value': initial_summary.physical_limitations
+        },
+        'sleep_score': {
+        'type': 'select',
+        'label': 'Sleep Score',
+        'placeholder': 'Rate your sleep quality',
+        'options': ['Poor', 'Fair', 'Good', 'Excellent'],
+        'value': initial_summary.sleep_score.value if initial_summary.sleep_score else None
+        },
+        'nutrition_score': {
+        'type': 'select',
+        'label': 'Nutrition Score',
+        'placeholder': 'Rate your nutrition quality',
+        'options': ['Poor', 'Fair', 'Good', 'Excellent'],
+        'value': initial_summary.nutrition_score.value if initial_summary.nutrition_score else None
+        }
+        }) }}
+    </div>
+</div>
+
+<style>
+    .advanced-settings__nav {
+        width: 100%;
+        margin: calc(var(--spacing-lg) / 2) 0;
+    }
+
+    .advanced-settings__nav-content {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        max-width: var(--container-max-width);
+        margin: 0 auto;
+        padding: 0 calc(var(--spacing-md) / 2);
+    }
+
+    #toggle_advanced_settings {
+        padding: 0.5rem 1rem;
+    }
+
+    .toggle-content {
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .toggle-text {
+        font-size: var(--font-size-base);
+        color: var(--text-color);
+        line-height: 1;
+    }
+
+    .advanced-settings__toggle-icon {
+        transition: transform var(--transition-base);
+        flex-shrink: 0;
+    }
+
+    .advanced-settings__content {
+        max-width: var(--container-max-width);
+        margin: 0 auto;
+        padding: 0 calc(var(--spacing-md) / 2);
+    }
+
+    .grade-field {
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .grade-label {
+        display: block;
+        font-size: var(--font-size-sm);
+        color: var(--text-color);
+        margin-bottom: 0.25rem;
+        font-weight: 400;
+    }
+
+    .form-group > .form-label {
+        font-size: var(--font-size-base);
+        font-weight: 600;
+        margin-bottom: var(--spacing-sm);
+        color: var(--text-color);
+    }
+</style>
+
+<script>
+    document.getElementById('toggle_advanced_settings').addEventListener('click', function () {
+        const container = document.getElementById('advanced_settings_container');
+        const icon = this.querySelector('.advanced-settings__toggle-icon');
+        if (container.style.display === "none") {
+            container.style.display = "block";
+            icon.style.transform = "rotate(180deg)";
+        } else {
+            container.style.display = "none";
+            icon.style.transform = "rotate(0)";
+        }
+    });
+</script>
+{% endmacro %}

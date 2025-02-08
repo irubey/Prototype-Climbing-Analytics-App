@@ -40,7 +40,6 @@ class PyramidBuilder:
             'Power': ['powerful', 'dynamic'],
             'Power Endurance': ['sustained', 'power endurance'],
             'Endurance': ['endurance', 'continuous'],
-            'Technique': ['technical', 'beta']
         }
         
         # Map string disciplines to enum values

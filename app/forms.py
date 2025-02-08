@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, BooleanField, SelectField, TextAreaField, IntegerField, DateField
+from wtforms import StringField, PasswordField, SubmitField, BooleanField, SelectField, TextAreaField, IntegerField, DateField, SelectMultipleField
 from wtforms.validators import DataRequired, Email, EqualTo, Optional, NumberRange, InputRequired, ValidationError
 from app.models import (ClimbingDiscipline, SessionLength, CruxAngle,
                        CruxEnergyType, HoldType, SleepScore, NutritionScore)
@@ -22,44 +22,84 @@ class RegisterForm(FlaskForm):
     submit = SubmitField('Sign Up')
 
 class ClimberSummaryForm(FlaskForm):
-    # Core Progression Metrics
-    highest_sport_grade_tried = StringField('Highest Sport Grade Tried')
-    highest_trad_grade_tried = StringField('Highest Trad Grade Tried')
-    highest_boulder_grade_tried = StringField('Highest Boulder Grade Tried')
+    # Core Context
+    climbing_goals = TextAreaField('Climbing Goals', validators=[Optional()])
+    years_climbing = IntegerField('Years Climbing', validators=[Optional(), NumberRange(min=0)])
+    current_training_description = TextAreaField('Current Training Description', validators=[Optional()])
+    interests = SelectMultipleField('Interests', 
+        choices=[
+            ('outdoor_sport', 'Outdoor Sport'),
+            ('indoor_sport', 'Indoor Sport'),
+            ('outdoor_trad', 'Outdoor Trad'),
+            ('indoor_tr', 'Indoor Top Rope'),
+            ('outdoor_boulder', 'Outdoor Boulder'),
+            ('indoor_boulder', 'Indoor Boulder'),
+            ('board_climbing', 'Board Climbing'),
+            ('competition_boulder', 'Competition Boulder'),
+            ('alpine_multipitch', 'Alpine Multipitch'),
+            ('sport_multipitch', 'Sport Multipitch'),
+            ('trad_multipitch', 'Trad Multipitch')
+        ],
+        validators=[Optional()])
+    injury_information = TextAreaField('Injury Information', validators=[Optional()])
+    additional_notes = TextAreaField('Additional Notes', validators=[Optional()])
+
+    # Experience Base Metrics
     total_climbs = IntegerField('Total Climbs', validators=[Optional(), NumberRange(min=0)])
     favorite_discipline = SelectField('Favorite Discipline', 
         choices=[(d.name, d.value) for d in ClimbingDiscipline],
         validators=[Optional()])
-    years_climbing_outside = IntegerField('Years Climbing Outside',
-        validators=[Optional(), NumberRange(min=0)])
-    preferred_crag_last_year = StringField('Preferred Crag Last Year')
+    preferred_crag_last_year = StringField('Preferred Crag Last Year', validators=[Optional()])
+
+    # Performance Metrics
+    highest_sport_grade_tried = StringField('Highest Sport Grade Tried', validators=[Optional()])
+    highest_trad_grade_tried = StringField('Highest Trad Grade Tried', validators=[Optional()])
+    highest_boulder_grade_tried = StringField('Highest Boulder Grade Tried', validators=[Optional()])
+    highest_grade_sport_sent_clean_on_lead = StringField('Highest Sport Lead Send', validators=[Optional()])
+    highest_grade_tr_sent_clean = StringField('Highest TR Send', validators=[Optional()])
+    highest_grade_trad_sent_clean_on_lead = StringField('Highest Trad Lead Send', validators=[Optional()])
+    highest_grade_boulder_sent_clean = StringField('Highest Boulder Send', validators=[Optional()])
+    onsight_grade_sport = StringField('Sport Onsight Grade', validators=[Optional()])
+    onsight_grade_trad = StringField('Trad Onsight Grade', validators=[Optional()])
+    flash_grade_boulder = StringField('Boulder Flash Grade', validators=[Optional()])
 
     # Training Context
-    training_frequency = StringField('Training Frequency')
+    current_training_frequency = SelectField('Training Frequency', 
+        choices=[
+            ('1-2x/week', '1-2x/week'),
+            ('2-3x/week', '2-3x/week'),
+            ('3-4x/week', '3-4x/week'),
+            ('4-5x/week', '4-5x/week'),
+            ('5+/week', '5+/week')
+        ],
+        validators=[Optional()])
     typical_session_length = SelectField('Typical Session Length',
         choices=[(s.name, s.value) for s in SessionLength],
         validators=[Optional()])
-    has_hangboard = BooleanField('Do you have a hangboard?')
-    has_home_wall = BooleanField('Do you have a home wall?')
-    goes_to_gym = BooleanField('Do you regularly climb at a gym?')
+    typical_session_intensity = SelectField('Session Intensity',
+        choices=[
+            ('Light', 'Light'),
+            ('Moderate', 'Moderate'),
+            ('Hard', 'Hard'),
+            ('Very Hard', 'Very Hard')
+        ],
+        validators=[Optional()])
+    home_equipment = TextAreaField('Home Equipment', validators=[Optional()])
+    access_to_commercial_gym = BooleanField('Access to Commercial Gym')
+    supplemental_training = TextAreaField('Supplemental Training', validators=[Optional()])
+    training_history = TextAreaField('Training History', validators=[Optional()])
 
-    # Performance Metrics
-    highest_grade_sport_sent_clean_on_lead = StringField('Highest Sport Lead Send')
-    highest_grade_tr_sent_clean = StringField('Highest TR Send')
-    highest_grade_trad_sent_clean_on_lead = StringField('Highest Trad Lead Send')
-    highest_grade_boulder_sent_clean = StringField('Highest Boulder Send')
-    onsight_grade_sport = StringField('Sport Onsight Grade')
-    onsight_grade_trad = StringField('Trad Onsight Grade')
-    flash_grade_boulder = StringField('Boulder Flash Grade')
+    # Lifestyle
+    physical_limitations = TextAreaField('Physical Limitations', validators=[Optional()])
+    sleep_score = SelectField('Sleep Quality',
+        choices=[(s.name, s.value) for s in SleepScore],
+        validators=[Optional()])
+    nutrition_score = SelectField('Nutrition Quality',
+        choices=[(n.name, n.value) for n in NutritionScore],
+        validators=[Optional()])
 
-    # Injury History
-    current_injuries = TextAreaField('Current Injuries')
-    injury_history = TextAreaField('Past Injuries')
-    physical_limitations = TextAreaField('Physical Limitations')
-
-    # Goals and Preferences
-    climbing_goals = TextAreaField('Climbing Goals', validators=[Optional()])
-    willing_to_train_indoors = BooleanField('Willing to train indoors?')
+    # Recent Activity
+    activity_last_30_days = IntegerField('Activity Last 30 Days', validators=[Optional(), NumberRange(min=0)])
 
     # Style Preferences
     favorite_angle = SelectField('Favorite Angle',
@@ -89,17 +129,6 @@ class ClimberSummaryForm(FlaskForm):
     weakest_hold_types = SelectField('Weakest Hold Type',
         choices=[(h.name, h.value) for h in HoldType],
         validators=[Optional()])
-
-    # Lifestyle
-    sleep_score = SelectField('Sleep Quality',
-        choices=[(s.name, s.value) for s in SleepScore],
-        validators=[Optional()])
-    nutrition_score = SelectField('Nutrition Quality',
-        choices=[(n.name, n.value) for n in NutritionScore],
-        validators=[Optional()])
-
-    # Additional Notes
-    additional_notes = TextAreaField('Additional Notes')
 
     submit = SubmitField('Save Profile')
 

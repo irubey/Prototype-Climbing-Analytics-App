@@ -1,29 +1,134 @@
-{% macro settings() %}
-<div class="onboarding-container" id="onboarding_container" style="display: {{ 'block' if not initial_data_complete else 'none' }}">
-    <div class="form-header">
-        <h2 style="display: flex; align-items: center; gap: 0.5rem;">
-            Welcome to Sage
-            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Sage" style="width: 24px; height: 24px;">
-            Your Climbing Coach
-        </h2>
-        <button type="button" onclick="toggleView()" class="icon-button" title="Toggle Context">
-            <img src="{{ url_for('static', filename='images/brand/wizard-hat.svg') }}" alt="Toggle Context">
-            <span class="label">{% if message_view %}Settings{% else %}Chat{% endif %}</span>
-        </button>
-    </div>
-    <p class="lead">Please tell us about your climbing experience and goals to help Sage provide personalized guidance.</p>
+{% from "chat/partials/form_section.html" import form_section %}
+{% from "chat/partials/advanced_settings.html" import advanced_settings %}
 
-    <!-- Onboarding Form -->
-    <form id="onboarding_form" class="form">
-        <!-- Include all form sections from original onboarding -->
-        {{ form_section('Goals and Preferences', 'climbing_goals', 'additional_notes') }}
-        {{ form_section('Training', training_fields) }}
-        {{ form_section('Core Progression', core_progression_fields) }}
-        <!-- Include remaining sections similarly -->
-        
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save Context</button>
+{% macro settings(initial_summary, routes_grade_list, boulders_grade_list, form) %}
+<div class="settings">
+    <form method="POST" action="{{ url_for('main.update_climber_summary') }}" class="settings__form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <!-- Core Context -->
+        {{ form_section('Tell us a bit about yourself', {
+            'climbing_goals': {
+                'type': 'textarea',
+                'label': 'What are your climbing goals?',
+                'placeholder': 'Share your specific climbing goals, both short-term and long-term aspirations...',
+                'value': initial_summary.climbing_goals
+            },
+            'years_climbing': {
+                'type': 'number',
+                'label': 'How many years have you been climbing?',
+                'value': initial_summary.years_climbing,
+                'min': 0,
+                'step': '1'
+            },
+            'current_training_description': {
+                'type': 'textarea',
+                'label': 'Please describe your current training',
+                'placeholder': 'What does your training routine look like? Please be as detailed as possible...',
+                'value': initial_summary.current_training_description
+            },
+            'interests': {
+                'type': 'select',
+                'label': 'What types of climbing do you focus on?',
+                'multiple': true,
+                'placeholder': 'Select here...',
+                'options': [
+                    'outdoor_sport',
+                    'indoor_sport',
+                    'outdoor_trad',
+                    'indoor_tr',
+                    'outdoor_boulder',
+                    'indoor_boulder',
+                    'board_climbing',
+                    'competition_boulder',
+                    'alpine_multipitch',
+                    'sport_multipitch',
+                    'trad_multipitch'
+                ],
+                'display_names': {
+                    'outdoor_sport': 'Outdoor Sport',
+                    'indoor_sport': 'Indoor Sport',
+                    'outdoor_trad': 'Outdoor Trad',
+                    'indoor_tr': 'Indoor Top Rope',
+                    'outdoor_boulder': 'Outdoor Boulder',
+                    'indoor_boulder': 'Indoor Boulder',
+                    'board_climbing': 'Board Climbing',
+                    'competition_boulder': 'Competition Boulder',
+                    'alpine_multipitch': 'Alpine Multipitch',
+                    'sport_multipitch': 'Sport Multipitch',
+                    'trad_multipitch': 'Trad Multipitch'
+                },
+                'value': initial_summary.interests
+            },
+            'injury_information': {
+                'type': 'textarea',
+                'label': 'Injury Information',
+                'placeholder': 'List any current or past injuries that affect your climbing, including recovery status...',
+                'value': initial_summary.injury_information
+            },
+            'additional_notes': {
+                'type': 'textarea',
+                'label': 'Additional Notes',
+                'placeholder': 'Any other information you would like to share about your climbing...',
+                'value': initial_summary.additional_notes
+            }
+        }) }}
+
+        <!-- Advanced settings section - now passing grade lists -->
+        {{ advanced_settings(
+            initial_summary=initial_summary,
+            routes_grade_list=routes_grade_list,
+            boulders_grade_list=boulders_grade_list
+        ) }}
+
+        <!-- Submit Button Section -->
+        <div class="settings__actions">
+            <div class="settings__actions-content">
+                <button type="submit" class="submit-button">Save Changes</button>
+                <a href="{{ url_for('main.payment') }}" class="app__nav-link">Manage Subscription</a>
+            </div>
         </div>
     </form>
 </div>
+
+<style>
+    .settings__actions {
+        width: 100%;
+        margin-top: var(--spacing-lg);
+    }
+
+    .settings__actions-content {
+        display: flex;
+        justify-content: center;
+        gap: var(--spacing-md);
+        align-items: center;
+        max-width: var(--container-max-width);
+        margin: 0 auto;
+        padding: var(--spacing-md);
+    }
+
+    .submit-button {
+        background-color: var(--background-color);
+        color: var(--text-color);
+        border: 1px solid var(--text-color);
+        padding: 0.5rem 1rem;
+        border-radius: var(--border-radius);
+        font-size: var(--font-size-base);
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    .submit-button:hover {
+        background-color: var(--primary-color-dark);
+    }
+
+    .submit-button:active {
+        transform: translateY(1px);
+    }
+
+    .settings__actions .app__nav-link {
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+</style>
 {% endmacro %}
