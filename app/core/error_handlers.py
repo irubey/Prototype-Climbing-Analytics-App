@@ -28,7 +28,8 @@ from app.core.exceptions import (
     ServiceUnavailable,
     LogbookProcessingError,
     LogbookConnectionError,
-    ScrapingError
+    ScrapingError,
+    SSEError
 )
 from app.core.logging import logger
 
@@ -222,6 +223,38 @@ async def scraping_error_handler(
             message=str(exc),
             error_type="ScrapingError",
             details={"url": getattr(exc, 'url', None)}
+        )
+    )
+
+async def sse_error_handler(
+    request: Request,
+    exc: SSEError
+) -> JSONResponse:
+    """Handle Server-Sent Events errors."""
+    error_details = {
+        "user_id": exc.context.get("user_id"),
+        "connection_state": exc.context.get("connection_state"),
+        "queue_size": exc.context.get("queue_size")
+    }
+    
+    logger.error(
+        "SSE error",
+        extra={
+            "error_type": "SSEError",
+            "error": str(exc),
+            "path": request.url.path,
+            "method": request.method,
+            **error_details
+        }
+    )
+    
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=create_error_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=str(exc),
+            error_type="SSEError",
+            details=error_details
         )
     )
 

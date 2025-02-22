@@ -219,4 +219,21 @@ class ScrapingError(SendSageException):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=detail,
             context=context
+        )
+
+class SSEError(SendSageException):
+    """Raised when Server-Sent Events operations fail."""
+    def __init__(
+        self,
+        detail: str = "SSE operation failed",
+        user_id: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        context = context or {}
+        if user_id:
+            context["user_id"] = user_id
+        super().__init__(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=detail,
+            context=context
         ) 

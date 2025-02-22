@@ -35,6 +35,10 @@ from app.db.base_class import Base
 from app.api.v1.router import api_router
 from app.main import app as main_app
 from app.services.utils.grade_service import GradeService
+from app.services.chat.context.orchestrator import ContextOrchestrator
+from app.services.chat.ai.basic_chat import BasicChatService
+from app.services.chat.ai.premium_chat import PremiumChatService
+from app.services.chat.events.manager import EventManager, EventType
 
 # Now proceed with the rest of the conftest imports.
 try:
@@ -76,18 +80,31 @@ async def setup_and_teardown() -> AsyncGenerator[None, None]:
     await asyncio.sleep(0.1)  # Small delay to ensure cleanup completes
 
 @pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+    """Create and configure a new event loop for each test session."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     yield loop
     
-    # Clean up pending tasks
+    # Clean up any pending tasks
     pending = asyncio.all_tasks(loop)
     if pending:
-        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        # Cancel all pending tasks
+        for task in pending:
+            task.cancel()
+        
+        # Wait for cancellation to complete with a timeout
+        try:
+            loop.run_until_complete(
+                asyncio.wait_for(
+                    asyncio.gather(*pending, return_exceptions=True),
+                    timeout=1.0
+                )
+            )
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
     
-    loop.run_until_complete(loop.shutdown_asyncgens())
     loop.close()
 
 @pytest.fixture(scope="session")
@@ -145,7 +162,7 @@ async def redis_client() -> AsyncGenerator[redis.Redis, None]:
         await client.aclose()
 
 @pytest_asyncio.fixture
-async def app() -> AsyncGenerator[FastAPI, None]:
+async def app(db_session: AsyncSession, redis_client: redis.Redis) -> AsyncGenerator[FastAPI, None]:
     """Create a fresh FastAPI application for testing."""
     sessionmanager.init(settings.TEST_DATABASE_URL, force=True)
 
@@ -155,12 +172,59 @@ async def app() -> AsyncGenerator[FastAPI, None]:
         docs_url=main_app.docs_url,
         redoc_url=main_app.redoc_url,
     )
+
+    # Override dependencies
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        try:
+            yield db_session
+        finally:
+            await db_session.close()
+
+    async def override_get_redis() -> AsyncGenerator[redis.Redis, None]:
+        try:
+            yield redis_client
+        finally:
+            pass  # Redis client cleanup is handled by the fixture
+
+    from app.api.v1.endpoints.chat import get_redis
+    test_app.dependency_overrides[get_db] = override_get_db
+    test_app.dependency_overrides[get_redis] = override_get_redis
+
+    # Include routers
     test_app.include_router(api_router, prefix=settings.API_V1_STR)
     test_app.state.db_manager = sessionmanager
 
     yield test_app
 
     await sessionmanager.close()
+
+@pytest_asyncio.fixture
+async def mock_context_orchestrator(db_session: AsyncSession, redis_client: redis.Redis) -> AsyncGenerator[ContextOrchestrator, None]:
+    """Get a mock ContextOrchestrator for testing."""
+    orchestrator = ContextOrchestrator(db_session, redis_client)
+    yield orchestrator
+
+@pytest_asyncio.fixture
+async def mock_basic_chat_service(mock_context_orchestrator: ContextOrchestrator, redis_client: redis.Redis, event_manager: EventManager) -> AsyncGenerator[BasicChatService, None]:
+    """Get a mock BasicChatService for testing."""
+    service = BasicChatService(mock_context_orchestrator, event_manager, redis_client)
+    yield service
+
+@pytest_asyncio.fixture
+async def mock_premium_chat_service(mock_context_orchestrator: ContextOrchestrator, event_manager: EventManager) -> AsyncGenerator[PremiumChatService, None]:
+    """Get a mock PremiumChatService for testing."""
+    service = PremiumChatService(mock_context_orchestrator, event_manager)
+    yield service
+
+@pytest_asyncio.fixture
+async def event_manager() -> AsyncGenerator[EventManager, None]:
+    """Get a fresh EventManager instance for testing."""
+    manager = EventManager()
+    yield manager
+    # Cleanup any remaining subscribers and tasks
+    for user_id in list(manager.subscribers.keys()):
+        await manager.disconnect(user_id)
+    await asyncio.sleep(0.1)  # Small delay to ensure cleanup completes
 
 @pytest_asyncio.fixture(autouse=True)
 async def cleanup_tasks() -> AsyncGenerator[None, None]:
@@ -194,13 +258,13 @@ async def client(
     redis_client: redis.Redis
 ) -> AsyncGenerator[AsyncClient, None]:
     """Get an async test client."""
-    async def override_get_db():
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield db_session
         finally:
             await db_session.close()
 
-    async def override_get_redis():
+    async def override_get_redis() -> AsyncGenerator[redis.Redis, None]:
         yield redis_client
 
     app.dependency_overrides[get_db] = override_get_db
