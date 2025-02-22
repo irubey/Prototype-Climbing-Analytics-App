@@ -30,3 +30,9 @@ Werkzeug==2.3.7
 whitenoise==6.6.0
 psutil==6.1.1
 Flask-Caching==2.0.2
+
+# Authentication and Security
+python-jose[cryptography]==3.3.0  # JWT handling
+passlib[bcrypt]==1.7.4  # Password hashing
+cryptography==41.0.7  # Cryptographic operations
+redis==5.0.1  # Rate limiting

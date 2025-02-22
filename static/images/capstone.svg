@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Star outline -->
-  <path d="M10 0L12.939 6.122L19.511 6.8944L14.755 11.5276L15.878 18.0556L10 14.9667L4.122 18.0556L5.245 11.5276L0.489 6.8944L7.061 6.122L10 0Z" 
-        fill="none" 
-        stroke="#FFB100" 
-        stroke-width="1.2"
-        stroke-linejoin="round"/>
-</svg> 
