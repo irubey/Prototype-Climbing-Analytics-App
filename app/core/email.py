@@ -147,6 +147,33 @@ async def send_password_reset_email(
         template_body=template_body
     )
 
+async def send_password_change_email(
+    email_to: EmailStr,
+    username: str
+) -> None:
+    """
+    Send password change email.
+    
+    Args:
+        email_to: User's email address
+        username: User's username
+    """ 
+    template_body = {
+        "username": username,
+        "project_name": settings.PROJECT_NAME,
+        "login_link": f"{settings.SERVER_HOST}/login",
+        "support_email": settings.GMAIL_DEFAULT_SENDER
+    }
+    
+    await send_email(
+        email_to=email_to,
+        subject=f"{settings.PROJECT_NAME} - Password Changed",
+        body="",  # Body will be provided by template
+        template_name="password_change.html",
+        template_body=template_body
+    )
+    
+
 async def send_new_account_email(
     email_to: EmailStr,
     username: str

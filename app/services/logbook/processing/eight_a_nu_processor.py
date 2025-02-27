@@ -286,10 +286,17 @@ class EightANuProcessor(BaseCSVProcessor):
             # Process additional characteristics and generate notes
             df['notes'] = df.apply(self._generate_notes, axis=1)
             
-            # Log route characteristics
-            angle_dist = df['crux_angle'].value_counts().to_dict()
-            energy_dist = df['crux_energy'].value_counts().to_dict()
-            grade_dist = df['route_grade'].value_counts().to_dict()
+            # Log route characteristics - with safety checks for each field
+            angle_dist = df['crux_angle'].value_counts().to_dict() if 'crux_angle' in df.columns else {}
+            energy_dist = df['crux_energy'].value_counts().to_dict() if 'crux_energy' in df.columns else {}
+            
+            # Extra safety check for route_grade to avoid errors
+            grade_dist = {}
+            if 'route_grade' in df.columns:
+                # Filter out any None or NaN values before creating distribution
+                valid_grades = df['route_grade'].dropna()
+                if not valid_grades.empty:
+                    grade_dist = valid_grades.value_counts().to_dict()
             
             logger.info("Route characteristics processed", extra={
                 "angle_distribution": angle_dist,
@@ -305,7 +312,7 @@ class EightANuProcessor(BaseCSVProcessor):
                 "error_type": type(e).__name__,
                 "traceback": traceback.format_exc()
             })
-            raise DataSourceError(f"Error processing route characteristics: {str(e)}")
+            raise DataSourceError(f"502: Error processing route characteristics: {str(e)}")
             
     def _generate_notes(self, row: pd.Series) -> str:
         """Generate notes from route characteristics"""

@@ -7,7 +7,7 @@ including comprehensive validation and documentation for all fields.
 
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, EmailStr, HttpUrl, Field, UUID4, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, HttpUrl, Field, UUID4, field_validator, model_validator, ConfigDict
 from app.models.enums import (
     ClimbingDiscipline,
     CruxAngle,
@@ -63,6 +63,8 @@ class UserProfile(UserBase):
     login_attempts: Optional[int] = Field(0, ge=0, description="Failed login attempts")
     last_failed_login: Optional[datetime] = Field(None, description="Last failed login attempt")
     account_locked_until: Optional[datetime] = Field(None, description="Account lock expiration")
+    
+    model_config = ConfigDict(from_attributes=True)
     
     @field_validator("mountain_project_url", mode="before")
     @classmethod
@@ -151,6 +153,23 @@ class UserProfileUpdate(BaseModel):
         if isinstance(v, HttpUrl):
             return str(v)
         return v
+
+class SubscriptionRequest(BaseModel):
+    """
+    Schema for subscription requests with validation.
+    
+    Validates:
+    - Desired tier is a valid UserTier enum value
+    - Tier is not FREE (cannot subscribe to free tier)
+    """
+    desired_tier: UserTier = Field(..., description="Desired subscription tier")
+
+    @model_validator(mode='after')
+    def validate_tier(self) -> 'SubscriptionRequest':
+        """Validate the desired tier."""
+        if self.desired_tier == UserTier.FREE:
+            raise ValueError("Cannot subscribe to FREE tier")
+        return self
 
 class ClimberSummaryBase(BaseModel):
     """

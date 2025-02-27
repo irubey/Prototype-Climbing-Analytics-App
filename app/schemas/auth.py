@@ -7,7 +7,7 @@ All schemas include comprehensive validation and documentation.
 """
 
 # Core imports that don't create cycles
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -63,6 +63,8 @@ class UserBase(BaseModel):
         description="8a.nu profile URL",
         examples=["https://www.8a.nu/user/12345"]
     )
+
+    model_config = ConfigDict(from_attributes=True)
 
     @field_validator("mountain_project_url", mode="before")
     @classmethod
@@ -207,6 +209,8 @@ class UserResponse(UserBase):
     login_attempts: Optional[int] = Field(0, description="Failed login attempts")
     last_failed_login: Optional[datetime] = Field(None, description="Last failed login attempt")
     account_locked_until: Optional[datetime] = Field(None, description="Account lock expiration")
+
+    model_config = ConfigDict(from_attributes=True)
 
     @field_validator("mountain_project_url", mode="before")
     @classmethod

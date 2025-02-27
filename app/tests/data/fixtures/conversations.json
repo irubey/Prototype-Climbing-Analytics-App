@@ -1,0 +1,253 @@
+[
+  {
+    "conversation_id": "00000000-0000-4000-a000-000000000101",
+    "user_id": "00000000-0000-4000-a000-000000000001",
+    "created_at": "2023-10-15T09:30:00Z",
+    "updated_at": "2023-10-15T10:15:00Z",
+    "title": "Training for V5 boulder",
+    "messages": [
+      {
+        "id": "00000000-0000-4000-a000-000000001001",
+        "role": "system",
+        "content": "You are Send Sage, an expert climbing AI assistant. You provide personalized climbing advice, training tips, and beta based on a climber's experience level and goals.",
+        "timestamp": "2023-10-15T09:30:00Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001002",
+        "role": "user",
+        "content": "I've been climbing for about a year now and I'm trying to break into V5 boulders. I'm stuck on V4 and can't seem to make progress. Any advice on training?",
+        "timestamp": "2023-10-15T09:30:15Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001003",
+        "role": "assistant",
+        "content": "Breaking into V5 is a common plateau! Based on your climbing history, I'd recommend focusing on three areas:\n\n1. **Finger strength**: Add hangboarding 2x weekly, focusing on open-hand and half-crimp positions\n2. **Core tension**: Practice tension exercises like front levers and windshield wipers\n3. **Movement skills**: Work on 'limit bouldering' where you try hard moves at your limit\n\nI've noticed from your climbing log that you tend to excel on vertical climbs but struggle with overhangs. Is that accurate?",
+        "timestamp": "2023-10-15T09:31:20Z",
+        "token_count": 145
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001004",
+        "role": "user",
+        "content": "Yes, that's exactly right! I struggle a lot on overhanging routes, especially when there are big moves between holds. I feel like my feet just cut loose immediately.",
+        "timestamp": "2023-10-15T09:33:05Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001005",
+        "role": "assistant",
+        "content": "That makes sense. Foot cuts on overhangs are challenging! Here's a targeted plan:\n\n1. **Core engagement**: Practice 'toe-touches' on a pull-up bar to engage core during swings\n2. **Foot technique**: Work on 'quiet feet' drills - never readjust once you place a foot\n3. **Body positioning**: Focus on keeping your hips close to the wall on overhangs\n\nTry this specific exercise: Find a moderately overhanging V3, climb to the middle, then deliberately cut your feet and practice controlling the swing and precisely replacing them.\n\nDo you have access to a systems board or campus board for training?",
+        "timestamp": "2023-10-15T09:34:30Z",
+        "token_count": 162
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001006",
+        "role": "user",
+        "content": "Yes, my gym has both! I've been a bit intimidated by the campus board though, not sure if I'm ready for it.",
+        "timestamp": "2023-10-15T09:36:15Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001007",
+        "role": "assistant",
+        "content": "I understand the intimidation! The campus board is a powerful tool but needs to be approached carefully to prevent injury.\n\nFor your level, I'd recommend starting with simple laddering exercises on larger rungs (1-2-3-4-5) with feet on. This builds the movement pattern and basic pull strength before removing feet.\n\nThe systems board will actually be more valuable for you right now. Try these two exercises:\n\n1. **Position matches**: Start in a position, remove one hand and replace it as many different ways as possible\n2. **Momentum control**: Practice moving dynamically between holds while maintaining precise foot placement\n\nBased on your climbing history, aim for 2 technique sessions and 1 strength session per week. Would you like a specific 4-week training plan to break into V5?",
+        "timestamp": "2023-10-15T09:38:45Z",
+        "token_count": 178
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001008",
+        "role": "user",
+        "content": "Yes, that would be amazing! I can commit to 3-4 sessions per week.",
+        "timestamp": "2023-10-15T09:40:02Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001009",
+        "role": "assistant",
+        "content": "Here's your 4-week plan to break into V5, with 3-4 sessions per week:\n\n**Week 1: Assessment & Foundations**\n- Session 1: Climb 5-7 V2-V4 problems focusing on perfect technique and body positioning\n- Session 2: Strength - 20 min hangboard (7s hang/53s rest), 3 sets core exercises, antagonist training\n- Session 3: Project 2-3 V4-V5 problems, analyzing where you fail\n\n**Week 2: Weakness Training**\n- Session 1: Overhanging V2-V3 problems, focus on foot retention drills\n- Session 2: Strength - Systems board exercises, moderate hangboarding, core progression\n- Session 3: Volume day - 15-20 problems V2-V4 with perfect form\n- Session 4 (optional): Active recovery and mobility work\n\n**Week 3: Power & Technique Integration**\n- Session 1: Limit bouldering on V5 problems, 3-5 moves at a time\n- Session 2: Power - Campus laddering with feet on, explosive pull training\n- Session 3: \"Links\" day - try to link sections of your project problems\n\n**Week 4: Performance**\n- Session 1: Light technique day, movement puzzles on V3\n- Session 2: Short strong session, brief hangboard, power maintenance\n- Session 3: Performance day - rest completely then try to send your V5 projects\n\nThroughout this plan, maintain a climbing journal tracking attempts, successes, and how movements feel. Would you like weekly nutrition guidance to support this training?",
+        "timestamp": "2023-10-15T09:45:30Z",
+        "token_count": 325
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001010",
+        "role": "user",
+        "content": "This is perfect! Yes, nutrition advice would be helpful too - especially for recovery days.",
+        "timestamp": "2023-10-15T09:47:55Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001011",
+        "role": "assistant",
+        "content": "Great! Here's your nutrition guide to support your training plan:\n\n**Training Day Nutrition:**\n- **Pre-climbing (1-2 hours before)**: Complex carbs + moderate protein (~300-400 calories)\n  Example: Oatmeal with banana and 2 tbsp almond butter\n- **During climbing**: Hydration with electrolytes, easy-digest carbs for longer sessions\n  Example: Water with electrolyte tab, small handful of dried fruit or energy chews\n- **Post-climbing (within 30 min)**: Protein + carbs for recovery\n  Example: Protein shake with 25g protein, banana, and berries\n\n**Recovery Day Nutrition:**\n- Slightly lower overall calories (300-500 less than training days)\n- Emphasis on protein (1.6-2g per kg bodyweight) spread throughout day\n- Increase anti-inflammatory foods: fatty fish, berries, turmeric, tart cherries\n- Hydration: 3-4 liters water throughout the day\n\n**Weekly Recovery Meal Plan:**\n- Breakfast: Greek yogurt with berries, walnuts, and honey\n- Lunch: Salmon salad with mixed greens, avocado, olive oil dressing\n- Dinner: Lean protein (chicken/tofu), sweet potato, leafy greens\n- Snacks: Tart cherry juice, handful of nuts, apple with nut butter\n\nAnything specific you'd like to know more about in this plan?",
+        "timestamp": "2023-10-15T09:52:20Z",
+        "token_count": 245
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001012",
+        "role": "user",
+        "content": "This is incredibly helpful! One last question - how do I know when I should take an extra rest day? Sometimes I feel tired but can't tell if it's normal or if I'm overtraining.",
+        "timestamp": "2023-10-15T09:55:40Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001013",
+        "role": "assistant",
+        "content": "That's an excellent question about recovery! Here are reliable indicators that you need an extra rest day:\n\n**Physical indicators:**\n- Performance drop for 2+ consecutive sessions\n- Lingering soreness that doesn't improve with warm-up\n- Grip strength noticeably weaker than normal\n- Unusual joint pain (different from normal muscle soreness)\n- Resting heart rate elevated 5+ beats above your normal morning average\n\n**Mental/emotional indicators:**\n- Decreased motivation or dreading climbing\n- Inability to try hard or give full effort\n- Unusual irritability or mood changes\n- Poor sleep quality for 2+ nights\n\n**Simple morning test:** Each morning, do a 10-second max hang on a comfortable edge. If your time drops by >15% from baseline, take an extra rest day.\n\nRemember that proper recovery is when you actually make gains from training. Listen to these signals and don't hesitate to take an extra day when needed - it's an investment in your climbing, not a setback.\n\nWould you like me to help you track these recovery metrics as part of your training plan?",
+        "timestamp": "2023-10-15T10:01:15Z",
+        "token_count": 232
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001014",
+        "role": "user",
+        "content": "Yes please! That would be super helpful. Thank you so much for all this advice!",
+        "timestamp": "2023-10-15T10:03:30Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000001015",
+        "role": "assistant",
+        "content": "You're welcome! I've created a recovery tracking template for you that integrates with your training plan. Just take 30 seconds each morning to log these metrics:\n\n1. Resting heart rate (measure before getting out of bed)\n2. Sleep quality (1-10 scale)\n3. Overall fatigue (1-10 scale)\n4. Finger strength test (seconds on standard edge)\n5. Motivation level (1-10 scale)\n\nThe system will flag when multiple metrics indicate you need extra recovery. I've also set reminders to check in with you weekly to adjust your plan based on your progress and recovery data.\n\nI'm excited to see your progress toward sending V5! Remember that consistency beats intensity, and smart recovery is as important as hard training. Good luck with your first week, and I'll check in with you next Monday to see how it's going!",
+        "timestamp": "2023-10-15T10:05:45Z",
+        "token_count": 178
+      }
+    ],
+    "metadata": {
+      "total_tokens": 1465,
+      "topic": "training_plan",
+      "user_experience_level": "intermediate",
+      "climbing_types": ["boulder"],
+      "user_message_count": 7,
+      "assistant_message_count": 7
+    }
+  },
+  {
+    "conversation_id": "00000000-0000-4000-a000-000000000102",
+    "user_id": "00000000-0000-4000-a000-000000000002",
+    "created_at": "2023-11-05T14:10:00Z",
+    "updated_at": "2023-11-05T14:25:00Z",
+    "title": "Smith Rock route recommendations",
+    "messages": [
+      {
+        "id": "00000000-0000-4000-a000-000000002001",
+        "role": "system",
+        "content": "You are Send Sage, an expert climbing AI assistant. You provide personalized climbing advice, training tips, and beta based on a climber's experience level and goals.",
+        "timestamp": "2023-11-05T14:10:00Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000002002",
+        "role": "user",
+        "content": "I'm planning a trip to Smith Rock next month. I typically climb up to 5.11a sport routes and V4 boulders. Can you recommend some classic routes I should check out?",
+        "timestamp": "2023-11-05T14:10:30Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000002003",
+        "role": "assistant",
+        "content": "Smith Rock is an excellent choice! Based on your climbing level, here are some classic routes I'd recommend:\n\n**Moderate Classics (5.8-5.10a):**\n- **Staender Ridge (5.8)** - 3 pitches of quality climbing with amazing views\n- **Bunny Face (5.9)** - Great introduction to Smith's technical face climbing\n- **Wherever I May Roam (5.9)** - 5 pitches with fantastic exposure\n- **First Kiss (5.10a)** - Technical face climbing with interesting movement\n- **Screaming Yellow Zonkers (5.10a)** - Excellent varied climbing\n\n**Stepping It Up (5.10b-5.11a):**\n- **Nine Gallon Buckets (5.10b)** - Famous route with huge jugs on steep terrain\n- **Moons of Pluto (5.10c)** - Stellar technical climbing\n- **Cosmos (5.10d)** - A Smith Rock benchmark route\n- **Chain Reaction (5.12c)** - Worth attempting even if you just try the moves. One of America's most famous sport routes!\n\nFor bouldering, Smith is more known for routes, but there are some options:\n- **The Peanut (V2)** in the Cocaine Gully area\n- **Toxic (V4)** near the Dihedrals\n\nThe best seasons are spring and fall. December can be chilly but often climbable with sunny days. Which area are you most interested in?",
+        "timestamp": "2023-11-05T14:12:45Z",
+        "token_count": 248
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000002004",
+        "role": "user",
+        "content": "This is super helpful! I'm definitely interested in the Dihedrals area since I've heard it has a lot of classics. Any specific recommendations there? Also, where would you recommend staying?",
+        "timestamp": "2023-11-05T14:15:10Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000002005",
+        "role": "assistant",
+        "content": "The Dihedrals is indeed packed with classics! Here are my top recommendations in that area for your grade range:\n\n**Dihedrals Area Classics:**\n- **Five Gallon Buckets (5.8)** - The name says it all - huge jugs on a slightly overhanging wall\n- **Dirty Rotten Scoundrels (5.10a)** - Great intro to the steepness\n- **Voyage of the Cow Dog (5.10a)** - Fun, varied climbing\n- **Triple Thin (5.10b)** - A gem with interesting moves\n- **Phoenix (5.10c)** - Classic thin Smith face climbing\n- **Rude Boys (5.10d)** - Challenging but flowing movement\n- **To Bolt or Not To Be (5.14a)** - The historic first 5.14 in America - worth checking out even if just to admire!\n\n**Accommodation Options:**\n1. **Bivy Campground** - Most convenient, right at the base of Smith Rock, but often crowded and requires early arrival ($8/night)\n2. **Skull Hollow Campground** - 8 miles away, more spacious, pit toilets ($5/night)\n3. **Redpoint Climbers Supply** - They have a climber's hostel in Terrebonne with showers ($25/night)\n4. **Airbnbs in Terrebonne/Redmond** - More comfortable option ($70-150/night)\n5. **Crooked River Ranch** - Cabins about 20 minutes away, good for groups\n\nWill you have a car? And how long is your trip planned for?",
+        "timestamp": "2023-11-05T14:19:30Z",
+        "token_count": 256
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000002006",
+        "role": "user",
+        "content": "Yes, I'll have a car. Planning to stay for about 5 days. The Bivy sounds perfect since I want to maximize climbing time. Any beta on the best times to climb to avoid crowds?",
+        "timestamp": "2023-11-05T14:21:15Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000002007",
+        "role": "assistant",
+        "content": "Great choice with the Bivy for a 5-day trip with a car! Here's some beta on avoiding crowds and maximizing your climbing time:\n\n**Crowd Avoidance Strategy:**\n- **Weekdays:** Significantly less crowded than weekends (if your trip allows)\n- **Early starts:** Be on the wall by 8am, especially for popular routes like Five Gallon Buckets\n- **Afternoon shifts:** Most climbers start early, so starting around 1-2pm can work well too\n- **Morning south-facing areas:** The Dihedrals, Christian Brothers get morning sun (good in cold weather)\n- **Afternoon north-facing areas:** The Red Wall, Rope-de-Dope area (good to avoid hot sun)\n\n**Less Crowded Areas at Your Grade Range:**\n- **The Marsupials:** Slightly longer approach (25 min) but much less crowded with excellent 5.10s\n- **North Point:** Some great 5.10s with fewer people\n- **Lower Gorge:** Often overlooked with some good moderates\n\n**Bivy Tips:**\n- Arrive early afternoon the day before you want to start climbing to secure a spot\n- No showers, but you can pay for showers at Redpoint Climbers Supply in Terrebonne\n- Cooking is allowed on camp stoves, but no fires\n- Water available at the park, but the Bivy spigot can be busy - fill up in evening\n\nWould you like specific day-by-day area recommendations to minimize crowds and maximize good climbing conditions?",
+        "timestamp": "2023-11-05T14:25:00Z",
+        "token_count": 259
+      }
+    ],
+    "metadata": {
+      "total_tokens": 763,
+      "topic": "route_recommendations",
+      "user_experience_level": "intermediate",
+      "climbing_types": ["sport", "trad", "boulder"],
+      "user_message_count": 3,
+      "assistant_message_count": 3
+    }
+  },
+  {
+    "conversation_id": "00000000-0000-4000-a000-000000000103",
+    "user_id": "00000000-0000-4000-a000-000000000003",
+    "created_at": "2023-12-01T08:45:00Z",
+    "updated_at": "2023-12-01T09:15:00Z",
+    "title": "Finger injury recovery",
+    "messages": [
+      {
+        "id": "00000000-0000-4000-a000-000000003001",
+        "role": "system",
+        "content": "You are Send Sage, an expert climbing AI assistant. You provide personalized climbing advice, training tips, and beta based on a climber's experience level and goals.",
+        "timestamp": "2023-12-01T08:45:00Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003002",
+        "role": "user",
+        "content": "I think I've injured my A2 pulley on my ring finger. It hurts when I crimp and I can feel a small bump. How should I proceed with recovery?",
+        "timestamp": "2023-12-01T08:45:30Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003003",
+        "role": "assistant",
+        "content": "I'm sorry to hear about your finger injury. Your symptoms do sound consistent with an A2 pulley strain or partial tear, which is one of the most common climbing injuries.\n\n**Important Disclaimer**: While I can provide general guidance, a proper diagnosis from a medical professional (ideally a hand specialist or physical therapist familiar with climbing injuries) is crucial. What I'm sharing is not medical advice.\n\n**Initial Recovery Protocol (First 1-2 weeks):**\n1. **Rest from climbing** - Complete rest from crimping or activities that cause pain\n2. **Ice** - 15 minutes several times daily to reduce inflammation\n3. **Compression** - Light tape (not climbing tape support) or a finger sleeve can help with swelling\n4. **Anti-inflammatories** - NSAIDs like ibuprofen can help with pain and swelling (follow package directions)\n5. **Elevation** - Keep hand elevated when possible\n\n**Signs you need immediate medical attention:**\n- Significant swelling, discoloration, or deformity\n- Complete inability to bend the finger\n- Numbness or tingling\n- Worsening pain despite rest\n\nHave you noticed any of these more serious symptoms? And approximately how long ago did you notice the injury?",
+        "timestamp": "2023-12-01T08:48:10Z",
+        "token_count": 234
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003004",
+        "role": "user",
+        "content": "Thanks for the advice. I noticed it about 3 days ago after a hard bouldering session. No severe symptoms like you described - just pain on direct pressure and when crimping. How long should I expect recovery to take, and when can I start climbing again?",
+        "timestamp": "2023-12-01T08:50:45Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003005",
+        "role": "assistant",
+        "content": "Good to hear it's not showing severe symptoms - that suggests it's likely a mild to moderate strain rather than a complete tear.\n\n**Typical Recovery Timeline:**\n\n**Weeks 1-2: Acute Phase**\n- Complete rest from climbing\n- Focus on the RICE protocol I mentioned\n- Gentle range of motion exercises (without resistance) after the first 3-5 days\n\n**Weeks 2-4: Early Rehabilitation**\n- Begin gentle finger exercises with putty or very light resistance bands\n- Start massage above and below the injury site (avoid direct pressure on the pulley)\n- H-taping for support if attempting very easy climbing (no crimping)\n\n**Weeks 4-8: Progressive Return**\n- Gradual return to climbing with strict limitations:\n  • Open hand grips only\n  • Vertical or slightly overhanging walls\n  • No dynos or campus moves\n  • Stop if any pain occurs\n  • Limit sessions to 30-45 minutes, 2-3 times per week\n- Progressive loading with hangboard (open grip only)\n\n**Weeks 8-12: Strengthening**\n- Gradual return to normal climbing volume\n- Progressive introduction of half-crimp grip (no full crimp)\n- Continued supportive taping for harder sessions\n\nFor your specific case (mild strain, 3 days post-injury), I would recommend at least 1.5-2 weeks completely off climbing, then reassess. The entire recovery typically takes 2-3 months for full healing.\n\nWould you like some specific exercises for each phase of recovery?",
+        "timestamp": "2023-12-01T08:56:20Z",
+        "token_count": 285
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003006",
+        "role": "user",
+        "content": "Yes, exercises would be great, especially for that early rehab phase. Also, what's the proper way to tape it when I do return to climbing?",
+        "timestamp": "2023-12-01T09:00:15Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003007",
+        "role": "assistant",
+        "content": "Here are targeted exercises for your recovery and proper taping technique:\n\n**Early Rehab Exercises (Weeks 2-4):**\n\n1. **Finger Glides** - 3 sets of 10 reps, 2x daily\n   • Start with open hand\n   • Slowly curl fingers into a gentle fist\n   • Return to open position\n   • Avoid full flexion if painful\n\n2. **Rice Bucket** - 5 minutes, every other day\n   • Finger splaying in rice\n   • Wrist rotations with fingers buried\n   • Gentle finger flexion/extension in rice\n\n3. **Light Putty Pinches** - 2 sets of 15 reps\n   • Focus on thumb opposition\n   • Avoid flexing injured finger deeply\n\n4. **Isometric No-Load Holds** - 3 sets of 10 seconds\n   • Position fingers in open hand position\n   • Gently engage muscles without actual resistance\n   • Progress to light resistance band by week 3-4\n\n**Progressive Loading (Weeks 4-8):**\n\n1. **Hangboard Progression:**\n   • Start with feet on ground, minimal weight on hands\n   • Use largest holds with open hand grip only\n   • 3-5 second hangs, 5-10 reps\n   • Gradually increase hold time, decrease hold size\n\n2. **Finger Extensions** - 3 sets of 15 reps\n   • Use rubber band around fingertips\n   • Focus on controlled extension\n\n**Proper H-Taping Technique:**\n\n1. **Materials:**\n   • Climbing tape (1.5 inch rigid athletic tape)  \n   • Scissors\n   • Pre-tape spray or skin prep (optional)\n\n2. **Application:**\n   • Start with a circumferential anchor strip around middle of finger (not too tight)\n   • Create an H-pattern:\n     - Two vertical strips running along sides of finger, across the pulley\n     - Connect with horizontal strips above and below the pulley\n   • The tape should cross directly over the A2 pulley (base of finger)\n   • Add 1-2 more horizontal strips for reinforcement\n   • Ensure you can still bend your finger comfortably\n\n3. **Usage Guidelines:**\n   • Always warm up thoroughly before climbing\n   • Tape before pain occurs, not in response to pain\n   • Replace if tape loosens during session\n   • Not a substitute for proper progression - still avoid crimping\n\nWould you like a visual guide for the taping technique?",
+        "timestamp": "2023-12-01T09:07:30Z",
+        "token_count": 424
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003008",
+        "role": "user",
+        "content": "A visual guide would be great if that's possible! One more question - should I be concerned about any long-term impacts? I don't want this to become a chronic issue.",
+        "timestamp": "2023-12-01T09:10:00Z"
+      },
+      {
+        "id": "00000000-0000-4000-a000-000000003009",
+        "role": "assistant",
+        "content": "I've added a visual guide to your account showing the proper H-taping technique. You can access it in the Resources section.\n\nRegarding long-term impacts, this is an important concern. Pulley injuries can become chronic if not properly rehabilitated, but with the right approach, most climbers make a full recovery without lasting issues.\n\n**Keys to Prevent Chronic Issues:**\n\n1. **Complete the full rehab process**\n   • The biggest mistake is returning to hard climbing too soon\n   • Even when pain subsides, internal healing takes longer\n   • Complete ALL phases (8-12 weeks typically)\n\n2. **Permanent technique modifications**\n   • Minimize full crimping in your climbing style\n   • Prioritize open hand and half-crimp grips\n   • Avoid campus board training until 4+ months post-recovery\n\n3. **Preventative habits**\n   • Thorough warm-ups (15+ minutes progressive loading)\n   • Regular finger antagonist training (extensions)\n   • Consider preventative taping for hard bouldering sessions\n   • Gradual progression in training intensity\n\n4. **Long-term strengthening**\n   • After full recovery, implement regular hangboard training\n   • Focus on open hand strength to reduce crimp dependence\n   • Systematic finger strength progression rather than maximal efforts\n\n5. **Listen to early warning signs**\n   • Any return of symptoms means immediately back off\n   • Soreness that persists more than 48 hours suggests too much stress\n\nWith these approaches, the vast majority of climbers not only recover but often end up with stronger, more resilient fingers than before the injury due to the focused rehabilitation and improved habits.\n\nWould you like me to create a comprehensive recovery calendar for you based on your specific injury timeline?",
+        "timestamp": "2023-12-01T09:15:00Z",
+        "token_count": 334
+      }
+    ],
+    "metadata": {
+      "total_tokens": 1277,
+      "topic": "injury_recovery",
+      "user_experience_level": "advanced",
+      "climbing_types": ["boulder", "sport"],
+      "user_message_count": 4,
+      "assistant_message_count": 4
+    }
+  }
+] 

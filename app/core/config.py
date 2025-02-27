@@ -128,6 +128,10 @@ class Settings(BaseSettings):
         default=None,
         description="Main database URL"
     )
+    TEST_DATABASE_URL: Optional[str] = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/test_sendsage",
+        description="Test database URL"
+    )
     
     # External Services
     DEEPSEEK_API_KEY: Optional[str] = Field(
@@ -191,7 +195,16 @@ class Settings(BaseSettings):
         default_factory=lambda: str(uuid4()),
         description="Current Key ID for JWT signing"
     )
-    
+
+    # Chat Settings
+    DEEPSEEK_API_KEY: Optional[str] = Field(
+        default=None,
+        description="DeepSeek API key"
+    )
+    DEEPSEEK_API_URL: Optional[str] = Field(
+        default=None,
+        description="DeepSeek API URL"
+    )
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: str | List[str]) -> List[str] | str:

@@ -5,7 +5,6 @@ Database initialization and cleanup utilities.
 from app.db.session import sessionmanager
 from app.db.base_class import Base
 from app.models.auth import KeyHistory
-from app.core.auth import generate_key_pair, encrypt_private_key
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from uuid import uuid4
@@ -16,6 +15,9 @@ async def init_db() -> None:
     This should be called during application startup.
     """
     from app.core.logging import logger
+    # Import auth functions only when needed
+    from app.core.auth import generate_key_pair, encrypt_private_key
+    
     try:
         logger.info("Initializing database")
         

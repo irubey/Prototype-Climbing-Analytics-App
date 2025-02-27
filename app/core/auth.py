@@ -34,12 +34,13 @@ from app.core.exceptions import (
     PaymentRequired
 )
 from app.core.logging import logger
+from app.core import settings
 from app.db.session import get_db
 from app.models import User
 from app.models.auth import RevokedToken, KeyHistory
 from app.schemas.auth import TokenData
 from app.schemas.user import UserCreate
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Security configuration
@@ -116,9 +117,15 @@ async def decrypt_private_key(encrypted_key: bytes) -> str:
     ciphertext = encrypted_key[12:]
     return aesgcm.decrypt(nonce, ciphertext, None).decode()
 
-async def get_key(kid: str, db: AsyncSession) -> tuple[Optional[str], Optional[str]]:
+async def get_key(kid: str, db: Optional[AsyncSession] = None) -> tuple[Optional[str], Optional[str]]:
     """Retrieve key pair by KID from KeyHistory and decrypt private key."""
     try:
+        # If db is not provided, get a session
+        if db is None:
+            from app.db.session import sessionmanager
+            async with sessionmanager.session() as session:
+                db = session
+        
         result = await db.execute(
             select(KeyHistory).filter(KeyHistory.id == kid)
         )
@@ -175,13 +182,19 @@ async def create_access_token(
     subject: Union[str, UUID],
     scopes: list[str],
     jti: str,
-    db: AsyncSession,
+    db: Optional[AsyncSession] = None,
     expires_delta: Optional[timedelta] = None
 ) -> str:
     """Create JWT access token with scopes and JTI."""
     from app.core.config import settings
 
     try:
+        # If db is not provided, get a session
+        if db is None:
+            from app.db.session import sessionmanager
+            async with sessionmanager.session() as session:
+                db = session
+                
         expire = datetime.now(timezone.utc) + (
             expires_delta if expires_delta
             else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -205,7 +218,6 @@ async def create_access_token(
             "type": "access",
             "scopes": scopes,
             "jti": jti,
-            # kid is already included in the payload, which is redundant but harmless
         }
 
         encoded_jwt = encode_jwt(
@@ -246,13 +258,19 @@ async def create_refresh_token(
     subject: Union[str, UUID],
     scopes: list[str],
     jti: str,
-    db: AsyncSession,
+    db: Optional[AsyncSession] = None,
     expires_delta: Optional[timedelta] = None
 ) -> str:
     """Create JWT refresh token with scopes and JTI."""
     from app.core.config import settings
 
     try:
+        # If db is not provided, get a session
+        if db is None:
+            from app.db.session import sessionmanager
+            async with sessionmanager.session() as session:
+                db = session
+                
         expire = datetime.now(timezone.utc) + (
             expires_delta
             if expires_delta
@@ -277,7 +295,6 @@ async def create_refresh_token(
             "type": "refresh",  # Correct type
             "scopes": scopes,
             "jti": jti,
-            # kid is already included in the payload, which is redundant but harmless
         }
 
         encoded_jwt = encode_jwt(
@@ -316,7 +333,7 @@ async def create_refresh_token(
 
 async def verify_token(
     token: str,
-    db: AsyncSession,
+    db: Optional[AsyncSession] = None,
     expected_type: str = "access"
 ) -> TokenData:
     """
@@ -326,6 +343,12 @@ async def verify_token(
     from app.core.config import settings
 
     try:
+        # If db is not provided, get a session
+        if db is None:
+            from app.db.session import sessionmanager
+            async with sessionmanager.session() as session:
+                db = session
+                
         # Get the KID from the header *before* attempting to decode
         headers = jwt.get_unverified_headers(token)
         kid = headers.get("kid")
@@ -379,7 +402,10 @@ async def verify_token(
             select(RevokedToken).filter(RevokedToken.jti == jti)
         )
         if revoked:
-            raise AuthenticationError(detail="Token has been revoked")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Token has been revoked"
+            )
 
         # Create and return token data
         return TokenData(
@@ -389,6 +415,8 @@ async def verify_token(
             jti=jti
         )
 
+    except HTTPException:
+        raise
     except AuthenticationError:
         raise
     except Exception as e:
@@ -433,6 +461,13 @@ async def get_current_user(
         if not user:
             raise AuthenticationError(detail="User not found")
 
+        # Check if user is active
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Inactive user"
+            )
+
         # Validate scopes
         if security_scopes.scopes:
             for scope in security_scopes.scopes:
@@ -446,6 +481,9 @@ async def get_current_user(
         user.token_scopes = token_data.scopes
         return user
 
+    except HTTPException as e:
+        # Re-raise HTTP exceptions (like 403 for inactive users)
+        raise
     except AuthenticationError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -465,7 +503,7 @@ async def get_current_active_user(
 ) -> User:
     """Get current active user with basic scope."""
     if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise HTTPException(status_code=403, detail="Inactive user")
     return current_user
 
 async def get_current_basic_user(
@@ -487,12 +525,18 @@ async def get_current_admin(
     return current_user
 
 async def authenticate_user(
-    db: AsyncSession,
     email: str,
-    password: str
+    password: str,
+    db: Optional[AsyncSession] = None
 ) -> Optional["User"]:
     """Authenticate user by email/username and password."""
     try:
+        # If db is not provided, get a session
+        if db is None:
+            from app.db.session import sessionmanager
+            async with sessionmanager.session() as session:
+                db = session
+                
         logger.debug(f"Authenticating user with email/username: {email}")
         result = await db.execute(
             select(User).filter(
@@ -531,13 +575,19 @@ async def authenticate_user(
         return None
 
 async def create_user(
-    db: AsyncSession,
     user_create: UserCreate,
     scopes: list[str] = ["user"],
-    is_active: bool = True
+    is_active: bool = True,
+    db: Optional[AsyncSession] = None
 ) -> "User":
     """Create a new user with specified scopes."""
     try:
+        # If db is not provided, get a session
+        if db is None:
+            from app.db.session import sessionmanager
+            async with sessionmanager.session() as session:
+                db = session
+                
         hashed_password = get_password_hash(user_create.password.get_secret_value())
         logger.debug(f"Hashed password: {hashed_password}")
         # Use model_dump to get a dictionary, which will apply validators and defaults
@@ -582,3 +632,16 @@ async def create_user(
             }
         )
         raise DatabaseError(detail="Could not create user")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+async def get_token_from_header(request: Request) -> str:
+    """Extract token from Authorization header."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    return auth_header.split(" ")[1]

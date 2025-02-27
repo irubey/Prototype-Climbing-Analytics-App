@@ -1,0 +1,132 @@
+[
+  {
+    "email": "regular@example.com",
+    "username": "regular_user",
+    "password": "RegularPassword123!",
+    "is_active": true,
+    "is_superuser": false,
+    "tier": "FREE",
+    "payment_status": "INACTIVE",
+    "experience_level": "intermediate",
+    "location": "Denver, CO",
+    "mp_user_id": null,
+    "mp_username": null,
+    "eight_a_nu_username": null,
+    "settings": {
+      "beta_features": false,
+      "notification_preferences": {
+        "email": true,
+        "push": false
+      },
+      "privacy": {
+        "share_logbook": true,
+        "show_location": true
+      },
+      "theme": "light"
+    }
+  },
+  {
+    "email": "premium@example.com",
+    "username": "premium_user",
+    "password": "PremiumPassword123!",
+    "is_active": true,
+    "is_superuser": false,
+    "tier": "PREMIUM",
+    "payment_status": "ACTIVE",
+    "experience_level": "advanced",
+    "location": "Boulder, CO",
+    "mp_user_id": "12345",
+    "mp_username": "premium_climber",
+    "eight_a_nu_username": "premium_boulderer",
+    "settings": {
+      "beta_features": true,
+      "notification_preferences": {
+        "email": true,
+        "push": true
+      },
+      "privacy": {
+        "share_logbook": true,
+        "show_location": true
+      },
+      "theme": "dark"
+    }
+  },
+  {
+    "email": "admin@example.com",
+    "username": "admin_user",
+    "password": "AdminPassword123!",
+    "is_active": true,
+    "is_superuser": true,
+    "tier": "PREMIUM",
+    "payment_status": "ACTIVE",
+    "experience_level": "expert",
+    "location": "Golden, CO",
+    "mp_user_id": "54321",
+    "mp_username": "admin_climber",
+    "eight_a_nu_username": "admin_boulderer",
+    "settings": {
+      "beta_features": true,
+      "notification_preferences": {
+        "email": true,
+        "push": true
+      },
+      "privacy": {
+        "share_logbook": false,
+        "show_location": false
+      },
+      "theme": "system"
+    }
+  },
+  {
+    "email": "inactive@example.com",
+    "username": "inactive_user",
+    "password": "InactivePassword123!",
+    "is_active": false,
+    "is_superuser": false,
+    "tier": "FREE",
+    "payment_status": "INACTIVE",
+    "experience_level": "beginner",
+    "location": "Fort Collins, CO",
+    "mp_user_id": null,
+    "mp_username": null,
+    "eight_a_nu_username": null,
+    "settings": {
+      "beta_features": false,
+      "notification_preferences": {
+        "email": false,
+        "push": false
+      },
+      "privacy": {
+        "share_logbook": false,
+        "show_location": false
+      },
+      "theme": "light"
+    }
+  },
+  {
+    "email": "expired@example.com",
+    "username": "expired_user",
+    "password": "ExpiredPassword123!",
+    "is_active": true,
+    "is_superuser": false,
+    "tier": "PREMIUM",
+    "payment_status": "EXPIRED",
+    "experience_level": "intermediate",
+    "location": "Colorado Springs, CO",
+    "mp_user_id": "98765",
+    "mp_username": "expired_climber",
+    "eight_a_nu_username": "expired_boulderer",
+    "settings": {
+      "beta_features": false,
+      "notification_preferences": {
+        "email": true,
+        "push": false
+      },
+      "privacy": {
+        "share_logbook": true,
+        "show_location": true
+      },
+      "theme": "dark"
+    }
+  }
+] 

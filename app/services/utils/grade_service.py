@@ -8,9 +8,11 @@ This module provides services for:
 - Grade validation and normalization
 """
 
-from typing import Dict, List, Optional, Union, Literal, ClassVar
+from typing import Dict, List, Optional, Union, Literal, ClassVar, Tuple, Any, Callable
 from enum import Enum
-from functools import lru_cache
+from functools import lru_cache, wraps
+import asyncio
+from collections import OrderedDict
 
 from app.core.logging import logger
 from app.models.enums import (
@@ -35,6 +37,76 @@ class GradingSystem(str, Enum):
             self.FONT: "Fontainebleau"
         }[self]
 
+# Custom async cache decorator to replace lru_cache for async functions
+def async_lru_cache(maxsize: int = 128):
+    """Simple LRU cache for async functions.
+    
+    This decorator caches the results of async function calls based on the
+    arguments passed. It maintains a simple LRU cache with the specified maximum size.
+    
+    Args:
+        maxsize: Maximum number of entries to keep in the cache
+    
+    Returns:
+        A decorator function that wraps the original async function
+    """
+    
+    def decorator(func):
+        cache = {}  # {key: result}
+        keys_order = []  # LRU tracking - oldest first
+        
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Generate a cache key by stringifying all arguments
+            # For the first argument, check if it's a class instance and use class name
+            arg_list = list(args)
+            if args and hasattr(args[0], '__class__') and not isinstance(args[0], (str, int, float, bool, bytes)):
+                arg_list[0] = args[0].__class__.__name__
+                
+            # Create a hashable key from all arguments
+            key = str((tuple(str(a) for a in arg_list), 
+                      tuple(sorted((k, str(v)) for k, v in kwargs.items()))))
+            
+            # Check if result is in cache
+            if key in cache:
+                # Move key to the end of keys_order (most recently used)
+                keys_order.remove(key)
+                keys_order.append(key)
+                return cache[key]
+            
+            # Not in cache, call the original function
+            result = await func(*args, **kwargs)
+            
+            # Add result to cache
+            cache[key] = result
+            keys_order.append(key)
+            
+            # If cache exceeds maxsize, remove the oldest entry
+            if len(cache) > maxsize:
+                oldest_key = keys_order.pop(0)
+                del cache[oldest_key]
+                
+            return result
+            
+        # Add a method to clear the cache
+        async def cache_clear():
+            """Clear the function's cache."""
+            nonlocal cache, keys_order
+            cache.clear()
+            keys_order.clear()
+            
+        # Make cache_clear available both as async and non-async
+        def sync_cache_clear():
+            cache.clear()
+            keys_order.clear()
+            
+        wrapper.cache_clear = sync_cache_clear
+        wrapper.async_cache_clear = cache_clear
+        
+        return wrapper
+    
+    return decorator
+
 class GradeService:
     """Service for handling all grade-related processing and conversions.
     
@@ -55,6 +127,9 @@ class GradeService:
             raise RuntimeError("GradeService is a singleton - use get_instance()")
             
         self._initialize_grade_mappings()
+        # Initialize cache for grade conversion
+        self._grade_code_cache = OrderedDict()
+        self._cache_size = 1024
         GradeService._instance = self
 
     def _initialize_grade_mappings(self) -> None:
@@ -94,8 +169,8 @@ class GradeService:
             104: ["V2","V2-","V2+","V2-3"],
             105: ["V3","V3-","V3+","V3-4"],
             106: ["V4","V4-","V4+","V4-5"],
-            107: ["V5","V5-","V5+","V5-6"],
-            108: ["V6","V6-","V6+","V6-7"],
+            107: ["V5","V5-","V5+","V5-6", "V6", "V6-"],
+            108: ["V6+","V6-7"],
             109: ["V7","V7-","V7+","V7-8"],
             110: ["V8","V8-","V8+","V8-9"],
             111: ["V9","V9-","V9+","V9-10"],
@@ -159,7 +234,7 @@ class GradeService:
             "5a": "5.7", "5b": "5.8", "5c": "5.9",
             "6a": "5.10a", "6a+": "5.10b",
             "6b": "5.10c", "6b+": "5.10d",
-            "6c": "5.11a", "6c+": "5.11c",
+            "6c": "5.11b", "6c+": "5.11c",
             "7a": "5.11d", "7a+": "5.12a",
             "7b": "5.12b", "7b+": "5.12c",
             "7c": "5.12d", "7c+": "5.13a",
@@ -187,7 +262,7 @@ class GradeService:
             "8C+": "V16", "9A": "V17"
         }
 
-    @lru_cache(maxsize=1024)
+    @async_lru_cache(maxsize=1024)
     async def _convert_single_grade_to_code(
         self, 
         grade: str,
@@ -197,11 +272,17 @@ class GradeService:
         
         Returns 0 for invalid or unrecognized grades."""
         try:
+            # If not in cache, perform conversion
+            result = 0
             for code, grade_list in self.binned_code_dict.items():
                 if grade in grade_list:
-                    return code
-            logger.warning(f"Unrecognized grade format: {grade}, defaulting to 0")
-            return 0
+                    result = code
+                    break
+            
+            if result == 0:
+                logger.warning(f"Unrecognized grade format: {grade}, defaulting to 0")
+            
+            return result
         except Exception as e:
             logger.error(f"Error converting grade to code: {e}")
             return 0
@@ -228,11 +309,12 @@ class GradeService:
             for i in range(0, len(grades), BATCH_SIZE):
                 batch = grades[i:i + BATCH_SIZE]
                 
-                # Convert batch using list comprehension - faster than gather for CPU-bound tasks
-                batch_codes = [
-                    await self._convert_single_grade_to_code(grade, discipline) 
-                    for grade in batch
-                ]
+                # Process batch individually to avoid coroutine reuse issues
+                batch_codes = []
+                for grade in batch:
+                    code = await self._convert_single_grade_to_code(grade, discipline)
+                    batch_codes.append(code)
+                
                 codes.extend(batch_codes)
                 
                 logger.debug(
@@ -285,7 +367,7 @@ class GradeService:
         Returns:
             Ordered list of grades from easiest to hardest
         """
-        if discipline in [ClimbingDiscipline.BOULDER, ClimbingDiscipline.MIXED_BOULDER]:
+        if discipline == ClimbingDiscipline.BOULDER:
             return self.boulders_grade_list
         return self.routes_grade_list
 
@@ -473,15 +555,18 @@ class GradeService:
                 
         return result
 
-    @staticmethod
-    def get_instance() -> 'GradeService':
-        """Get the singleton instance of GradeService.
+    @classmethod
+    def get_instance(cls) -> 'GradeService':
+        """Get the singleton instance of GradeService."""
+        if cls._instance is None:
+            cls._instance = GradeService()
+        return cls._instance
         
-        Returns:
-            The singleton GradeService instance
-            
-        Creates the instance if it doesn't exist.
-        """
-        if GradeService._instance is None:
-            GradeService()
-        return GradeService._instance 
+    def clear_cache(self):
+        """Clear all caches used by the service."""
+        self._grade_code_cache.clear()
+        # Clear the lru_cache for the get_grade_from_code method
+        self.get_grade_from_code.cache_clear()
+        # Clear the async_lru_cache for _convert_single_grade_to_code if available
+        if hasattr(self._convert_single_grade_to_code, 'cache_clear'):
+            self._convert_single_grade_to_code.cache_clear()  # Non-awaited version 

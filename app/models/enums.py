@@ -86,6 +86,7 @@ class CruxEnergyType(str, Enum):
     POWER = "Power"
     POWER_ENDURANCE = "Power Endurance"
     ENDURANCE = "Endurance"
+    TECHNICAL = "Technical"
 
     @classmethod
     def get_values(cls) -> List[str]:
@@ -232,5 +233,5 @@ class GradingSystem(str, Enum):
             self.V_SCALE: "Hueco/V Scale",
             self.FONT: "Fontainebleau"
         }[self]
-    
+
 

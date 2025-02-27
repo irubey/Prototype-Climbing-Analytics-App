@@ -28,8 +28,7 @@ from sqlalchemy import (
     Date
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 # Local imports with tracking
 from app.db.base_class import Base
 from app.models.enums import (
@@ -39,8 +38,6 @@ from app.models.enums import (
     HoldType,
     LogbookType
 )
-
-
 
 class UserTicks(Base):
     """Records of user's climbing attempts and sends."""
@@ -91,7 +88,30 @@ class UserTicks(Base):
 
     def __str__(self) -> str:
         return f"<UserTicks {self.route_name} ({self.route_grade})>"
-
+    
+    @property
+    def performance_pyramid_joined(self):
+        """
+        Returns the UserTicks instance joined with its corresponding PerformancePyramid data.
+        """
+        if not self.performance_pyramid:
+            return None  # or handle as needed (e.g., empty list/dict)
+        
+        # Use SQLAlchemy's session to load the joined data
+        from sqlalchemy.orm import Session
+        from app.db.session import SessionLocal  # Assuming you have a session factory
+        
+        with SessionLocal() as session:
+            result = (
+                session.query(UserTicks)
+                .options(joinedload(UserTicks.performance_pyramid))
+                .filter(UserTicks.id == self.id)
+                .one_or_none()
+            )
+            if result:
+                return result.performance_pyramid
+            return None
+        
 class UserTicksTags(Base):
     """Association table for user ticks and tags."""
     

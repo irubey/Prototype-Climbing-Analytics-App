@@ -59,7 +59,7 @@ async def connect_logbook(
         orchestrator = LogbookOrchestrator(db)
         
         # Configure processing based on source
-        if payload.source == IngestionType.mountain_project:
+        if payload.source == IngestionType.MOUNTAIN_PROJECT:
             background_tasks.add_task(
                 orchestrator.process_mountain_project_ticks,
                 user_id=current_user.id,

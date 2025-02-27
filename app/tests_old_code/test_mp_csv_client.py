@@ -184,3 +184,20 @@ async def test_fetch_user_ticks_live(mp_client: MountainProjectCSVClient):
     assert isinstance(df, pd.DataFrame)
     assert not df.empty  # Assuming the test account has at least one tick
     # Add more assertions based on the *known* data in your test account. 
+
+@pytest.mark.asyncio
+async def test_url_normalization(
+    mp_client: MountainProjectCSVClient,
+    mock_response: Mock
+) -> None:
+    """Test that URLs are properly normalized to use www subdomain."""
+    with patch.object(mp_client.client, 'get', return_value=mock_response) as mock_get:
+        # Test non-www URL
+        await mp_client.fetch_user_ticks("https://mountainproject.com/user/123")
+        mock_get.assert_called_once_with("https://www.mountainproject.com/user/123/tick-export")
+        
+        mock_get.reset_mock()
+        
+        # Test www URL (should remain unchanged)
+        await mp_client.fetch_user_ticks("https://www.mountainproject.com/user/123")
+        mock_get.assert_called_once_with("https://www.mountainproject.com/user/123/tick-export") 

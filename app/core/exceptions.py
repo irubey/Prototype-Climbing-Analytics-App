@@ -236,4 +236,62 @@ class SSEError(SendSageException):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=detail,
             context=context
+        )
+
+class StripeError(SendSageException):
+    """Raised when Stripe API operations fail."""
+    def __init__(
+        self,
+        detail: str = "Stripe API operation failed",
+        context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        super().__init__(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=detail,
+            context=context
+        )
+
+class RateLimitError(SendSageException):
+    """Raised when rate limit is exceeded."""
+    def __init__(
+        self,
+        detail: str = "Rate limit exceeded",
+        retry_after: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        headers = {"Retry-After": str(retry_after)} if retry_after else None
+        super().__init__(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=detail,
+            headers=headers,
+            context=context
+        )
+
+class ResourceNotFoundError(SendSageException):
+    """Raised when a requested resource is not found."""
+    def __init__(
+        self,
+        detail: str = "Resource not found",
+        context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=detail,
+            context=context
+        )
+
+class ServiceUnavailableError(SendSageException):
+    """Raised when an external service is unavailable."""
+    def __init__(
+        self,
+        detail: str = "Service temporarily unavailable",
+        retry_after: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        headers = {"Retry-After": str(retry_after)} if retry_after else None
+        super().__init__(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=detail,
+            headers=headers,
+            context=context
         ) 

@@ -38,7 +38,7 @@ async def rotate_keys(background_tasks: BackgroundTasks, db: AsyncSession) -> No
 
         # Store in database
         new_key = KeyHistory(
-            kid=kid,
+            id=kid,
             private_key=encrypted_private_key,
             public_key=public_key,
             created_at=created_at,

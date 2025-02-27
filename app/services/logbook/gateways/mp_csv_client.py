@@ -11,6 +11,7 @@ This module provides functionality for:
 # Standard library imports
 from io import StringIO
 import traceback
+from urllib.parse import urlparse, urlunparse
 
 # Third-party imports
 import httpx
@@ -24,7 +25,7 @@ class MountainProjectCSVClient:
     """Asynchronous client for fetching Mountain Project CSV data"""
     
     def __init__(self):
-        self.client = httpx.AsyncClient(timeout=45.0)  # 45 second timeout
+        self.client = httpx.AsyncClient(timeout=45.0, follow_redirects=True)  # Enable redirect following
         
     async def __aenter__(self):
         return self
@@ -46,12 +47,21 @@ class MountainProjectCSVClient:
             DataSourceError: If there's an error fetching or parsing the CSV
         """
         try:
+            # Convert HttpUrl to string if needed
+            profile_url_str = str(profile_url)
+            
+            # Ensure URL uses www subdomain
+            parsed = urlparse(profile_url_str)
+            if parsed.netloc == 'mountainproject.com':
+                parsed = parsed._replace(netloc='www.mountainproject.com')
+                profile_url_str = urlunparse(parsed)
+            
             # Construct CSV URL
-            csv_url = f"{profile_url.rstrip('/')}/tick-export"
+            csv_url = f"{profile_url_str.rstrip('/')}/tick-export"
             logger.debug(
                 "Fetching Mountain Project CSV data",
                 extra={
-                    "profile_url": profile_url,
+                    "profile_url": profile_url_str,
                     "csv_url": csv_url
                 }
             )
@@ -91,7 +101,21 @@ class MountainProjectCSVClient:
                 escapechar='\\',
                 on_bad_lines='skip'
             )
-            
+
+            # Check if all required columns exist
+            missing_required = set(required_columns) - set(df.columns)
+            if missing_required:
+                logger.warning(
+                    "Mountain Project CSV missing required columns",
+                    extra={
+                        "profile_url": profile_url_str,
+                        "missing_columns": list(missing_required)
+                    }
+                )
+                # Create an empty DataFrame with expected columns
+                df = pd.DataFrame(columns=expected_columns.values())
+                return df
+
             # Drop rows where required fields are missing
             for col in required_columns:
                 if col in df.columns:
@@ -108,7 +132,7 @@ class MountainProjectCSVClient:
             logger.info(
                 "Successfully fetched Mountain Project ticks",
                 extra={
-                    "profile_url": profile_url,
+                    "profile_url": profile_url_str,
                     "row_count": len(df)
                 }
             )
@@ -118,7 +142,7 @@ class MountainProjectCSVClient:
             logger.error(
                 "Timeout error fetching Mountain Project CSV",
                 extra={
-                    "profile_url": profile_url,
+                    "profile_url": profile_url_str,
                     "error": str(e),
                     "traceback": traceback.format_exc()
                 }
@@ -129,9 +153,9 @@ class MountainProjectCSVClient:
             logger.error(
                 "HTTP error fetching Mountain Project CSV",
                 extra={
-                    "profile_url": profile_url,
+                    "profile_url": profile_url_str,
                     "error": str(e),
-                    "status_code": getattr(e.response, 'status_code', None),
+                    "status_code": getattr(e, 'response', {}).get('status_code', None),
                     "traceback": traceback.format_exc()
                 }
             )
@@ -141,7 +165,7 @@ class MountainProjectCSVClient:
             logger.error(
                 "Empty CSV data received from Mountain Project",
                 extra={
-                    "profile_url": profile_url,
+                    "profile_url": profile_url_str,
                     "traceback": traceback.format_exc()
                 }
             )
@@ -151,7 +175,7 @@ class MountainProjectCSVClient:
             logger.error(
                 "Unexpected error processing Mountain Project data",
                 extra={
-                    "profile_url": profile_url,
+                    "profile_url": profile_url_str,
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "traceback": traceback.format_exc()

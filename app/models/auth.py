@@ -25,7 +25,7 @@ class RevokedToken(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     jti: Mapped[str] = mapped_column(
         String(255),
-        primary_key=True,
+        unique=True,
         index=True,
         nullable=False
     )

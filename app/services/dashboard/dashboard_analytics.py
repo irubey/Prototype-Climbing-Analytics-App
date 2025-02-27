@@ -158,7 +158,7 @@ async def get_dashboard_performance_metrics(
         base_query = (
             select(UserTicks)
             .options(
-                joinedload(UserTicks.performance_data),
+                joinedload(UserTicks.performance_pyramid),
                 joinedload(UserTicks.location)
             )
             .filter(UserTicks.user_id == user_id)

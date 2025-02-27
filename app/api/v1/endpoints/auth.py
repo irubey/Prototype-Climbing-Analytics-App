@@ -53,6 +53,7 @@ from app.schemas.auth import (
 )
 from app.services.logbook.orchestrator import LogbookOrchestrator
 from jose import jwt, JWTError
+from app.models.user import UserTier
 
 
 router = APIRouter()
@@ -104,6 +105,7 @@ async def login_for_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests.
     Implements rate limiting and refresh token rotation.
+    Also handles account reactivation for deactivated accounts.
     """
     # Rate limiting check
     ip_address = form_data.client_id or "127.0.0.1"  # Use client_id if available
@@ -117,10 +119,15 @@ async def login_for_access_token(
             headers={"Retry-After": "60"}
         )
 
-    # Authenticate user 
-    user = await authenticate_user(db, form_data.username, form_data.password)
+    # First check if user exists and credentials are valid, regardless of active status
+    result = await db.execute(
+        select(User).filter(
+            or_(User.email == form_data.username, User.username == form_data.username)
+        )
+    )
+    user = result.scalar_one_or_none()
 
-    if not user:
+    if not user or not verify_password(form_data.password, user.hashed_password):
         logger.warning(
             "Failed login attempt",
             extra={
@@ -134,6 +141,15 @@ async def login_for_access_token(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"}
         )
+
+    # If user exists but is inactive, reactivate the account
+    if not user.is_active:
+        user.is_active = True
+        user.tier = UserTier.FREE
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        logger.info(f"Reactivated account for user {user.id}")
 
     # Reset failed attempts on successful login
     await redis_client.delete(f"failed_logins:{ip_address}")

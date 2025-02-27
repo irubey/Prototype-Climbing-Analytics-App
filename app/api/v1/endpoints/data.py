@@ -146,11 +146,11 @@ async def refresh_data(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Refresh user's Mountain Project data."""
-    if not current_user.mountain_project_url:
+    """Refresh user's logbook data."""
+    if not current_user.mountain_project_url or not current_user.eight_a_nu_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Mountain Project URL not configured"
+            detail="Logbook URL not configured"
         )
     
     #TODO: background_tasks.add_task(

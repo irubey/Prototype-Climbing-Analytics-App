@@ -7,7 +7,6 @@ This module aggregates all endpoint routers and configures their prefixes and ta
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
-    admin_router,
     auth_router,
     chat_router,
     context_router,
@@ -23,7 +22,6 @@ from app.api.v1.endpoints import (
 api_router = APIRouter()
 
 # Include all route modules with their prefixes and tags
-api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(auth_router, prefix="/auth", tags=["authentication"])
 api_router.include_router(chat_router, prefix="/chat", tags=["chat"])
 api_router.include_router(context_router, prefix="/context", tags=["context"])

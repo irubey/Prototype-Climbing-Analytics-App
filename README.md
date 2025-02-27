@@ -104,6 +104,20 @@ Key highlights:
 - **Tailwind CSS:** Modern utility-first styling
 - **Real-time Updates:** WebSocket-based instant coaching feedback
 
+### Testing Infrastructure
+
+- **Pytest:** Modern test framework with rich fixtures and parameterization
+- **Mock Factories:** Service factories for creating test instances with controlled behavior
+- **Fixtures:** Comprehensive fixture library for test setup and dependency injection
+- **Unit & Integration Tests:** Complete test coverage for core functionality
+- **Test Utilities:** Custom test clients and validators for API testing
+- **Async Testing:** First-class support for testing asynchronous code paths
+  - **Important:** Define async tests at module level (not in classes) for proper pytest-asyncio collection
+- **Parameterized Testing:** Data-driven testing with structured test cases
+- **Environment Isolation:** Tests run in isolated environments to prevent cross-contamination
+- **Mocking Framework:** Sophisticated mocking of external dependencies and database operations
+- **CI/CD Integration:** Automated test runs on every code change
+
 ## Security & Performance
 
 - **JWT-based Authentication:** Secure token management

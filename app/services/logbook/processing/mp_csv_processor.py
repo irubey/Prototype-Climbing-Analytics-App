@@ -44,6 +44,19 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
             if df.empty or len(df.columns) == 0:
                 raise DataSourceError("No data found in Mountain Project CSV")
             
+            # Check required columns before proceeding
+            required_columns = ['route', 'rating', 'date']
+            missing_columns = [col for col in required_columns if col.lower() not in [c.lower() for c in df.columns]]
+            if missing_columns:
+                logger.warning(
+                    "Mountain Project CSV missing required columns",
+                    extra={
+                        "user_id": str(self.user_id),
+                        "missing_columns": missing_columns
+                    }
+                )
+                raise DataSourceError("No data found in Mountain Project CSV")
+            
             # Normalize column names to lowercase and replace spaces with underscores
             df.columns = df.columns.str.lower().str.replace(' ', '_')
             
