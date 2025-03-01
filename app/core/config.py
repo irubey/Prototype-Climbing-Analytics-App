@@ -88,6 +88,10 @@ class Settings(BaseSettings):
         default=30,
         description="Refresh token expiration in days"
     )
+    USE_COOKIE_AUTH: bool = Field(
+        default=False,
+        description="Use cookie-based refresh token if true, else header"
+    )
     MASTER_KEY: str = Field(
         default_factory=lambda: secrets.token_urlsafe(32),
         description="Master key for encrypting private keys at rest"
@@ -119,7 +123,7 @@ class Settings(BaseSettings):
     
     # CORS Settings
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = Field(
-        default=[],
+        default=None,
         description="List of origins that are allowed to make cross-origin requests"
     )
     
@@ -210,9 +214,11 @@ class Settings(BaseSettings):
     def assemble_cors_origins(cls, v: str | List[str]) -> List[str] | str:
         """Validate and process CORS origins."""
         if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
+            # Split by comma and strip each item, also removing trailing slashes
+            return [i.strip().rstrip('/') for i in v.split(",")]
         elif isinstance(v, list):
-            return v
+            # Remove trailing slashes from list items
+            return [str(origin).rstrip('/') for origin in v]
         raise ValueError("Invalid CORS origins format")
         
     @field_validator("ALLOWED_HOSTS", mode="before")

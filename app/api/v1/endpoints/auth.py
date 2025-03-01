@@ -30,6 +30,7 @@ from app.core.auth import (
     get_password_hash,
     create_user,
     authenticate_user,
+    get_token_from_header
 )
 from app.core.email import (
     send_password_reset_email,
@@ -78,9 +79,9 @@ async def register(
         )
     
     # Create user
-    user = await create_user(db, user_in)
+    user = await create_user(user_in, db=db)
     
-    # Process Mountain Project data if URL provided
+    # Process Mountain Project or 8a.nu data if URL provided
     if user_in.mountain_project_url:
         try:
             orchestrator = await LogbookOrchestrator.create()
@@ -93,6 +94,18 @@ async def register(
             logger.error(f"Error processing Mountain Project data: {e}")
             # Continue registration even if MP processing fails
     
+    if user_in.eight_a_nu_url:
+        try:
+            orchestrator = await LogbookOrchestrator.create()
+            await orchestrator.process_eight_a_nu_ticks(
+                user_id=user.id,
+                profile_url=user_in.eight_a_nu_url
+            )
+            await orchestrator.cleanup()
+        except Exception as e:
+            logger.error(f"Error processing 8a.nu data: {e}")
+            # Continue registration even if 8a.nu processing fails
+
     return user
 
 @router.post("/token", response_model=Token)
@@ -181,16 +194,17 @@ async def login_for_access_token(
         db=db
     )
 
-    # Set refresh token cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=60 * 60 * 24 * 30,  # 30 days
-        path="/api/v1/auth/refresh-token"
-    )
+    # Set refresh token cookie if using cookie-based auth
+    if settings.USE_COOKIE_AUTH:
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=60 * 60 * 24 * 30,  # 30 days
+            path="/api/v1/auth/refresh-token"
+        )
 
     # Update user's last login
     user.last_login = datetime.now(timezone.utc)
@@ -211,19 +225,13 @@ async def refresh_token(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Refresh access token using a valid refresh token from HttpOnly cookie.
+    Refresh access token using a valid refresh token from Authorization header or HttpOnly cookie.
     Implements refresh token rotation with single-use tokens.
     """
-    # Extract refresh token from cookie
-    refresh_token = request.cookies.get("refresh_token")
-    if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token missing",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-
     try:
+        # Extract refresh token from header or cookie using get_token_from_header
+        refresh_token = await get_token_from_header(request)
+        
         # Verify refresh token and get token data
         token_data = await verify_token(
             token=refresh_token,
@@ -257,16 +265,17 @@ async def refresh_token(
             db=db
         )
 
-        # Set new refresh token cookie
-        response.set_cookie(
-            key="refresh_token",
-            value=new_refresh_token,
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=60 * 60 * 24 * 30,  # 30 days
-            path="/api/v1/auth/refresh-token"
-        )
+        # Set new refresh token cookie if using cookie-based auth
+        if settings.USE_COOKIE_AUTH:
+            response.set_cookie(
+                key="refresh_token",
+                value=new_refresh_token,
+                httponly=True,
+                secure=True,
+                samesite="strict",
+                max_age=60 * 60 * 24 * 30,  # 30 days
+                path="/api/v1/auth/refresh-token"
+            )
 
         return Token(
             access_token=new_access_token,
@@ -328,29 +337,66 @@ async def introspect_token(
     Returns information about the token's validity and claims.
     """
     try:
-        # Verify token without checking type
+        logger.debug(f"Introspecting token, type hint: {request.token_type_hint}")
+        
+        # Normalize token type hint - handle both access_token and access
+        expected_type = "access"
+        if request.token_type_hint:
+            if request.token_type_hint == "access_token":
+                expected_type = "access"
+            elif request.token_type_hint == "refresh_token":
+                expected_type = "refresh"
+            else:
+                expected_type = request.token_type_hint
+                
+        logger.debug(f"Normalized token type hint: {expected_type}")
+        
+        # Verify token with normalized type
         token_data = await verify_token(
             request.token,
             db,
-            expected_type=request.token_type_hint or "access"
+            expected_type=expected_type
         )
+        
+        logger.debug(f"Token verified successfully: {token_data}")
 
         # Get user information
-        user = await db.get(User, token_data.user_id)
+        result = await db.execute(
+            select(User).filter(User.id == token_data.user_id)
+        )
+        user = result.scalar_one_or_none()
+        
         if not user:
+            logger.error(f"User not found for token with user_id: {token_data.user_id}")
             raise AuthenticationError(detail="User not found")
+            
+        logger.debug(f"Found user: {user.email} for token")
 
-        return TokenIntrospectResponse(
+        # Create response with all available information
+        # Map internal token type back to OAuth2 standard format
+        oauth2_token_type = "access_token" if token_data.type == "access" else token_data.type
+        
+        response = TokenIntrospectResponse(
             active=True,
             scope=" ".join(token_data.scopes),
             username=user.email,
-            token_type=token_data.type,
+            token_type=oauth2_token_type,
             sub=str(token_data.user_id),
             jti=token_data.jti
         )
+        
+        logger.debug(f"Introspection response: {response}")
+        return response
 
-    except AuthenticationError:
+    except AuthenticationError as e:
+        # Log the error for debugging
+        logger.warning(f"Token introspection failed: {str(e)}")
         # Return inactive token response instead of error
+        return TokenIntrospectResponse(active=False)
+    except Exception as e:
+        # Log unexpected errors
+        logger.error(f"Unexpected error during token introspection: {str(e)}", exc_info=True)
+        # Return inactive token for any error
         return TokenIntrospectResponse(active=False)
 
 @router.post("/logout")

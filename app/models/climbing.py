@@ -29,6 +29,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
+
 # Local imports with tracking
 from app.db.base_class import Base
 from app.models.enums import (

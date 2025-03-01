@@ -44,7 +44,8 @@ class KeyHistory(Base):
     __tablename__ = "key_history"
     __table_args__ = {"comment": "Store key rotation history with encrypted private keys"}
     
-    id: Mapped[str] = mapped_column(String(255), primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kid: Mapped[str] = mapped_column(String(255), nullable=False, index=True, unique=True)
     private_key: Mapped[LargeBinary] = mapped_column(LargeBinary, nullable=False)
     public_key: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

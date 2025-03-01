@@ -123,9 +123,14 @@ def create_app() -> FastAPI:
 
     # Set up CORS
     if settings.BACKEND_CORS_ORIGINS:
+        # Print CORS origins for debugging
+        origin_list = [str(origin).rstrip('/') for origin in settings.BACKEND_CORS_ORIGINS]
+        print(f"Configuring CORS with the following origins: {origin_list}")
+        logger.info(f"CORS configuration applied with origins: {origin_list}")
+        
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+            allow_origins=origin_list,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],

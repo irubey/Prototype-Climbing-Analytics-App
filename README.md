@@ -102,7 +102,7 @@ Key highlights:
 - **NextAuth:** Seamless authentication integration
 - **D3.js:** Dynamic data visualizations
 - **Tailwind CSS:** Modern utility-first styling
-- **Real-time Updates:** WebSocket-based instant coaching feedback
+- **Real-time Updates:** SSE chat streaming for instant coaching feedback
 
 ### Testing Infrastructure
 

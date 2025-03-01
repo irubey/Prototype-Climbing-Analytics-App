@@ -15,7 +15,6 @@ from app.api.v1.endpoints import (
     logbook_router,
     payment_router,
     user_router,
-    view_router,
     visualization_router
 )
 
@@ -31,4 +30,3 @@ api_router.include_router(logbook_router, prefix="/logbook", tags=["logbook"])
 api_router.include_router(payment_router, prefix="/payment", tags=["payment"])
 api_router.include_router(user_router, prefix="/users", tags=["users"])
 api_router.include_router(visualization_router, prefix="/visualization", tags=["visualization"])
-api_router.include_router(view_router, tags=["views"])  # No prefix for view routes as they serve frontend pages 

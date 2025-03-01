@@ -6,7 +6,7 @@ from app.db.session import sessionmanager
 from app.db.base_class import Base
 from app.models.auth import KeyHistory
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import select, func
 from uuid import uuid4
 
 async def init_db() -> None:
@@ -28,18 +28,18 @@ async def init_db() -> None:
         # --- Key Initialization ---
         async with sessionmanager.session() as db:
             try:
-                # Check if KeyHistory is empty
-                result = await db.execute(select(KeyHistory))
-                existing_key = result.scalar_one_or_none()
-
-                if not existing_key:
+                # Check if any keys exist by counting them
+                result = await db.execute(select(func.count()).select_from(KeyHistory))
+                key_count = result.scalar()
+                
+                if key_count == 0:
                     logger.info("No existing keys found. Creating initial key pair.")
                     private_key, public_key, kid = await generate_key_pair()
                     encrypted_private_key = await encrypt_private_key(private_key)
                     expires_at = datetime.now(timezone.utc) + timedelta(days=365)
 
                     new_key = KeyHistory(
-                        id=kid,
+                        kid=kid,
                         private_key=encrypted_private_key,
                         public_key=public_key,
                         created_at=datetime.now(timezone.utc),
@@ -50,16 +50,23 @@ async def init_db() -> None:
                     logger.info("Initial key pair created and stored.")
 
                     # Verification: Check if the key exists *after* commit
-                    result = await db.execute(select(KeyHistory))
-                    verify_key = result.scalar_one_or_none()
-                    if verify_key:
-                        logger.info(f"Key verification successful. KID: {verify_key.id}")
+                    verify_result = await db.execute(select(func.count()).select_from(KeyHistory))
+                    verify_count = verify_result.scalar()
+                    if verify_count > 0:
+                        logger.info(f"Key verification successful. {verify_count} keys found.")
                     else:
-                        logger.error("Key verification FAILED. Key not found after commit.")
+                        logger.error("Key verification FAILED. No keys found after commit.")
                         raise RuntimeError("Key not found after commit")  # Critical error
 
                 else:
-                    logger.info("Existing key found. Skipping key initialization.")
+                    # Get the most recent key for logging purposes
+                    recent_key = await db.execute(
+                        select(KeyHistory).order_by(KeyHistory.created_at.desc()).limit(1)
+                    )
+                    recent_key_record = recent_key.scalar_one()
+                    logger.info(
+                        f"Found {key_count} existing keys. Most recent key: {recent_key_record.kid} (created {recent_key_record.created_at.isoformat()})"
+                    )
 
             except Exception as e:
                 await db.rollback()  # Rollback if any error occurs within the inner transaction

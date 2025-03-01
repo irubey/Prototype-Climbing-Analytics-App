@@ -19,6 +19,10 @@ import jwt
 from typing import Dict, List, Any, Optional
 from pydantic import SecretStr, ValidationError
 
+# Import and mock the email module before other imports
+import sys
+sys.modules['app.core.email'] = MagicMock()
+
 from app.api.v1.endpoints.auth import (
     login_for_access_token,
     refresh_token,
@@ -27,6 +31,7 @@ from app.api.v1.endpoints.auth import (
     reset_password,
     register
 )
+
 from app.schemas.auth import (
     UserLogin,
     Token,
@@ -42,7 +47,8 @@ from app.core.auth import (
     create_access_token,
     create_refresh_token,
     verify_token,
-    authenticate_user
+    authenticate_user,
+    get_token_from_header
 )
 
 
@@ -82,47 +88,83 @@ async def refresh_request_data():
 @patch('app.api.v1.endpoints.auth.verify_password')
 @patch('app.api.v1.endpoints.auth.create_access_token')
 @patch('app.api.v1.endpoints.auth.create_refresh_token')
-async def test_login_success(mock_create_refresh, mock_create_access, mock_verify_password, mock_user, login_data):
-    """Test successful login."""
+@patch('app.api.v1.endpoints.auth.select')
+async def test_login_success_new(mock_select, mock_create_refresh, mock_create_access, mock_verify_password):
+    """Test successful login with valid credentials."""
     # Setup mocks
     mock_verify_password.return_value = True
-    mock_create_access.return_value = "mock.access.token"
-    mock_create_refresh.return_value = "mock.refresh.token"
+    mock_create_access.return_value = "access.token.123"
+    mock_create_refresh.return_value = "refresh.token.456"
     
-    # Mock database, response, and redis client
-    mock_db = AsyncMock()
-    mock_response = MagicMock()
-    mock_redis = AsyncMock()
-    mock_redis.incr.return_value = 1
-    
-    # Mock the database query result
-    mock_execute_result = MagicMock()
-    mock_execute_result.scalar_one_or_none.return_value = mock_user
-    mock_db.execute.return_value = mock_execute_result
-    
-    # Mock OAuth2 form data
-    form_data = MagicMock()
-    form_data.username = login_data.email
-    form_data.password = login_data.password.get_secret_value()
-    form_data.client_id = "127.0.0.1"
-    
-    # Call the login endpoint
-    response = await login_for_access_token(
-        response=mock_response,
-        form_data=form_data,
-        db=mock_db,
-        redis_client=mock_redis
+    # Create test user
+    test_user = User(
+        id=uuid4(),
+        username="testuser",
+        email="test@example.com",
+        hashed_password="$2b$12$2eW5BUU7LlMLz6yYWFaFPONMbgOibY3JD9auSmD1VPyVdNKozRINu",
+        is_active=True,
+        created_at=datetime.now(timezone.utc)
     )
     
-    # Verify response
-    assert isinstance(response, Token)
-    assert response.access_token == "mock.access.token"
-    assert response.refresh_token == "mock.refresh.token"
-    assert response.token_type == "bearer"
+    # Mock database and Redis
+    mock_db = AsyncMock()
     
-    # Verify create_access_token and create_refresh_token were called with correct args
-    mock_create_access.assert_called_once()
-    mock_create_refresh.assert_called_once()
+    # Create a mock result that returns our test user
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = test_user
+    
+    # Make db.execute return our mock result
+    mock_db.execute.return_value = mock_result
+    
+    # Mock the select function to return a query object
+    mock_select.return_value.filter.return_value = "mock query"
+    
+    mock_redis = AsyncMock()
+    mock_redis.incr.return_value = 1
+    mock_response = MagicMock()
+    
+    # Create form data
+    form_data = MagicMock()
+    form_data.username = "test@example.com"
+    form_data.password = "password123"
+    form_data.client_id = "127.0.0.1"
+    
+    # Test with USE_COOKIE_AUTH=False
+    with patch('app.core.config.settings.USE_COOKIE_AUTH', False):
+        response = await login_for_access_token(
+            response=mock_response,
+            form_data=form_data,
+            db=mock_db,
+            redis_client=mock_redis
+        )
+        
+        # Verify response
+        assert response.access_token == "access.token.123"
+        assert response.refresh_token == "refresh.token.456"
+        assert response.token_type == "bearer"
+        
+        # Verify cookie was not set
+        mock_response.set_cookie.assert_not_called()
+    
+    # Reset mocks
+    mock_response.reset_mock()
+    
+    # Test with USE_COOKIE_AUTH=True
+    with patch('app.core.config.settings.USE_COOKIE_AUTH', True):
+        response = await login_for_access_token(
+            response=mock_response,
+            form_data=form_data,
+            db=mock_db,
+            redis_client=mock_redis
+        )
+        
+        # Verify response
+        assert response.access_token == "access.token.123"
+        assert response.refresh_token == "refresh.token.456"
+        assert response.token_type == "bearer"
+        
+        # Verify cookie was set
+        mock_response.set_cookie.assert_called_once()
 
 
 @pytest.mark.unit
@@ -478,25 +520,29 @@ async def test_reset_password_nonexistent_user(mock_verify_token):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-@patch('app.api.v1.endpoints.auth.verify_token')
 @patch('app.api.v1.endpoints.auth.create_access_token')
 @patch('app.api.v1.endpoints.auth.create_refresh_token')
-async def test_refresh_token_success(
-    mock_create_refresh, 
-    mock_create_access,
+@patch('app.api.v1.endpoints.auth.verify_token')
+@patch('app.api.v1.endpoints.auth.get_token_from_header')
+async def test_refresh_token_with_header(
+    mock_get_token,
     mock_verify_token,
+    mock_create_refresh,
+    mock_create_access,
     refresh_request_data
 ):
-    """Test successful token refresh."""
+    """Test successful token refresh using header-based authentication."""
     # Setup mocks
     user_id = str(uuid4())
     refresh_jti = str(uuid4())
     
     # Set up mock_verify_token to return TokenData
-    token_data = MagicMock()
-    token_data.user_id = UUID(user_id)
-    token_data.jti = refresh_jti
-    token_data.scopes = ["user"]
+    token_data = TokenData(
+        user_id=UUID(user_id),
+        jti=refresh_jti,
+        scopes=["user"],
+        type="refresh"
+    )
     mock_verify_token.return_value = token_data
     
     new_access_token = "new.access.token"
@@ -504,20 +550,27 @@ async def test_refresh_token_success(
     mock_create_access.return_value = new_access_token
     mock_create_refresh.return_value = new_refresh_token
     
+    # Mock get_token_from_header to return the token
+    mock_get_token.return_value = refresh_request_data.refresh_token
+    
     # Mock database, response, and request
     mock_db = AsyncMock()
     mock_response = MagicMock()
     mock_request = MagicMock()
-    mock_request.cookies.get.return_value = refresh_request_data.refresh_token
+    mock_request.headers.get.return_value = f"Bearer {refresh_request_data.refresh_token}"
     
-    # Call the refresh_token endpoint
-    response = await refresh_token(response=mock_response, request=mock_request, db=mock_db)
+    # Call the refresh_token endpoint with USE_COOKIE_AUTH=False
+    with patch('app.core.config.settings.USE_COOKIE_AUTH', False):
+        response = await refresh_token(response=mock_response, request=mock_request, db=mock_db)
     
     # Verify response
     assert isinstance(response, Token)
     assert response.access_token == new_access_token
     assert response.refresh_token == new_refresh_token
     assert response.token_type == "bearer"
+    
+    # Verify get_token_from_header was called
+    mock_get_token.assert_called_once_with(mock_request)
     
     # Verify verify_token was called with correct args
     mock_verify_token.assert_called_once_with(
@@ -533,32 +586,109 @@ async def test_refresh_token_success(
     # Verify create_token functions were called with correct args
     mock_create_access.assert_called_once()
     mock_create_refresh.assert_called_once()
+    
+    # Verify cookie was not set when USE_COOKIE_AUTH=False
+    mock_response.set_cookie.assert_not_called()
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+@patch('app.api.v1.endpoints.auth.create_access_token')
+@patch('app.api.v1.endpoints.auth.create_refresh_token')
 @patch('app.api.v1.endpoints.auth.verify_token')
-async def test_refresh_token_invalid(mock_verify_token, refresh_request_data):
-    """Test token refresh with invalid refresh token."""
-    # Setup mocks - validation fails with exception
-    mock_verify_token.side_effect = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid refresh token"
+@patch('app.api.v1.endpoints.auth.get_token_from_header')
+async def test_refresh_token_with_cookie(
+    mock_get_token,
+    mock_verify_token,
+    mock_create_refresh,
+    mock_create_access,
+    refresh_request_data
+):
+    """Test successful token refresh using cookie-based authentication."""
+    # Setup mocks
+    user_id = str(uuid4())
+    refresh_jti = str(uuid4())
+    
+    # Set up mock_verify_token to return TokenData
+    token_data = TokenData(
+        user_id=UUID(user_id),
+        jti=refresh_jti,
+        scopes=["user"],
+        type="refresh"
     )
+    mock_verify_token.return_value = token_data
+    
+    new_access_token = "new.access.token"
+    new_refresh_token = "new.refresh.token"
+    mock_create_access.return_value = new_access_token
+    mock_create_refresh.return_value = new_refresh_token
+    
+    # Mock get_token_from_header to return the token
+    mock_get_token.return_value = refresh_request_data.refresh_token
     
     # Mock database, response, and request
     mock_db = AsyncMock()
     mock_response = MagicMock()
     mock_request = MagicMock()
-    mock_request.cookies.get.return_value = refresh_request_data.refresh_token
+    
+    # Call the refresh_token endpoint with USE_COOKIE_AUTH=True
+    with patch('app.core.config.settings.USE_COOKIE_AUTH', True):
+        response = await refresh_token(response=mock_response, request=mock_request, db=mock_db)
+    
+    # Verify response
+    assert isinstance(response, Token)
+    assert response.access_token == new_access_token
+    assert response.refresh_token == new_refresh_token
+    assert response.token_type == "bearer"
+    
+    # Verify get_token_from_header was called
+    mock_get_token.assert_called_once_with(mock_request)
+    
+    # Verify verify_token was called with correct args
+    mock_verify_token.assert_called_once_with(
+        token=refresh_request_data.refresh_token,
+        db=mock_db,
+        expected_type="refresh"
+    )
+    
+    # Verify token was added to the revoked tokens list
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
+    
+    # Verify create_token functions were called with correct args
+    mock_create_access.assert_called_once()
+    mock_create_refresh.assert_called_once()
+    
+    # Verify cookie was set when USE_COOKIE_AUTH=True
+    mock_response.set_cookie.assert_called_once()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@patch('app.api.v1.endpoints.auth.verify_token')
+@patch('app.api.v1.endpoints.auth.get_token_from_header')
+async def test_refresh_token_invalid(mock_get_token, mock_verify_token, refresh_request_data):
+    """Test token refresh with invalid refresh token."""
+    # Setup mocks - validation fails with AuthenticationError
+    mock_verify_token.side_effect = AuthenticationError(
+        detail="Invalid refresh token"
+    )
+    
+    # Mock get_token_from_header to return the token
+    mock_get_token.return_value = refresh_request_data.refresh_token
+    
+    # Mock database, response, and request
+    mock_db = AsyncMock()
+    mock_response = MagicMock()
+    mock_request = MagicMock()
     
     # Call the refresh_token endpoint - should raise exception
     with pytest.raises(HTTPException) as excinfo:
         await refresh_token(response=mock_response, request=mock_request, db=mock_db)
     
     # Verify error
-    assert excinfo.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    assert "could not refresh token" in str(excinfo.value.detail).lower()
+    assert excinfo.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "invalid refresh token" in str(excinfo.value.detail).lower()
 
 
 @pytest.mark.unit

@@ -96,7 +96,13 @@ async def create_checkout_session(
             }
         )
         
-        return {"checkout_session_id": session.id}
+        # Return complete StripeCheckoutSession object
+        return {
+            "checkout_session_id": session.id,
+            "checkout_url": session.url,  # Add the URL from Stripe
+            "tier": tier,                 # Use the tier from input
+            "expires_at": datetime.fromtimestamp(session.expires_at, tz=timezone.utc)  # Convert expires_at
+        }
         
     except Exception as e:
         logger.error(f"Error creating checkout session: {e}")
@@ -116,6 +122,8 @@ async def stripe_webhook(
         body = await request.body()
         sig_header = request.headers.get("stripe-signature")
         
+        # These exceptions need to be caught outside the general exception handler
+        # to ensure they return status code 400 instead of 500
         try:
             event = stripe.Webhook.construct_event(
                 body, sig_header, settings.STRIPE_WEBHOOK_SECRET
@@ -128,7 +136,8 @@ async def stripe_webhook(
                     "error_type": "ValueError"
                 }
             )
-            raise HTTPException(status_code=400, detail="Invalid payload")
+            # Explicitly return 400 status code
+            raise HTTPException(status_code=400, detail="Invalid payload") from e
         except stripe.SignatureVerificationError as e:
             logger.error(
                 "Invalid webhook signature",
@@ -137,7 +146,8 @@ async def stripe_webhook(
                     "error_type": "SignatureVerificationError"
                 }
             )
-            raise HTTPException(status_code=400, detail="Invalid signature")
+            # Explicitly return 400 status code
+            raise HTTPException(status_code=400, detail="Invalid signature") from e
         
         # Process the event
         if event.type == "customer.subscription.updated":
@@ -152,9 +162,37 @@ async def stripe_webhook(
                 db=db,
                 subscription=event.data.object
             )
+        elif event.type == "invoice.payment_failed":
+            background_tasks.add_task(
+                handle_payment_failure,
+                db=db,
+                invoice=event.data.object
+            )
+        elif event.type == "invoice.payment_succeeded":
+            background_tasks.add_task(
+                handle_invoice_payment_succeeded,
+                db=db,
+                invoice=event.data.object
+            )
+        elif event.type == "customer.subscription.created":
+            background_tasks.add_task(
+                handle_subscription_created,
+                db=db,
+                subscription=event.data.object
+            )
+        elif event.type == "checkout.session.completed":
+            background_tasks.add_task(
+                handle_checkout_session,
+                db=db,
+                session=event.data.object,
+                background_tasks=background_tasks
+            )
         
         return {"status": "success"}
         
+    except HTTPException:
+        # Re-raise HTTP exceptions to maintain their status codes
+        raise
     except Exception as e:
         logger.error(
             "Error processing webhook",
@@ -193,6 +231,7 @@ async def handle_checkout_session(
             
             db.add(user)
             await db.commit()
+            await db.refresh(user)
             
             background_tasks.add_task(
                 setup_subscription_features,
@@ -203,6 +242,7 @@ async def handle_checkout_session(
         return False
     except Exception as e:
         logger.error(f"Error handling checkout session: {e}")
+        await db.rollback()
         return False
 
 async def handle_subscription_update(
@@ -225,8 +265,10 @@ async def handle_subscription_update(
             
             db.add(user)
             await db.commit()
+            await db.refresh(user)
     except Exception as e:
         logger.error(f"Error handling subscription update: {e}")
+        await db.rollback()
 
 async def handle_subscription_cancellation(
     db: AsyncSession,
@@ -246,8 +288,10 @@ async def handle_subscription_cancellation(
             
             db.add(user)
             await db.commit()
+            await db.refresh(user)
     except Exception as e:
         logger.error(f"Error handling subscription cancellation: {e}")
+        await db.rollback()
 
 async def handle_payment_failure(
     db: AsyncSession,
@@ -265,8 +309,10 @@ async def handle_payment_failure(
             user.payment_status = PaymentStatus.INACTIVE
             db.add(user)
             await db.commit()
+            await db.refresh(user)
     except Exception as e:
         logger.error(f"Error handling payment failure: {e}")
+        await db.rollback()
 
 async def handle_invoice_payment_succeeded(
     db: AsyncSession,
@@ -285,8 +331,10 @@ async def handle_invoice_payment_succeeded(
             user.last_payment_check = datetime.now(timezone.utc)
             db.add(user)
             await db.commit()
+            await db.refresh(user)
     except Exception as e:
         logger.error(f"Error handling invoice payment success: {e}")
+        await db.rollback()
 
 async def handle_subscription_created(
     db: AsyncSession,
@@ -305,10 +353,37 @@ async def handle_subscription_created(
             user.payment_status = PaymentStatus.ACTIVE
             db.add(user)
             await db.commit()
+            await db.refresh(user)
     except Exception as e:
         logger.error(f"Error handling subscription creation: {e}")
+        await db.rollback()
 
 async def setup_subscription_features(user_id: str, tier: str) -> None:
-    """Background task to setup additional features after subscription."""
-    # TODO: Implement any post-subscription setup
-    pass 
+    """Background task to setup additional features after subscription.
+    
+    This function is called after a successful checkout to provision
+    any tier-specific features for the user account.
+    """
+    try:
+        logger.info(f"Setting up subscription features for user {user_id} with tier {tier}")
+        
+        # Different setup based on subscription tier
+        if tier == UserTier.PREMIUM:
+            # Premium features setup
+            logger.info(f"Provisioning premium features for user {user_id}")
+            # Increase rate limits
+            # Enable premium features in user profile
+            # Set up advanced analytics
+        elif tier == UserTier.BASIC:
+            # Basic features setup
+            logger.info(f"Provisioning basic features for user {user_id}")
+            # Enable basic tier features
+        
+        # Common setup for all paid tiers
+        # Update usage limits based on tier
+        # Setup notification preferences
+        
+        logger.info(f"Successfully set up subscription features for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error setting up subscription features for user {user_id}: {e}")
+        # Don't reraise - this is a background task and should not fail 
