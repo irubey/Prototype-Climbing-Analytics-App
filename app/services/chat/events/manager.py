@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 from collections import deque
-from fastapi import FastAPI
-from sse_starlette.sse import EventSourceResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 import asyncio
 from datetime import datetime
 import json
@@ -39,6 +39,16 @@ class Event:
             "id": self.id,
             "metadata": asdict(self.metadata)
         }
+    
+    def to_sse_message(self):
+        """Format event as an SSE message string"""
+        event_dict = self.to_dict()
+        lines = [
+            f"event: {event_dict['event']}",
+            f"id: {event_dict['id']}",
+            f"data: {event_dict['data']}"
+        ]
+        return "\n".join(lines) + "\n\n"
 
 class EventManager:
     def __init__(self):
@@ -46,27 +56,33 @@ class EventManager:
         self.subscribers: Dict[str, asyncio.Event] = {}
         self.message_queues: Dict[str, deque[Event]] = {}
         self._cleanup_tasks: Dict[str, asyncio.Task] = {}
+        self._connection_tasks: Dict[str, asyncio.Task] = {}
 
-    async def subscribe(self, user_id: str) -> EventSourceResponse:
+    async def subscribe(self, user_id: str, request: Request = None) -> StreamingResponse:
         """
         Subscribe a user to receive SSE events.
         
         Args:
             user_id: The unique identifier for the user
+            request: The FastAPI request object (used for disconnect detection)
             
         Returns:
-            EventSourceResponse: A stream of SSE events for the user
+            StreamingResponse: A stream of SSE events for the user
             
         Raises:
-            SSEError: If subscription fails or user is already subscribed
+            SSEError: If subscription fails
         """
         try:
+            # If user is already subscribed, clean up the existing subscription first
             if user_id in self.subscribers:
-                raise SSEError(
-                    detail="User already subscribed",
-                    context={"connection_state": "already_connected", "user_id": user_id}
-                )
+                logger.info(f"User {user_id} reconnecting - cleaning up previous session", 
+                           extra={"user_id": user_id})
+                await self.disconnect(user_id)
+                
+                # Small delay to ensure cleanup is complete
+                await asyncio.sleep(0.1)
 
+            # Create new subscription
             self.subscribers[user_id] = asyncio.Event()
             self.message_queues[user_id] = deque()
             
@@ -78,12 +94,18 @@ class EventManager:
             logger.info(f"User {user_id} subscribed to SSE", extra={"user_id": user_id})
 
             async def event_generator():
+                """Native async generator for SSE events - works better with Python 3.12"""
                 try:
-                    while True:
-                        if user_id not in self.subscribers:
-                            logger.debug(f"User {user_id} no longer subscribed, stopping generator", extra={"user_id": user_id})
+                    # Send initial connection established event
+                    yield "event: connected\ndata: {\"status\":\"connected\"}\n\n"
+                    
+                    while user_id in self.subscribers:
+                        # Check if client is still connected (if request object provided)
+                        if request and await request.is_disconnected():
+                            logger.info(f"Client disconnected detected for user {user_id}", 
+                                       extra={"user_id": user_id})
                             break
-
+                            
                         # Wait for new messages with timeout
                         try:
                             await asyncio.wait_for(
@@ -92,49 +114,44 @@ class EventManager:
                             )
                         except asyncio.TimeoutError:
                             # Send heartbeat on timeout
-                            yield {"event": "heartbeat", "data": ""}
+                            yield "event: heartbeat\ndata: \n\n"
                             continue
                         except asyncio.CancelledError:
-                            logger.debug(f"Event generator cancelled for user {user_id}", extra={"user_id": user_id})
-                            # Ensure cleanup happens before re-raising
-                            try:
-                                await asyncio.shield(self.disconnect(user_id))
-                            except Exception as e:
-                                logger.error(f"Error during cleanup for user {user_id}", exc_info=e)
-                            raise
+                            logger.debug(f"Event generator cancelled for user {user_id}", 
+                                        extra={"user_id": user_id})
+                            break
                         
-                        # Process all queued messages
+                        # Process any messages in the queue
                         while self.message_queues.get(user_id, []):
                             event = self.message_queues[user_id].popleft()
-                            yield event.to_dict()
+                            yield event.to_sse_message()
                         
-                        # Reset the event flag
+                        # Clear the event flag once all messages are processed
                         if user_id in self.subscribers:
                             self.subscribers[user_id].clear()
-                except asyncio.CancelledError:
-                    logger.info(f"SSE connection cancelled for user {user_id}", extra={"user_id": user_id})
-                    # Shield the disconnect from cancellation
-                    try:
-                        await asyncio.shield(self.disconnect(user_id))
-                    except Exception as e:
-                        logger.error(f"Error during cleanup for user {user_id}", exc_info=e)
-                    raise
                 except Exception as e:
-                    logger.error(f"SSE event generation error for user {user_id}", exc_info=e, extra={"user_id": user_id})
-                    await self.disconnect(user_id)
-                    raise SSEError(
-                        detail=f"Event generation failed: {str(e)}",
-                        context={"error": str(e), "user_id": user_id}
-                    )
+                    logger.error(f"SSE event generation error for user {user_id}", 
+                                exc_info=e, extra={"user_id": user_id})
                 finally:
-                    # Ensure cleanup happens even if we break out of the loop
-                    if user_id in self.subscribers:
-                        try:
-                            await asyncio.shield(self.disconnect(user_id))
-                        except Exception as e:
-                            logger.error(f"Final cleanup error for user {user_id}", exc_info=e)
-
-            return EventSourceResponse(event_generator())
+                    # Ensure cleanup happens when the generator exits
+                    logger.debug(f"Event generator completed for user {user_id}", 
+                                extra={"user_id": user_id})
+                    # Create task to avoid blocking the generator return
+                    asyncio.create_task(self.disconnect(user_id))
+            
+            # Store connection in a task so we can track it
+            gen = event_generator()
+            
+            # Create a StreamingResponse with appropriate SSE headers
+            return StreamingResponse(
+                gen,
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache, no-transform",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"
+                }
+            )
             
         except Exception as e:
             logger.error(f"SSE subscription error for user {user_id}", exc_info=e)
@@ -222,12 +239,19 @@ class EventManager:
             if user_id not in self.subscribers:
                 return  # Silently return if user is not subscribed
 
+            logger.info(f"Disconnecting user {user_id} from SSE", extra={"user_id": user_id})
+
             # Remove message queue first to prevent race conditions
             self.message_queues.pop(user_id, None)
 
             # Get cleanup task and subscriber event
             cleanup_task = self._cleanup_tasks.pop(user_id, None)
             subscriber = self.subscribers.pop(user_id, None)
+            
+            # Connection task if exists
+            connection_task = self._connection_tasks.pop(user_id, None)
+            if connection_task:
+                connection_task.cancel()
 
             # Cancel cleanup task if it exists
             if cleanup_task:
@@ -245,10 +269,8 @@ class EventManager:
             
         except Exception as e:
             logger.error(f"SSE disconnect error for user {user_id}", exc_info=e)
-            raise SSEError(
-                detail=f"Disconnect failed: {str(e)}",
-                context={"error": str(e), "user_id": user_id}
-            )
+            # Don't raise an exception here, just log it
+            # This prevents cascading failures during cleanup
 
     async def _cleanup_after_disconnect(self, user_id: str) -> None:
         """

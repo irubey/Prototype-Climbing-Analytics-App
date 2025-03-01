@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Security
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Security, Request
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
-from sse_starlette.sse import EventSourceResponse
+from fastapi.responses import StreamingResponse
 from typing import Optional, AsyncGenerator
 from unittest.mock import AsyncMock
 from app.services.chat.events.manager import EventManager, EventType
@@ -53,13 +53,11 @@ async def get_premium_chat_service(
 
 @router.get("/stream")
 async def stream_events(
+    request: Request,
     current_user = Security(get_current_user)
-) -> EventSourceResponse:
+) -> StreamingResponse:
     """Stream chat events for the current user using Server-Sent Events."""
-    return EventSourceResponse(
-        event_manager.subscribe(current_user.id),
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
-    )
+    return await event_manager.subscribe(current_user.id, request)
 
 @router.post("/basic")
 async def basic_chat_endpoint(

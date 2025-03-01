@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     
     # Environment Settings
     ENVIRONMENT: str = Field(
-        default="testing",
+        default="development",
         description="Application environment (development, staging, production)"
     )
     DEBUG: bool = Field(

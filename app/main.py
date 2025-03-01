@@ -54,6 +54,13 @@ async def lifespan(app: FastAPI):
     try:
         # Startup
         logger.info("Initializing application...")
+        
+        # Apply Redis patches for development/testing environments
+        if settings.ENVIRONMENT.lower() in ("development", "testing"):
+            from app.core.redis_patch import apply_redis_patches
+            apply_redis_patches()
+            logger.info(f"Applied Redis mocking patches for {settings.ENVIRONMENT} environment")
+        
         # Use the global sessionmanager instance
         db_manager = sessionmanager
         db_manager.init(

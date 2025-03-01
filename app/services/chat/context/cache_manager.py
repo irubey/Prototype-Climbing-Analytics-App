@@ -72,7 +72,7 @@ class CacheManager:
         """
         try:
             key = self._build_key(user_id, conversation_id)
-            cached_data = self.redis.get(key)
+            cached_data = await self.redis.get(key)
             
             if cached_data:
                 return json.loads(cached_data)
@@ -105,11 +105,12 @@ class CacheManager:
             serialized_data = json.dumps(context_data, default=str)
             
             # Set with TTL
-            return bool(self.redis.setex(
+            result = await self.redis.setex(
                 name=key,
                 time=self.ttl,
                 value=serialized_data
-            ))
+            )
+            return bool(result)
             
         except (RedisError, TypeError) as e:
             print(f"Cache storage error: {str(e)}")  # Replace with proper logging
@@ -134,15 +135,17 @@ class CacheManager:
             if conversation_id:
                 # Invalidate specific conversation context
                 key = self._build_key(user_id, conversation_id)
-                return bool(self.redis.delete(key))
+                result = await self.redis.delete(key)
+                return bool(result)
             else:
                 # Invalidate all user's contexts
                 pattern = self._build_invalidation_pattern(user_id)
-                keys = self.redis.keys(pattern)
+                keys = await self.redis.keys(pattern)
                 if keys:
-                    return bool(self.redis.delete(*keys))
-            return True
-            
+                    result = await self.redis.delete(*keys)
+                    return bool(result)
+                return True  # No keys to delete is still a success
+                
         except RedisError as e:
             print(f"Cache invalidation error: {str(e)}")  # Replace with proper logging
             return False
@@ -164,9 +167,10 @@ class CacheManager:
         """
         try:
             key = self._build_key(user_id, conversation_id)
-            # Only refresh if key exists
-            if self.redis.exists(key):
-                return bool(self.redis.expire(key, self.ttl))
+            exists = await self.redis.exists(key)
+            
+            if exists:
+                return await self.redis.expire(key, self.ttl)
             return False
             
         except RedisError as e:

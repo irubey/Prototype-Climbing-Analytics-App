@@ -54,26 +54,25 @@ async def get_redis() -> redis.Redis:
     global _redis_client
     if _redis_client is None:
         from app.core.config import settings
-        try:
-            _redis_client = redis.from_url(settings.REDIS_URL)
-            # Test the connection
-            await _redis_client.ping()
-        except (redis.ConnectionError, redis.RedisError) as e:
-            logger.warning(
-                f"Redis connection failed: {str(e)}. Using mock implementation."
-            )
-            # Create a mock Redis client for development
-            from unittest.mock import AsyncMock
-            mock_client = AsyncMock()
-            
-            # Implement minimal rate limiting functionality with the mock
-            mock_client.incr = AsyncMock(return_value=1)  # Always return 1 for failed attempts
-            mock_client.expire = AsyncMock(return_value=True)
-            mock_client.delete = AsyncMock(return_value=True)
-            mock_client.get = AsyncMock(return_value=None)
-            mock_client.setex = AsyncMock(return_value=True)
-            
-            _redis_client = mock_client
+        
+        # Always use mock Redis in development mode
+        if settings.ENVIRONMENT.lower() in ("development", "testing"):
+            from app.core.redis_mock import MockRedis
+            logger.info(f"Using mock Redis implementation in {settings.ENVIRONMENT} environment")
+            _redis_client = MockRedis()
+        else:
+            try:
+                _redis_client = redis.from_url(settings.REDIS_URL)
+                # Test the connection
+                await _redis_client.ping()
+                logger.info("Connected to Redis successfully")
+            except (redis.ConnectionError, redis.RedisError) as e:
+                logger.warning(
+                    f"Redis connection failed: {str(e)}. Using mock implementation."
+                )
+                # Fall back to mock Redis client if connection fails
+                from app.core.redis_mock import MockRedis
+                _redis_client = MockRedis()
     
     return _redis_client
 

@@ -68,10 +68,8 @@ class BasicChatService:
         """Check if user has exceeded their monthly quota."""
         try:
             quota_key = self._get_quota_key(user_id)
-            current_usage = int(self.redis.get(quota_key) or 0)
-            if current_usage >= self.monthly_quota:
-                raise QuotaExceededError(current_usage, self.monthly_quota)
-            return False
+            current_usage = int(await self.redis.get(quota_key) or 0)
+            return current_usage >= self.monthly_quota
         except redis.RedisError as e:
             logger.error(f"Redis error checking quota: {str(e)}", exc_info=True)
             # Default to allowing the request if Redis fails
@@ -84,7 +82,7 @@ class BasicChatService:
             pipe = self.redis.pipeline()
             pipe.incr(quota_key)
             pipe.expire(quota_key, 60 * 60 * 24 * 45)  # 45 days expiry
-            pipe.execute()
+            await pipe.execute()
         except redis.RedisError as e:
             logger.error(f"Failed to increment quota for user {user_id}: {str(e)}", exc_info=True)
             # Continue processing even if quota tracking fails
@@ -110,11 +108,12 @@ class BasicChatService:
     ) -> Optional[str]:
         """Process a chat request for Basic tier users with enhanced error handling."""
         try:
-            # Check quota with explicit error handling
-            try:
-                await self.exceeds_quota(user_id)
-            except QuotaExceededError as e:
-                await self._publish_error(user_id, e)
+            # Check quota with consistent return-based logic
+            quota_key = self._get_quota_key(user_id)
+            if await self.exceeds_quota(user_id):
+                current_usage = int(await self.redis.get(quota_key) or 0)
+                quota_error = QuotaExceededError(current_usage, self.monthly_quota)
+                await self._publish_error(user_id, quota_error)
                 return None
 
             # Notify processing start
