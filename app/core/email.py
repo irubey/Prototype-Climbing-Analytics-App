@@ -143,7 +143,7 @@ async def send_password_reset_email(
         email_to=email_to,
         subject=f"{settings.PROJECT_NAME} - Password Reset Request",
         body="",  # Body will be provided by template
-        template_name="reset_password.html",
+        template_name="password_reset.html",
         template_body=template_body
     )
 
@@ -199,6 +199,6 @@ async def send_new_account_email(
         email_to=email_to,
         subject=f"Welcome to {settings.PROJECT_NAME}",
         body="",  # Body will be provided by template
-        template_name="new_account.html",
+        template_name="welcome.html",
         template_body=template_body
     ) 

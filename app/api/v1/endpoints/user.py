@@ -38,6 +38,7 @@ from app.models.enums import UserTier, PaymentStatus, LogbookType
 import redis.asyncio as redis
 from app.core.config import settings
 
+
 router = APIRouter(tags=["users"])
 
 class SubscriptionRequest(BaseModel):
@@ -64,18 +65,18 @@ async def get_current_user_profile(
         cached = await redis_client.get(cache_key)
         
         if cached:
-            profile = UserProfile.parse_raw(cached)
+            profile = UserProfile.model_validate_json(cached)
             logger.info("Profile retrieved from cache", extra={"user_id": str(current_user.id)})
             return profile
         
         # Convert to Pydantic model for consistent serialization
-        profile = UserProfile.from_orm(current_user)
+        profile = UserProfile.model_validate(current_user)
         
         # Cache for 5 minutes
         await redis_client.setex(
             cache_key,
             300,  # 5 minutes TTL
-            profile.json()
+            profile.model_dump_json()
         )
         
         logger.info("Profile cached", extra={"user_id": str(current_user.id)})
@@ -90,7 +91,7 @@ async def get_current_user_profile(
     except Exception as e:
         logger.error(f"Error getting user profile: {e}")
         # Return uncached profile on error
-        return UserProfile.from_orm(current_user)
+        return UserProfile.model_validate(current_user)
     finally:
         duration = time.time() - start_time
         logger.info(
@@ -145,6 +146,19 @@ async def update_user_profile(
             profile_in.eight_a_nu_url != current_user.eight_a_nu_url
         )
         
+        # If updating username, first check if it already exists
+        if profile_in.username and profile_in.username != current_user.username:
+            # Check if username exists
+            existing_user = await db.execute(
+                select(User).where(User.username == profile_in.username)
+            )
+            if existing_user.scalars().first():
+                raise ValidationError(
+                    detail="Username already taken",
+                    errors={"username": "This username is already in use"}
+                )
+        
+        # Continue with update
         for field, value in profile_in.model_dump(exclude_unset=True).items():
             setattr(current_user, field, value)
         
@@ -192,6 +206,13 @@ async def update_user_profile(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials"
+        )
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error updating user profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not update profile"
         )
     finally:
         duration = time.time() - start_time
@@ -653,12 +674,18 @@ async def create_subscription(
             db.add(current_user)
             await db.commit()
             
-            # Schedule a cleanup task to revert if webhook doesn't confirm
+            # TODO:Schedule a cleanup task to revert if webhook doesn't confirm
+            def check_subscription_confirmation(user_id: str, session_id: str, timeout: int = 3600):
+                pass
+
+            def check_subscription_confirmation_task():
+                check_subscription_confirmation(
+                    user_id=current_user.id,
+                    session_id=session.id,
+                    timeout=3600  # 1 hour timeout
+                )
             background_tasks.add_task(
-                check_subscription_confirmation,
-                user_id=current_user.id,
-                session_id=session.id,
-                timeout=3600  # 1 hour timeout
+                check_subscription_confirmation_task,
             )
             
             return {

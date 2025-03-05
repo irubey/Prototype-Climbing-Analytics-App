@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 import stripe
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import (
@@ -41,8 +42,20 @@ from app.core.error_handlers import (
     )
 from app.core.logging import logger
 from app.db.init_db import init_db, dispose_db
-from app.db.session import DatabaseSessionManager, sessionmanager # Import sessionmanager
+from app.db.session import DatabaseSessionManager, sessionmanager, AsyncSession
 
+class DBSessionMiddleware(BaseHTTPMiddleware):
+    """Middleware to provide a request-scoped database session."""
+    async def dispatch(self, request: Request, call_next):
+        async with sessionmanager.session() as session:
+            request.state.db = session
+            try:
+                response = await call_next(request)
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+        return response
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -59,7 +72,7 @@ async def lifespan(app: FastAPI):
         if settings.ENVIRONMENT.lower() in ("development", "testing"):
             from app.core.redis_patch import apply_redis_patches
             apply_redis_patches()
-            logger.info(f"Applied Redis mocking patches for {settings.ENVIRONMENT} environment")
+            logger.info(f"Applied Redis patches for {settings.ENVIRONMENT}")
         
         # Use the global sessionmanager instance
         db_manager = sessionmanager
@@ -127,6 +140,7 @@ def create_app() -> FastAPI:
         TrustedHostMiddleware,
         allowed_hosts=settings.ALLOWED_HOSTS or ["*"]
     )
+    app.add_middleware(DBSessionMiddleware)  # Add request-scoped session middleware
 
     # Set up CORS
     if settings.BACKEND_CORS_ORIGINS:
