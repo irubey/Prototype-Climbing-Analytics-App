@@ -193,20 +193,32 @@ class LogbookOrchestrator:
         
         # Filter DataFrame to only include valid columns that exist
         valid_existing_columns = [col for col in df.columns if col in valid_columns]
-        filtered_df = df[valid_existing_columns]
+        # Create an explicit copy to avoid SettingWithCopyWarning
+        filtered_df = df[valid_existing_columns].copy()
+        
+        # Clean any remaining NaN values before conversion to dict
+        # For string columns, convert NaN to None
+        for col in filtered_df.columns:
+            if filtered_df[col].dtype == 'object' or filtered_df[col].dtype == 'string':
+                # Use .loc to properly set values
+                filtered_df.loc[:, col] = filtered_df[col].astype(object).where(pd.notna(filtered_df[col]), None)
+            elif filtered_df[col].dtype == 'float':
+                # For float columns, replace NaN with None 
+                filtered_df.loc[:, col] = filtered_df[col].where(pd.notna(filtered_df[col]), None)
         
         # Convert filtered DataFrame rows to dictionaries for ticks
         ticks_data = filtered_df.to_dict('records')
         
-        # Build performance pyramid data
-        pyramid_data = await self.pyramid_builder.build_performance_pyramid(df, user_id)
+        # Store the original DataFrame for later use with pyramid builder
+        # We'll build the pyramid after the ticks are saved to the database
+        self._temp_processed_df = df
         
         # Extract tag data if present
         tag_data = []
         if 'tag' in df.columns:
-            tag_data = df['tag'].unique().tolist()
+            tag_data = df['tag'].dropna().unique().tolist()
             
-        return ticks_data, pyramid_data, tag_data
+        return ticks_data, [], tag_data
 
     async def _commit_to_database(
         self,
@@ -219,6 +231,42 @@ class LogbookOrchestrator:
         """Commit all entities to database"""
         # Save ticks
         ticks = await self.db_service.save_user_ticks(ticks_data, user_id)
+        
+        # Now that we have saved ticks with valid IDs, build the performance pyramid
+        # using the saved tick IDs to maintain referential integrity
+        if hasattr(self, '_temp_processed_df'):
+            # Create a mapping from (route_name, location_raw) to tick_id
+            tick_id_map = {}
+            for tick in ticks:
+                key = (tick.route_name, tick.location_raw)
+                tick_id_map[key] = tick.id
+            
+            # Build performance pyramid data
+            raw_pyramid_data = await self.pyramid_builder.build_performance_pyramid(self._temp_processed_df, user_id)
+            
+            # Update tick_ids to match the actual database IDs
+            pyramid_data = []
+            for entry in raw_pyramid_data:
+                # Find the corresponding send in the DataFrame
+                send_index = None
+                for i, row in self._temp_processed_df.iterrows():
+                    if (row['tick_date'] == entry['send_date'] and 
+                        row['location'] == entry['location'] and
+                        row['binned_code'] == entry['binned_code']):
+                        send_index = i
+                        break
+                
+                if send_index is not None:
+                    send = self._temp_processed_df.iloc[send_index]
+                    key = (send['route_name'], send['location_raw'])
+                    if key in tick_id_map:
+                        entry['tick_id'] = tick_id_map[key]
+                        pyramid_data.append(entry)
+                    else:
+                        logger.warning(f"No matching tick_id found for {key}")
+            
+            # Clean up temporary DataFrame
+            delattr(self, '_temp_processed_df')
         
         # Save pyramids
         pyramids = await self.db_service.save_performance_pyramid(pyramid_data, user_id)

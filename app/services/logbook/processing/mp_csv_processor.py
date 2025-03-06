@@ -45,7 +45,7 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
                 raise DataSourceError("No data found in Mountain Project CSV")
             
             # Check required columns before proceeding
-            required_columns = ['route', 'rating', 'date']
+            required_columns = ['route_name', 'route_grade', 'tick_date']
             missing_columns = [col for col in required_columns if col.lower() not in [c.lower() for c in df.columns]]
             if missing_columns:
                 logger.warning(
@@ -70,12 +70,12 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
             standardized_df['created_at'] = datetime.now(timezone.utc)
             
             # Route information (direct mappings)
-            standardized_df['route_name'] = df['route']
-            standardized_df['route_grade'] = df['rating']
-            standardized_df['tick_date'] = pd.to_datetime(df['date'])
+            standardized_df['route_name'] = df['route_name']
+            standardized_df['route_grade'] = df['route_grade']
+            standardized_df['tick_date'] = pd.to_datetime(df['tick_date'])
             standardized_df['length'] = pd.to_numeric(df['length'], errors='coerce').fillna(0).astype(int)
             standardized_df['pitches'] = pd.to_numeric(df['pitches'], errors='coerce').fillna(1).astype(int)
-            standardized_df['route_url'] = df['url']
+            standardized_df['route_url'] = df['route_url']
             standardized_df['notes'] = df['notes']
             
             # Location processing
@@ -97,10 +97,10 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
             standardized_df['route_type'] = df['route_type'].fillna('')
             # Normalize Mountain Project ratings (0-4 scale) to 0-1 scale
             # Handle -1 (no data) as null, then normalize valid ratings by dividing by max score (4)
-            standardized_df['route_quality'] = df['avg_stars'].apply(
+            standardized_df['route_quality'] = df['route_stars'].apply(
                 lambda x: None if x == -1 else (float(x) / 4.0) if pd.notna(x) else None
             )
-            standardized_df['user_quality'] = df['your_stars'].apply(
+            standardized_df['user_quality'] = df['user_stars'].apply(
                 lambda x: None if x == -1 else (float(x) / 4.0) if pd.notna(x) else None
             )
             
@@ -119,6 +119,22 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
             standardized_df['cur_max_rp_trad'] = 0
             standardized_df['cur_max_boulder'] = 0
             
+            # Clean the dataframe to handle NaN values for database insertion
+            # Replace NaN with None in string columns to avoid PostgreSQL errors
+            string_columns = ['route_name', 'route_grade', 'binned_grade', 'location', 
+                             'location_raw', 'lead_style', 'style', 'route_type', 
+                             'difficulty_category', 'length_category', 'season_category', 
+                             'route_url', 'notes']
+            for col in string_columns:
+                if col in standardized_df.columns:
+                    standardized_df.loc[:, col] = standardized_df[col].astype(object).where(pd.notna(standardized_df[col]), None)
+
+            # Replace NaN with None in numeric columns that can be null
+            numeric_columns = ['route_quality', 'user_quality', 'binned_code']
+            for col in numeric_columns:
+                if col in standardized_df.columns:
+                    standardized_df.loc[:, col] = standardized_df[col].where(pd.notna(standardized_df[col]), None)
+
             logger.info("Mountain Project data normalization completed", extra={
                 "user_id": str(self.user_id),
                 "processed_rows": len(standardized_df)

@@ -128,16 +128,15 @@ class PyramidBuilder:
                     
                     pyramid_entry = {
                         'user_id': user_id,
-                        'tick_id': send.name,  # DataFrame index as tick_id
+                        'tick_id': 0,  # Placeholder, will be updated by orchestrator
                         'send_date': send['tick_date'],
                         'location': send['location'],
-                        'discipline': discipline,
                         'crux_angle': crux_angle,
                         'crux_energy': crux_energy,
                         'binned_code': send['binned_code'],
                         'num_attempts': num_attempts,
                         'days_attempts': days_attempts,
-                        'num_sends': len(route_attempts[route_attempts['send_bool']]),
+                        'num_sends': len(route_attempts[route_attempts['send_bool']])
                     }
                     
                     results.append(pyramid_entry)

@@ -25,7 +25,13 @@ class MountainProjectCSVClient:
     """Asynchronous client for fetching Mountain Project CSV data"""
     
     def __init__(self):
-        self.client = httpx.AsyncClient(timeout=45.0, follow_redirects=True)  # Enable redirect following
+        self.client = httpx.AsyncClient(
+            timeout=60.0,  # Increase timeout
+            follow_redirects=True,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            }
+        )
         
     async def __aenter__(self):
         return self
@@ -70,6 +76,16 @@ class MountainProjectCSVClient:
             response = await self.client.get(csv_url)
             response.raise_for_status()
             
+            logger.debug(
+                "Mountain Project response received",
+                extra={
+                    "status_code": response.status_code,
+                    "content_type": response.headers.get("content-type", "unknown"),
+                    "content_length": len(response.text),
+                    "first_100_chars": response.text[:100] if response.text else "empty"
+                }
+            )
+            
             # Parse CSV with proper encoding and error handling
             data = StringIO(response.text)
             
@@ -99,7 +115,18 @@ class MountainProjectCSVClient:
                 sep=',',
                 quotechar='"',
                 escapechar='\\',
-                on_bad_lines='skip'
+                on_bad_lines='skip',
+                encoding='utf-8'  # Explicitly set encoding
+            )
+
+            # Log the shape and columns
+            logger.debug(
+                "CSV parsing completed",
+                extra={
+                    "rows": len(df),
+                    "columns": df.columns.tolist(),
+                    "sample_row": df.iloc[0].to_dict() if not df.empty else {}
+                }
             )
 
             # Check if all required columns exist
@@ -171,17 +198,16 @@ class MountainProjectCSVClient:
             )
             raise DataSourceError("Mountain Project returned empty data")
             
-        except Exception as e:
+        except Exception as csv_error:
             logger.error(
-                "Unexpected error processing Mountain Project data",
+                "CSV parsing failed",
                 extra={
-                    "profile_url": profile_url_str,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "traceback": traceback.format_exc()
+                    "error": str(csv_error),
+                    "error_type": type(csv_error).__name__,
+                    "response_content": response.text[:500]  # Log a snippet of the response
                 }
             )
-            raise DataSourceError(f"Error processing Mountain Project data: {str(e)}")
+            raise DataSourceError(f"Failed to parse Mountain Project CSV: {str(csv_error)}")
     
     @staticmethod
     def _rename_columns(df: pd.DataFrame) -> pd.DataFrame:

@@ -16,6 +16,7 @@ from app.db.session import get_db
 from app.models import User
 from app.schemas.logbook_connection import LogbookConnectPayload, IngestionType
 from app.services.logbook.orchestrator import LogbookOrchestrator
+from app.models.enums import LogbookType
 
 router = APIRouter()
 
@@ -24,7 +25,7 @@ router = APIRouter()
     response_model=Dict[str, str],
     responses=get_error_responses("logbook_connect")
 )
-async def connect_logbook(
+async def connect_logbook( 
     payload: LogbookConnectPayload,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
@@ -61,8 +62,9 @@ async def connect_logbook(
         # Configure processing based on source
         if payload.source == IngestionType.MOUNTAIN_PROJECT:
             background_tasks.add_task(
-                orchestrator.process_mountain_project_ticks,
+                orchestrator.process_logbook_data,
                 user_id=current_user.id,
+                logbook_type=LogbookType.MOUNTAIN_PROJECT,
                 profile_url=payload.profile_url
             )
             logger.debug(
@@ -74,8 +76,9 @@ async def connect_logbook(
             )
         else:  # eight_a_nu
             background_tasks.add_task(
-                orchestrator.process_eight_a_nu_ticks,
+                orchestrator.process_logbook_data,
                 user_id=current_user.id,
+                logbook_type=LogbookType.EIGHT_A_NU,
                 username=payload.username,
                 password="[REDACTED]"  # Never log credentials
             )
