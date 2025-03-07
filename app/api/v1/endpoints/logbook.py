@@ -62,9 +62,8 @@ async def connect_logbook(
         # Configure processing based on source
         if payload.source == IngestionType.MOUNTAIN_PROJECT:
             background_tasks.add_task(
-                orchestrator.process_logbook_data,
+                orchestrator.process_mountain_project_ticks,
                 user_id=current_user.id,
-                logbook_type=LogbookType.MOUNTAIN_PROJECT,
                 profile_url=payload.profile_url
             )
             logger.debug(
@@ -76,11 +75,10 @@ async def connect_logbook(
             )
         else:  # eight_a_nu
             background_tasks.add_task(
-                orchestrator.process_logbook_data,
+                orchestrator.process_eight_a_nu_ticks,
                 user_id=current_user.id,
-                logbook_type=LogbookType.EIGHT_A_NU,
                 username=payload.username,
-                password="[REDACTED]"  # Never log credentials
+                password=payload.password
             )
             logger.debug(
                 "Scheduled 8a.nu processing",

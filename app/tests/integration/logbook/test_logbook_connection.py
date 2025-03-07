@@ -9,7 +9,8 @@ import pytest
 import uuid
 import pandas as pd
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch, call, Mock
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -195,21 +196,21 @@ async def test_mountain_project_integration(
         )
 
 @pytest.mark.asyncio
-@patch('app.services.logbook.gateways.eight_a_nu_scraper.EightANuClient.__aenter__')
-@patch('app.services.logbook.gateways.eight_a_nu_scraper.EightANuClient.__aexit__')
+@patch('app.services.logbook.gateways.eight_a_nu_scraper.EightANuClientCLI.__enter__')
+@patch('app.services.logbook.gateways.eight_a_nu_scraper.EightANuClientCLI.__exit__')
 async def test_eight_a_nu_integration(
-    mock_aexit,
-    mock_aenter,
+    mock_exit,
+    mock_enter,
     test_user,
     mock_db,
     mock_background_tasks
 ):
     """Test complete 8a.nu integration flow."""
     # Arrange - Mock external client
-    mock_eight_a_client = AsyncMock()
-    mock_eight_a_client.authenticate = AsyncMock()
+    mock_eight_a_client = Mock()
+    mock_eight_a_client.authenticate = Mock()
     mock_eight_a_client.get_ascents.return_value = SAMPLE_8A_DATA
-    mock_aenter.return_value = mock_eight_a_client
+    mock_enter.return_value = mock_eight_a_client
     
     # Set up mocks for nested services
     with patch('app.services.logbook.orchestrator.DatabaseService') as mock_db_service_cls, \

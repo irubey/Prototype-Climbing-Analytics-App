@@ -13,6 +13,7 @@ from typing import Dict, List, Tuple, Optional
 from uuid import UUID
 import traceback
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Third-party imports
 import pandas as pd
@@ -37,9 +38,7 @@ from app.services.utils.grade_service import (
 from app.services.logbook.gateways.mp_csv_client import (
     MountainProjectCSVClient
 )
-from app.services.logbook.gateways.eight_a_nu_scraper import (
-    EightANuClient
-)
+from app.services.logbook.gateways.eight_a_nu_scraper import EightANuScraper
 from app.services.logbook.processing.mp_csv_processor import (
     MountainProjectCSVProcessor
 )
@@ -61,6 +60,7 @@ class LogbookOrchestrator:
         self.classifier = ClimbClassifier()
         self.pyramid_builder = PyramidBuilder()
         self.db_service = db_service or DatabaseService(db)
+        self.executor = ThreadPoolExecutor(max_workers=2)  # Allow 2 concurrent syncs
         logger.debug("LogbookOrchestrator services initialized")
 
     async def process_logbook_data(
@@ -71,30 +71,24 @@ class LogbookOrchestrator:
     ) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
         """
         Main entry point for processing logbook data from any source.
-        Implements the standard flow: gateway -> normalize -> process -> build -> commit
+        Routes to specific processing methods based on logbook type.
         """
-        logger.info(f"Processing {logbook_type.value} logbook data", extra={
-            "user_id": str(user_id)
-        })
+        logger.info(f"Processing {logbook_type.value} logbook data", extra={"user_id": str(user_id)})
         
         try:
-            # 1. Fetch raw data through appropriate gateway
-            raw_df = await self._fetch_raw_data(logbook_type, **credentials)
-            
-            # 2. Normalize data using appropriate processor
-            normalized_df = await self._normalize_data(raw_df, logbook_type, user_id)
-            
-            # 3. Process classifications and grades
-            processed_df = await self._process_data(normalized_df)
-            
-            # 4. Build entities (ticks, pyramids, tags)
-            ticks, pyramids, tags = await self._build_entities(processed_df, user_id)
-            
-            # 5. Commit to database
-            await self._commit_to_database(ticks, pyramids, tags, user_id, logbook_type)
-            
-            return ticks, pyramids, tags
-            
+            if logbook_type == LogbookType.MOUNTAIN_PROJECT:
+                return await self.process_mountain_project_ticks(
+                    user_id=user_id,
+                    profile_url=credentials.get('profile_url')
+                )
+            elif logbook_type == LogbookType.EIGHT_A_NU:
+                return await self.process_eight_a_nu_ticks(
+                    user_id=user_id,
+                    username=credentials.get('username'),
+                    password=credentials.get('password')
+                )
+            else:
+                raise DataSourceError(f"Unsupported logbook type: {logbook_type}")
         except Exception as e:
             logger.error(f"{logbook_type.value} processing failed", extra={
                 "user_id": str(user_id),
@@ -103,18 +97,70 @@ class LogbookOrchestrator:
             })
             raise DataSourceError(f"Error processing {logbook_type.value} data: {str(e)}")
 
-    async def _fetch_raw_data(self, logbook_type: LogbookType, **credentials) -> pd.DataFrame:
-        """Fetch raw data using appropriate gateway"""
-        if logbook_type == LogbookType.MOUNTAIN_PROJECT:
+    async def _process_ticks(
+        self,
+        user_id: UUID,
+        logbook_type: LogbookType,
+        raw_df: pd.DataFrame
+    ) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
+        """Centralized processing logic for all logbook types."""
+        normalized_df = await self._normalize_data(raw_df, logbook_type, user_id)
+        processed_df = await self._process_data(normalized_df)
+        ticks, pyramids, tags = await self._build_entities(processed_df, user_id)
+        await self._commit_to_database(ticks, pyramids, tags, user_id, logbook_type)
+        logger.info(f"{logbook_type.value} sync completed", extra={
+            "user_id": str(user_id),
+            "total_ticks": len(ticks),
+            "total_pyramids": len(pyramids),
+            "total_tags": len(tags)
+        })
+        return ticks, pyramids, tags
+
+    async def process_mountain_project_ticks(self, user_id: UUID, profile_url: str):
+        """Process Mountain Project ticks."""
+        try:
             async with MountainProjectCSVClient() as client:
-                return await client.fetch_user_ticks(credentials['profile_url'])
-        elif logbook_type == LogbookType.EIGHT_A_NU:
-            async with EightANuClient() as client:
-                await client.authenticate(credentials['username'], credentials['password'])
-                raw_data = await client.get_ascents()
-                return pd.DataFrame(raw_data.get("ascents", []))
-        else:
-            raise ValueError(f"Unsupported logbook type: {logbook_type}")
+                raw_df = await client.fetch_user_ticks(profile_url)
+            return await self._process_ticks(user_id, LogbookType.MOUNTAIN_PROJECT, raw_df)
+        except Exception as e:
+            logger.error("Mountain Project processing failed", extra={
+                "user_id": str(user_id),
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            })
+            raise DataSourceError(f"Error processing Mountain Project data: {str(e)}")
+
+    async def process_eight_a_nu_ticks(self, user_id: UUID, username: str, password: str):
+        """Process 8a.nu ticks using synchronous client in a thread."""
+        try:
+            loop = asyncio.get_running_loop()
+            raw_df = await loop.run_in_executor(
+                self.executor,
+                self._fetch_eight_a_nu_data_sync,
+                username,
+                password
+            )
+            return await self._process_ticks(user_id, LogbookType.EIGHT_A_NU, raw_df)
+        except Exception as e:
+            logger.error("8a.nu processing failed", extra={
+                "user_id": str(user_id),
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            })
+            raise DataSourceError(f"Error processing 8a.nu data: {str(e)}")
+
+    def _fetch_eight_a_nu_data_sync(self, username: str, password: str) -> pd.DataFrame:
+        """Fetch 8a.nu data using the Playwright CLI client."""
+        logger.info("Fetching 8a.nu data using Playwright CLI client")
+        with EightANuScraper() as client:
+            client.authenticate(username, password)
+            data = client.get_ascents()
+            return pd.DataFrame(data.get("ascents", []))
+
+    async def _fetch_mountain_project_data(self, profile_url: str) -> pd.DataFrame:
+        """Fetch Mountain Project data using async client."""
+        async with MountainProjectCSVClient() as client:
+            return await client.fetch_user_ticks(profile_url)
 
     async def _normalize_data(self, raw_df: pd.DataFrame, logbook_type: LogbookType, user_id: UUID) -> pd.DataFrame:
         """Normalize data using appropriate processor"""

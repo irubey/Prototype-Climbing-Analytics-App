@@ -54,12 +54,16 @@ class UserTicks(Base):
     binned_code: Mapped[Optional[int]] = mapped_column(Integer)
     length: Mapped[Optional[int]] = mapped_column(Integer)
     pitches: Mapped[Optional[int]] = mapped_column(Integer)
+    #location: crag, area
     location: Mapped[Optional[str]] = mapped_column(String(255))
+    #mountain project full location string
     location_raw: Mapped[Optional[str]] = mapped_column(String(255))
+    #redpoint, flash, onsight, etc.
     lead_style: Mapped[Optional[str]] = mapped_column(String(255))
     cur_max_rp_sport: Mapped[Optional[int]] = mapped_column(Integer)
     cur_max_rp_trad: Mapped[Optional[int]] = mapped_column(Integer)
     cur_max_boulder: Mapped[Optional[int]] = mapped_column(Integer)
+    #difficulty category relative to cur max
     difficulty_category: Mapped[Optional[str]] = mapped_column(String(255))
     discipline: Mapped[Optional[ClimbingDiscipline]] = mapped_column(SQLEnum(ClimbingDiscipline))
     send_bool: Mapped[Optional[bool]] = mapped_column(Boolean)
@@ -68,7 +72,9 @@ class UserTicks(Base):
     route_url: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     notes: Mapped[Optional[str]] = mapped_column(Text)
+    #consensus quality score
     route_quality: Mapped[Optional[float]] = mapped_column(Float)
+    #user quality score
     user_quality: Mapped[Optional[float]] = mapped_column(Float)
     logbook_type: Mapped[Optional[LogbookType]] = mapped_column(SQLEnum(LogbookType))
 

@@ -44,7 +44,7 @@ class InterceptHandler(logging.Handler):
         )
 
 
-def setup_logging(log_dir: str = "logs", console_log_level: str = "INFO") -> None:
+def setup_logging(log_dir: str = "logs", console_log_level: str = "DEBUG") -> None:
     """
     Configure Loguru logging.
 
@@ -60,8 +60,6 @@ def setup_logging(log_dir: str = "logs", console_log_level: str = "INFO") -> Non
     # Remove default handler
     logger.remove()
 
-    # Determine log level based on environment (from settings)
-    console_log_level = "DEBUG" if settings.ENVIRONMENT == "testing" else "INFO"
     # Add console handler with custom format to stdout
     logger.add(
         sys.stdout,  # Use sys.stdout instead of sys.stderr
@@ -106,7 +104,7 @@ def setup_logging(log_dir: str = "logs", console_log_level: str = "INFO") -> Non
     logger.add(
         log_directory / "api.log",
         format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message} | {extra}",
-        level="INFO",
+        level="DEBUG",
         filter=lambda record: record["extra"].get("type") == "api_request",
         **log_config,
     )

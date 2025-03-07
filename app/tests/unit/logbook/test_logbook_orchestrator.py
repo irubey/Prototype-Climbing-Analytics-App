@@ -8,7 +8,8 @@ normalization, classification, entity building, and database operations.
 import pytest
 import pandas as pd
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch, call, Mock
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date
 
 from app.core.exceptions import DataSourceError
@@ -208,16 +209,16 @@ async def test_fetch_raw_data_eight_a_nu(orchestrator):
     # Create sample ascents data that will be returned
     ascents_data = {"ascents": [{"id": 1}, {"id": 2}]}
     
-    mock_eight_a_client = AsyncMock()
-    mock_eight_a_client.authenticate = AsyncMock()
-    mock_eight_a_client.get_ascents = AsyncMock(return_value=ascents_data)
-    mock_eight_a_client.__aenter__ = AsyncMock(return_value=mock_eight_a_client)
-    mock_eight_a_client.__aexit__ = AsyncMock()
+    mock_eight_a_client = Mock()
+    mock_eight_a_client.authenticate = Mock()
+    mock_eight_a_client.get_ascents = Mock(return_value=ascents_data)
+    mock_eight_a_client.__enter__ = Mock(return_value=mock_eight_a_client)
+    mock_eight_a_client.__exit__ = Mock()
     
     # Act
-    with patch('app.services.logbook.orchestrator.EightANuClient', return_value=mock_eight_a_client):
-        result = await orchestrator._fetch_raw_data(
-            LogbookType.EIGHT_A_NU,
+    with patch('app.services.logbook.orchestrator.EightANuClientCLI', return_value=mock_eight_a_client):
+        result = await orchestrator.process_eight_a_nu_ticks(
+            user_id=uuid.UUID('00000000-0000-0000-0000-000000000001'),
             username=username,
             password=password
         )
@@ -225,9 +226,8 @@ async def test_fetch_raw_data_eight_a_nu(orchestrator):
     # Assert
     mock_eight_a_client.authenticate.assert_called_once_with(username, password)
     mock_eight_a_client.get_ascents.assert_called_once()
-    assert isinstance(result, pd.DataFrame)
-    assert len(result) == 2
-    assert result.iloc[0]["id"] == 1
+    assert len(result[0]) > 0  # Check that we have ticks
+    assert len(result[1]) > 0  # Check that we have pyramid entries
 
 @pytest.mark.asyncio
 async def test_fetch_raw_data_unsupported_type(orchestrator):

@@ -63,7 +63,7 @@ class Settings(BaseSettings):
         description="Application environment (development, staging, production)"
     )
     DEBUG: bool = Field(
-        default=False,
+        default=True,
         description="Enable debug mode"
     )
     TESTING: bool = Field(

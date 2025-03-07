@@ -6,16 +6,20 @@ Tests the functionality for authenticating with 8a.nu and retrieving user ascent
 
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch, call, Mock
 import asyncio
 import random
 import urllib.parse
+import subprocess
+import json
+import os
+import tempfile
 from datetime import datetime
 
 from playwright.async_api import Page, Browser, BrowserContext, Response, async_playwright
 
 from app.core.exceptions import ScrapingError
-from app.services.logbook.gateways.eight_a_nu_scraper import EightANuClient
+from app.services.logbook.gateways.eight_a_nu_scraper import EightANuClient, EightANuClientCLI
 
 # Sample ascent data for tests
 SAMPLE_ASCENTS = {
@@ -544,3 +548,142 @@ async def test_get_ascents_with_proxy_rotation(mock_playwright, mock_response):
     assert len(result["ascents"]) == 2
     # Verify proxy rotation attempted
     assert mock_browser.new_context.call_count > 0 
+
+# Tests for EightANuClientCLI
+class TestEightANuClientCLI:
+    """Tests for the CLI-based 8a.nu client."""
+    
+    @pytest.fixture
+    def mock_subprocess_run(self):
+        with patch('subprocess.run') as mock_run:
+            mock_result = Mock()
+            mock_result.stdout = json.dumps({"slug": "test_user"})
+            mock_result.stderr = ""
+            mock_run.return_value = mock_result
+            yield mock_run
+    
+    @pytest.fixture
+    def mock_tempdir(self):
+        with patch('tempfile.TemporaryDirectory') as mock_temp:
+            mock_dir = Mock()
+            mock_dir.name = "/tmp/test_dir"
+            mock_temp.return_value = mock_dir
+            yield mock_temp
+    
+    def test_init(self):
+        """Test EightANuClientCLI initialization."""
+        client = EightANuClientCLI()
+        assert client.proxy_list == []
+        assert client._user_slug is None
+        
+        proxy_list = ["http://proxy1.com:8080", "http://user:pass@proxy2.com:8080"]
+        client = EightANuClientCLI(proxy_list=proxy_list)
+        assert client.proxy_list == proxy_list
+    
+    def test_get_random_proxy(self):
+        """Test proxy selection and parsing."""
+        # Test with no proxies
+        client = EightANuClientCLI()
+        assert client._get_random_proxy() is None
+        
+        # Test with valid proxy without auth
+        client = EightANuClientCLI(proxy_list=["http://proxy.com:8080"])
+        proxy = client._get_random_proxy()
+        assert proxy == {"server": "http://proxy.com:8080"}
+        
+        # Test with valid proxy with auth
+        client = EightANuClientCLI(proxy_list=["http://user:pass@proxy.com:8080"])
+        proxy = client._get_random_proxy()
+        assert proxy == {
+            "server": "http://proxy.com:8080",
+            "username": "user",
+            "password": "pass"
+        }
+        
+        # Test with invalid proxy
+        client = EightANuClientCLI(proxy_list=["invalid:url"])
+        assert client._get_random_proxy() is None
+    
+    def test_context_manager(self, mock_tempdir):
+        """Test context manager functionality."""
+        client = EightANuClientCLI()
+        with client as c:
+            assert c is client
+            assert hasattr(c, 'temp_dir')
+        
+        # Verify cleanup was called
+        mock_tempdir.return_value.cleanup.assert_called_once()
+    
+    def test_authenticate(self, mock_subprocess_run, mock_tempdir):
+        """Test authentication process."""
+        with patch('builtins.open', mock_open := Mock()) as mock_file:
+            client = EightANuClientCLI()
+            with client:
+                client.authenticate("test_user", "test_pass")
+            
+            # Verify file was created with correct script
+            mock_file.assert_called_once()
+            mock_file().write.assert_called_once()
+            script_content = mock_file().write.call_args[0][0]
+            assert "test_user" in script_content
+            assert "test_pass" in script_content
+            
+            # Verify subprocess was called correctly
+            mock_subprocess_run.assert_called_once()
+            cmd_args = mock_subprocess_run.call_args[0][0]
+            assert cmd_args[0] == "playwright"
+            assert cmd_args[1] == "run"
+            
+            # Verify user slug was extracted
+            assert client._user_slug == "test_user"
+    
+    def test_authenticate_failure(self, mock_subprocess_run, mock_tempdir):
+        """Test authentication failure handling."""
+        mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd", stderr="Auth failed")
+        
+        with patch('builtins.open', Mock()):
+            client = EightANuClientCLI()
+            with client:
+                with pytest.raises(ScrapingError, match="Failed to authenticate"):
+                    client.authenticate("test_user", "test_pass")
+    
+    def test_get_ascents(self, mock_subprocess_run, mock_tempdir):
+        """Test retrieving ascents."""
+        mock_subprocess_run.return_value.stdout = json.dumps({
+            "ascents": SAMPLE_ASCENTS["ascents"]
+        })
+        
+        with patch('builtins.open', Mock()):
+            client = EightANuClientCLI()
+            with client:
+                client._user_slug = "test_user"  # Set user slug directly
+                result = client.get_ascents()
+                
+                # Verify subprocess was called correctly
+                mock_subprocess_run.assert_called_once()
+                cmd_args = mock_subprocess_run.call_args[0][0]
+                assert cmd_args[0] == "playwright"
+                assert cmd_args[1] == "run"
+                
+                # Verify result structure
+                assert "ascents" in result
+                assert len(result["ascents"]) == 2
+                assert result["totalItems"] == 2
+    
+    def test_get_ascents_not_authenticated(self):
+        """Test error when getting ascents without authentication."""
+        client = EightANuClientCLI()
+        with client:
+            with pytest.raises(ScrapingError, match="Not authenticated"):
+                client.get_ascents()
+    
+    def test_get_ascents_failure(self, mock_subprocess_run, mock_tempdir):
+        """Test error handling when ascent retrieval fails."""
+        mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "cmd", stderr="API error")
+        
+        with patch('builtins.open', Mock()):
+            client = EightANuClientCLI()
+            with client:
+                client._user_slug = "test_user"  # Set user slug directly
+                with pytest.raises(ScrapingError, match="Failed to retrieve ascents"):
+                    client.get_ascents() 
