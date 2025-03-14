@@ -135,54 +135,54 @@ class GradeService:
     def _initialize_grade_mappings(self) -> None:
         """Initialize grade conversion and mapping tables."""
         self.binned_code_dict = { 
-            1: ["5.0","5.0-","5.0+"], 
-            2: ["5.1","5.1-","5.1+"],
-            3: ["5.2","5.2-","5.2+"], 
-            4: ["5.3","5.3-","5.3+"], 
-            5: ["5.4","5.4-","5.4+"], 
-            6: ["5.5","5.5-","5.5+"], 
-            7: ["5.6","5.6-","5.6+"], 
-            8: ["5.7","5.7-","5.7+"], 
-            9: ["5.8","5.8-","5.8+"], 
-            10: ["5.9","5.9-","5.9+"],
-            11: ["5.10-","5.10a","5.10a/b"],
-            12: ["5.10","5.10b","5.10c","5.10b/c"],
-            13: ["5.10+","5.10c/d", "5.10d"],
-            14: ["5.11-","5.11a","5.11a/b"],
-            15: ["5.11","5.11b","5.11c","5.11b/c"],
-            16: ["5.11+","5.11c/d", "5.11d"],
-            17: ["5.12-","5.12a","5.12a/b"],
-            18: ["5.12","5.12b","5.12c","5.12b/c"],
-            19: ["5.12+","5.12c/d",  "5.12d"],
-            20: ["5.13-","5.13a","5.13a/b"],
-            21: ["5.13","5.13b","5.13c","5.13b/c"],
-            22: ["5.13+", "5.13c/d", "5.13d"],
-            23: ["5.14-","5.14a","5.14a/b"],
-            24: ["5.14","5.14b","5.14c","5.14b/c"],
-            25: [ "5.14+","5.14c/d", "5.14d"],
-            26: ["5.15-","5.15a","5.15a/b"],
-            27: ["5.15","5.15b","5.15c","5.15b/c"],
-            28: ["5.15+","5.15c/d",  "5.15d"],
+            1: ["5.0","5.0-","5.0+", "3"], 
+            2: ["5.1","5.1-","5.1+", "3+"],
+            3: ["5.2","5.2-","5.2+", "4a"], 
+            4: ["5.3","5.3-","5.3+", "4b"], 
+            5: ["5.4","5.4-","5.4+", "4c"], 
+            6: ["5.5","5.5-","5.5+", "5a"], 
+            7: ["5.6","5.6-","5.6+", "5a+"], 
+            8: ["5.7","5.7-","5.7+", "5b"], 
+            9: ["5.8","5.8-","5.8+", "5c"], 
+            10: ["5.9","5.9-","5.9+", "5c+"],
+            11: ["5.10-","5.10a","5.10a/b", "6a"],
+            12: ["5.10","5.10b","5.10c","5.10b/c", "6a+"],
+            13: ["5.10+","5.10c/d", "5.10d", "6b"],
+            14: ["5.11-","5.11a","5.11a/b", "6b+"],
+            15: ["5.11","5.11b","5.11c","5.11b/c", "6c"],
+            16: ["5.11+","5.11c/d", "5.11d", "6c+"],
+            17: ["5.12-","5.12a","5.12a/b", "7a"],
+            18: ["5.12","5.12b","5.12c","5.12b/c", "7a+"],
+            19: ["5.12+","5.12c/d",  "5.12d", "7b"],
+            20: ["5.13-","5.13a","5.13a/b", "7b+"],
+            21: ["5.13","5.13b","5.13c","5.13b/c", "7c"],
+            22: ["5.13+", "5.13c/d", "5.13d", "7c+"],
+            23: ["5.14-","5.14a","5.14a/b", "8a"],
+            24: ["5.14","5.14b","5.14c","5.14b/c", "8a+"],
+            25: [ "5.14+","5.14c/d", "5.14d", "8b"],
+            26: ["5.15-","5.15a","5.15a/b", "8b+"],
+            27: ["5.15","5.15b","5.15c","5.15b/c", "8c"],
+            28: ["5.15+","5.15c/d",  "5.15d", "9a"],
             101: ["V-easy"],
-            102: ["V0","V0-","V0+","V0-1"],
-            103: ["V1","V1-","V1+","V1-2"],
-            104: ["V2","V2-","V2+","V2-3"],
-            105: ["V3","V3-","V3+","V3-4"],
-            106: ["V4","V4-","V4+","V4-5"],
-            107: ["V5","V5-","V5+","V5-6", "V6", "V6-"],
-            108: ["V6+","V6-7"],
-            109: ["V7","V7-","V7+","V7-8"],
-            110: ["V8","V8-","V8+","V8-9"],
-            111: ["V9","V9-","V9+","V9-10"],
-            112: ["V10","V10-","V10+","V10-11"],
-            113: ["V11","V11-","V11+","V11-12"],
-            114: ["V12","V12-","V12+","V12-13"],
-            115: ["V13","V13-","V13+","V13-14"],
-            116: ["V14","V14-","V14+","V14-15"],
-            117: ["V15","V15-","V15+","V15-16"],
-            118: ["V16","V16-","V16+"],
-            119: ["V17","V17-","V17+"],
-            120: ["V18"]
+            102: ["V0","V0-","V0+","V0-1", "f3", "Font 3"],
+            103: ["V1","V1-","V1+","V1-2", "f4", "Font 4"],
+            104: ["V2","V2-","V2+","V2-3", "f5", "Font 5"],
+            105: ["V3","V3-","V3+","V3-4", "f6A", "f6A+"],
+            106: ["V4","V4-","V4+","V4-5", "f6B", "f6B+"],
+            107: ["V5","V5-","V5+","V5-6", "V6", "V6-", "f6C", "f6C+"],
+            108: ["V6+","V6-7", "f7A"],
+            109: ["V7","V7-","V7+","V7-8", "f7A+"],
+            110: ["V8","V8-","V8+","V8-9", "f7B"],
+            111: ["V9","V9-","V9+","V9-10", "f7B+"],
+            112: ["V10","V10-","V10+","V10-11", "f7C"],
+            113: ["V11","V11-","V11+","V11-12", "f7C+"],
+            114: ["V12","V12-","V12+","V12-13", "f8A"],
+            115: ["V13","V13-","V13+","V13-14", "f8A+"],
+            116: ["V14","V14-","V14+","V14-15", "f8B"],
+            117: ["V15","V15-","V15+","V15-16", "f8B+"],
+            118: ["V16","V16-","V16+", "f8C"],
+            119: ["V17","V17-","V17+", "f8C+"],
+            120: ["V18", "f9A"]
         }
         
         self.routes_grade_list = [
@@ -230,8 +230,8 @@ class GradeService:
         # French to YDS conversion mapping
         self.french_to_yds = {
             "3": "5.4", "3+": "5.5",
-            "4": "5.5", "4+": "5.6",
-            "5a": "5.7", "5b": "5.8", "5c": "5.9",
+            "4a": "5.2", "4b": "5.3", "4c": "5.4",
+            "5a": "5.5", "5a+": "5.6", "5b": "5.7", "5c": "5.8", "5c+": "5.9",
             "6a": "5.10a", "6a+": "5.10b",
             "6b": "5.10c", "6b+": "5.10d",
             "6c": "5.11b", "6c+": "5.11c",
@@ -272,10 +272,16 @@ class GradeService:
         
         Returns 0 for invalid or unrecognized grades."""
         try:
+            if not grade:
+                return 0
+                
+            # Clean up the grade by removing qualifiers and other non-grade information
+            cleaned_grade = self._clean_grade_format(grade)
+            
             # If not in cache, perform conversion
             result = 0
             for code, grade_list in self.binned_code_dict.items():
-                if grade in grade_list:
+                if cleaned_grade in grade_list:
                     result = code
                     break
             
@@ -286,6 +292,80 @@ class GradeService:
         except Exception as e:
             logger.error(f"Error converting grade to code: {e}")
             return 0
+            
+    def _clean_grade_format(self, grade: str) -> str:
+        """Clean grade string by removing qualifiers and non-grade information.
+        
+        This handles mixed formats like '5.10b/c R', '5.9 PG13', 'V1 PG13', etc.
+        """
+        if not grade:
+            return ""
+            
+        try:
+            # Extract just the core grade information
+            if grade.startswith('5.'):
+                # YDS grade format (5.xx)
+                parts = grade.split()
+                core_grade = parts[0]
+                # Handle cases like "5.10b/c"
+                if '/' in core_grade and len(core_grade) <= 8:
+                    return core_grade
+                # Remove any suffixes with non-grade characters
+                for suffix in ['R', 'X', 'PG13', 'PG', 'C0', 'C1', 'C2', 'A0', 'A1', 'A2']:
+                    if suffix in core_grade:
+                        core_grade = core_grade.replace(suffix, '').strip()
+                return core_grade
+                
+            elif grade.startswith('V') and not grade.startswith('Very'):
+                # V-scale format (Vx)
+                parts = grade.split()
+                core_grade = parts[0]
+                # Handle ranges like V2-3
+                if '-' in core_grade and len(core_grade) <= 5:
+                    return core_grade
+                # Remove any qualifiers
+                for suffix in ['R', 'X', 'PG13', 'PG']:
+                    if suffix in core_grade:
+                        core_grade = core_grade.replace(suffix, '').strip()
+                return core_grade
+                
+            elif grade.startswith('f') and len(grade) >= 2:
+                # Font boulder grade format (f6A, f7C+, etc)
+                import re
+                match = re.match(r'^f(\d+[A-C]\+?)', grade)
+                if match:
+                    return "f" + match.group(1)
+                return grade
+                
+            elif any(grade.startswith(prefix) for prefix in ['3', '4', '5', '6', '7', '8', '9']):
+                # Might be French/European grade format (4a, 5c+, 6a, 7c, etc.)
+                import re
+                
+                # Match standard form like "5c+" or "6a"
+                match = re.match(r'^(\d+[a-c]\+?)', grade)
+                if match:
+                    return match.group(1)
+                    
+                # Match variations like "5.c+" or "6.a"
+                match = re.match(r'^(\d+)\.([a-c])(\+?)', grade)
+                if match:
+                    return match.group(1) + match.group(2) + match.group(3)
+                    
+                # Match Font boulder grades like "7A+" or "6C"
+                match = re.match(r'^(\d+[A-C]\+?)', grade)
+                if match:
+                    return "f" + match.group(1)  # Add 'f' prefix for Font system
+                    
+                # Handle "Easy 5th" and similar descriptions
+                if "Easy" in grade and "5th" in grade:
+                    return "5.0"  # Map to YDS equivalent
+                    
+            # If we can't recognize a specific format, return as is
+            return grade
+            
+        except Exception as e:
+            logger.warning(f"Error cleaning grade format '{grade}': {e}")
+            return grade
 
     async def convert_grades_to_codes(
         self, 

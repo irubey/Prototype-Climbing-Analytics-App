@@ -101,13 +101,14 @@ class LogbookOrchestrator:
         self,
         user_id: UUID,
         logbook_type: LogbookType,
-        raw_df: pd.DataFrame
+        raw_df: pd.DataFrame,
+        profile_url: Optional[str] = None
     ) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
         """Centralized processing logic for all logbook types."""
         normalized_df = await self._normalize_data(raw_df, logbook_type, user_id)
         processed_df = await self._process_data(normalized_df)
         ticks, pyramids, tags = await self._build_entities(processed_df, user_id)
-        await self._commit_to_database(ticks, pyramids, tags, user_id, logbook_type)
+        await self._commit_to_database(ticks, pyramids, tags, user_id, logbook_type, profile_url)
         logger.info(f"{logbook_type.value} sync completed", extra={
             "user_id": str(user_id),
             "total_ticks": len(ticks),
@@ -121,7 +122,7 @@ class LogbookOrchestrator:
         try:
             async with MountainProjectCSVClient() as client:
                 raw_df = await client.fetch_user_ticks(profile_url)
-            return await self._process_ticks(user_id, LogbookType.MOUNTAIN_PROJECT, raw_df)
+            return await self._process_ticks(user_id, LogbookType.MOUNTAIN_PROJECT, raw_df, profile_url=profile_url)
         except Exception as e:
             logger.error("Mountain Project processing failed", extra={
                 "user_id": str(user_id),
@@ -130,17 +131,24 @@ class LogbookOrchestrator:
             })
             raise DataSourceError(f"Error processing Mountain Project data: {str(e)}")
 
-    async def process_eight_a_nu_ticks(self, user_id: UUID, username: str, password: str):
+    async def process_eight_a_nu_ticks(self, user_id: UUID, username: str, password: str) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
         """Process 8a.nu ticks using synchronous client in a thread."""
         try:
             loop = asyncio.get_running_loop()
-            raw_df = await loop.run_in_executor(
+            # Fetch data synchronously and get the slug
+            user_slug, raw_df = await loop.run_in_executor(
                 self.executor,
                 self._fetch_eight_a_nu_data_sync,
                 username,
                 password
             )
-            return await self._process_ticks(user_id, LogbookType.EIGHT_A_NU, raw_df)
+            
+            # Construct the profile URL
+            profile_url = f"https://www.8a.nu/user/{user_slug}"
+            logger.info(f"Constructed 8a.nu profile URL: {profile_url}", extra={"user_id": str(user_id)})
+            
+            # Pass the profile_url to _process_ticks
+            return await self._process_ticks(user_id, LogbookType.EIGHT_A_NU, raw_df, profile_url=profile_url)
         except Exception as e:
             logger.error("8a.nu processing failed", extra={
                 "user_id": str(user_id),
@@ -149,13 +157,13 @@ class LogbookOrchestrator:
             })
             raise DataSourceError(f"Error processing 8a.nu data: {str(e)}")
 
-    def _fetch_eight_a_nu_data_sync(self, username: str, password: str) -> pd.DataFrame:
-        """Fetch 8a.nu data using the Playwright CLI client."""
+    def _fetch_eight_a_nu_data_sync(self, username: str, password: str) -> Tuple[str, pd.DataFrame]:
+        """Fetch 8a.nu data using the Playwright CLI client and return the user_slug and DataFrame."""
         logger.info("Fetching 8a.nu data using Playwright CLI client")
         with EightANuScraper() as client:
-            client.authenticate(username, password)
+            user_slug = client.authenticate(username, password)
             data = client.get_ascents()
-            return pd.DataFrame(data.get("ascents", []))
+            return user_slug, pd.DataFrame(data.get("ascents", []))
 
     async def _fetch_mountain_project_data(self, profile_url: str) -> pd.DataFrame:
         """Fetch Mountain Project data using async client."""
@@ -266,72 +274,17 @@ class LogbookOrchestrator:
             
         return ticks_data, [], tag_data
 
-    async def _commit_to_database(
-        self,
-        ticks_data: List[Dict],
-        pyramid_data: List[Dict],
-        tag_data: List[str],
-        user_id: UUID,
-        logbook_type: LogbookType
-    ):
-        """Commit all entities to database"""
-        # Save ticks
-        ticks = await self.db_service.save_user_ticks(ticks_data, user_id)
-        
-        # Now that we have saved ticks with valid IDs, build the performance pyramid
-        # using the saved tick IDs to maintain referential integrity
-        if hasattr(self, '_temp_processed_df'):
-            # Create a mapping from (route_name, location_raw) to tick_id
-            tick_id_map = {}
-            for tick in ticks:
-                key = (tick.route_name, tick.location_raw)
-                tick_id_map[key] = tick.id
-            
-            # Build performance pyramid data
-            raw_pyramid_data = await self.pyramid_builder.build_performance_pyramid(self._temp_processed_df, user_id)
-            
-            # Update tick_ids to match the actual database IDs
-            pyramid_data = []
-            for entry in raw_pyramid_data:
-                # Find the corresponding send in the DataFrame
-                send_index = None
-                for i, row in self._temp_processed_df.iterrows():
-                    if (row['tick_date'] == entry['send_date'] and 
-                        row['location'] == entry['location'] and
-                        row['binned_code'] == entry['binned_code']):
-                        send_index = i
-                        break
-                
-                if send_index is not None:
-                    send = self._temp_processed_df.iloc[send_index]
-                    key = (send['route_name'], send['location_raw'])
-                    if key in tick_id_map:
-                        entry['tick_id'] = tick_id_map[key]
-                        pyramid_data.append(entry)
-                    else:
-                        logger.warning(f"No matching tick_id found for {key}")
-            
-            # Clean up temporary DataFrame
-            delattr(self, '_temp_processed_df')
-        
-        # Save pyramids
-        pyramids = await self.db_service.save_performance_pyramid(pyramid_data, user_id)
-        
-        # Save tags if present
-        tags = []
-        if tag_data:
-            tick_ids = [tick.id for tick in ticks]
-            tags = await self.db_service.save_tags(tag_data, tick_ids)
-        
-        # Update sync timestamp
-        await self.db_service.update_sync_timestamp(user_id, logbook_type)
-        
-        logger.info(f"{logbook_type.value} sync completed", extra={
-            "user_id": str(user_id),
-            "total_ticks": len(ticks),
-            "total_pyramids": len(pyramids),
-            "total_tags": len(tags)
-        })
+    async def _commit_to_database(self, ticks_data: List[Dict], pyramid_data: List[Dict], tag_data: List[str], user_id: UUID, logbook_type: LogbookType, profile_url: Optional[str] = None):
+        try:
+            async with self.db.begin():  # Transaction scope
+                ticks = await self.db_service.save_user_ticks(ticks_data, user_id)
+                pyramids = await self.db_service.save_performance_pyramid(pyramid_data, user_id)
+                tags = await self.db_service.save_tags(tag_data, [tick.id for tick in ticks])
+                await self.db_service.update_sync_timestamp(user_id, logbook_type, profile_url)
+            # Commit happens automatically on successful exit
+        except Exception as e:
+            logger.error("Database commit failed", extra={"user_id": str(user_id), "error": str(e)})
+            raise
 
     async def _process_grades(self, df: pd.DataFrame) -> pd.DataFrame:
         """Process grades and calculate grade-related metrics"""

@@ -136,136 +136,92 @@ class DatabaseService:
             })
             raise DatabaseError(f"Error saving performance pyramid: {str(e)}")
     
-    async def save_tags(
-        self,
-        tag_names: List[str],
-        tick_ids: List[int]
-    ) -> List[Tag]:
-        """Save tags and create associations with ticks"""
-        logger.info("Saving tags and associations", extra={
-            "tag_count": len(tag_names),
-            "tick_count": len(tick_ids)
-        })
-        
+    async def save_tags(self, tag_names: List[str], tick_ids: List[int]) -> List[Tag]:
+        logger.info("Saving tags and associations", extra={"tag_count": len(tag_names), "tick_count": len(tick_ids)})
         try:
             tag_objects = []
             new_tags = 0
             existing_tags = 0
-            
-            # First, get all ticks that we'll be associating with tags
-            stmt = select(UserTicks).where(UserTicks.id.in_(tick_ids))
+
+            # Eagerly load ticks with their tags
+            stmt = select(UserTicks).where(UserTicks.id.in_(tick_ids)).options(selectinload(UserTicks.tags))
             result = await self.session.execute(stmt)
             ticks = result.scalars().all()
-            
+
             if not ticks:
                 logger.warning("No ticks found for tag association")
                 return []
-            
+
             # Get or create tags
             for name in tag_names:
-                # Try to find existing tag
                 stmt = select(Tag).where(Tag.name == name)
                 result = await self.session.execute(stmt)
                 tag = result.scalar_one_or_none()
-                
-                # Create new tag if it doesn't exist
                 if not tag:
                     tag = Tag(name=name)
                     self.session.add(tag)
                     new_tags += 1
                 else:
                     existing_tags += 1
-                
                 tag_objects.append(tag)
-            
-            # Ensure tags are created before creating associations
+
             await self.session.flush()
-            
-            logger.debug("Tags processed", extra={
-                "new_tags": new_tags,
-                "existing_tags": existing_tags
-            })
-            
-            # Create associations by adding tags to ticks
+
+            # Create associations
             associations_created = 0
             for tick in ticks:
-                # Add any tags that aren't already associated
-                existing_tag_names = {tag.name for tag in tick.tags}
+                existing_tag_names = {tag.name for tag in tick.tags}  # Tags are already loaded
                 for tag in tag_objects:
                     if tag.name not in existing_tag_names:
                         tick.tags.append(tag)
                         associations_created += 1
-            
+
             await self.session.flush()
-            
+
             logger.info("Successfully saved tags and associations", extra={
                 "total_tags": len(tag_objects),
                 "new_tags": new_tags,
                 "existing_tags": existing_tags,
-                "associations_created": associations_created,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "associations_created": associations_created
             })
-            
             return tag_objects
-            
+
         except Exception as e:
             await self.session.rollback()
-            logger.error("Error saving tags", extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "traceback": traceback.format_exc()
-            })
+            logger.error("Error saving tags", extra={"error": str(e), "traceback": traceback.format_exc()})
             raise DatabaseError(f"Error saving tags: {str(e)}")
-    
-    async def update_sync_timestamp(
-        self,
-        user_id: UUID,
-        logbook_type: LogbookType
-    ) -> None:
-        """Update user's logbook sync timestamp"""
-        logger.info("Updating sync timestamp", extra={
-            "user_id": str(user_id),
-            "logbook_type": logbook_type.value
-        })
         
+    async def update_sync_timestamp(self, user_id: UUID, logbook_type: LogbookType, profile_url: str = None) -> None:
+        """Update user's logbook sync timestamp and URL if provided"""
+        logger.info("Updating sync timestamp", extra={"user_id": str(user_id), "logbook_type": logbook_type.value, "profile_url": profile_url})
         try:
-            # Get user
             stmt = select(User).where(User.id == user_id)
             result = await self.session.execute(stmt)
             user = result.scalar_one_or_none()
-            
             if not user:
-                logger.error("User not found", extra={
-                    "user_id": str(user_id)
-                })
+                logger.error("User not found", extra={"user_id": str(user_id)})
                 raise DatabaseError(f"User {user_id} not found")
             
-            # Update timestamp
             now = datetime.now(timezone.utc)
             if logbook_type == LogbookType.MOUNTAIN_PROJECT:
-                user.mtn_project_last_sync = now
+                user.mountain_project_last_sync = now
+                if profile_url:
+                    user.mountain_project_url = str(profile_url) 
             elif logbook_type == LogbookType.EIGHT_A_NU:
-                user.eight_a_last_sync = now
+                user.eight_a_nu_last_sync = now
+                if profile_url:
+                    user.eight_a_nu_url = profile_url 
             
             await self.session.flush()
-            
             logger.info("Successfully updated sync timestamp", extra={
                 "user_id": str(user_id),
                 "logbook_type": logbook_type.value,
-                "timestamp": now.isoformat()
+                "timestamp": now.isoformat(),
+                "profile_url": profile_url
             })
-            
         except Exception as e:
-            await self.session.rollback()
-            logger.error("Error updating sync timestamp", extra={
-                "user_id": str(user_id),
-                "logbook_type": logbook_type.value,
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "traceback": traceback.format_exc()
-            })
+            logger.error("Error updating sync timestamp", extra={"user_id": str(user_id), "logbook_type": logbook_type.value, "error": str(e)})
             raise DatabaseError(f"Error updating sync timestamp: {str(e)}")
-    
     async def get_user_ticks(
         self,
         user_id: UUID,

@@ -189,6 +189,8 @@ class TokenIntrospectResponse(BaseModel):
     aud: Optional[List[str]] = Field(None, description="Intended audiences")
     iss: Optional[str] = Field(None, description="Token issuer")
     jti: Optional[str] = Field(None, description="JWT ID")
+    mountain_project_last_sync: Optional[str] = None 
+    eight_a_nu_last_sync: Optional[str] = None
 
 class UserResponse(UserBase):
     """Schema for user response data with detailed metadata."""

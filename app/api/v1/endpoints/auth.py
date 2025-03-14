@@ -118,12 +118,12 @@ async def login_for_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests.
     Implements rate limiting and refresh token rotation.
-    Also handles account reactivation for deactivated accounts.
+    Blocks login for deactivated accounts.
     """
     # Rate limiting check
-    ip_address = form_data.client_id or "127.0.0.1"  # Use client_id if available
+    ip_address = form_data.client_id or "127.0.0.1"
     failed_attempts = await redis_client.incr(f"failed_logins:{ip_address}")
-    await redis_client.expire(f"failed_logins:{ip_address}", 60)  # Reset after 1 minute
+    await redis_client.expire(f"failed_logins:{ip_address}", 60)
 
     if failed_attempts > 10:
         raise HTTPException(
@@ -132,7 +132,7 @@ async def login_for_access_token(
             headers={"Retry-After": "60"}
         )
 
-    # First check if user exists and credentials are valid, regardless of active status
+    # Fetch user by email or username
     result = await db.execute(
         select(User).filter(
             or_(User.email == form_data.username, User.username == form_data.username)
@@ -140,6 +140,7 @@ async def login_for_access_token(
     )
     user = result.scalar_one_or_none()
 
+    # Check credentials and active status
     if not user or not verify_password(form_data.password, user.hashed_password):
         logger.warning(
             "Failed login attempt",
@@ -155,14 +156,17 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    # If user exists but is inactive, reactivate the account
+    # Block login if account is deactivated
     if not user.is_active:
-        user.is_active = True
-        user.tier = UserTier.FREE
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-        logger.info(f"Reactivated account for user {user.id}")
+        logger.info(
+            f"Login attempt blocked for deactivated account: {user.id}",
+            extra={"email": form_data.username}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated. Please contact support to reactivate.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
 
     # Reset failed attempts on successful login
     await redis_client.delete(f"failed_logins:{ip_address}")
@@ -217,7 +221,6 @@ async def login_for_access_token(
         expires_in=60 * 60 * 24 * 8,  # 8 days
         refresh_token=refresh_token
     )
-
 @router.post("/refresh-token", response_model=Token)
 async def refresh_token(
     response: Response,
@@ -339,7 +342,7 @@ async def introspect_token(
     try:
         logger.debug(f"Introspecting token, type hint: {request.token_type_hint}")
         
-        # Normalize token type hint - handle both access_token and access
+        # Normalize token type hint
         expected_type = "access"
         if request.token_type_hint:
             if request.token_type_hint == "access_token":
@@ -351,7 +354,7 @@ async def introspect_token(
                 
         logger.debug(f"Normalized token type hint: {expected_type}")
         
-        # Verify token with normalized type
+        # Verify token
         token_data = await verify_token(
             request.token,
             db,
@@ -360,7 +363,7 @@ async def introspect_token(
         
         logger.debug(f"Token verified successfully: {token_data}")
 
-        # Get user information
+        # Fetch user information
         result = await db.execute(
             select(User).filter(User.id == token_data.user_id)
         )
@@ -372,33 +375,31 @@ async def introspect_token(
             
         logger.debug(f"Found user: {user.email} for token")
 
-        # Create response with all available information
-        # Map internal token type back to OAuth2 standard format
+        # Map token type to OAuth2 standard
         oauth2_token_type = "access_token" if token_data.type == "access" else token_data.type
         
+        # Construct response with sync fields
         response = TokenIntrospectResponse(
             active=True,
             scope=" ".join(token_data.scopes),
             username=user.email,
             token_type=oauth2_token_type,
             sub=str(token_data.user_id),
-            jti=token_data.jti
+            jti=token_data.jti,
+            mountain_project_last_sync=user.mountain_project_last_sync.isoformat() if user.mountain_project_last_sync else None,
+            eight_a_nu_last_sync=user.eight_a_nu_last_sync.isoformat() if user.eight_a_nu_last_sync else None
         )
         
         logger.debug(f"Introspection response: {response}")
         return response
 
     except AuthenticationError as e:
-        # Log the error for debugging
         logger.warning(f"Token introspection failed: {str(e)}")
-        # Return inactive token response instead of error
         return TokenIntrospectResponse(active=False)
     except Exception as e:
-        # Log unexpected errors
         logger.error(f"Unexpected error during token introspection: {str(e)}", exc_info=True)
-        # Return inactive token for any error
         return TokenIntrospectResponse(active=False)
-
+    
 @router.post("/logout")
 async def logout(
     response: Response,

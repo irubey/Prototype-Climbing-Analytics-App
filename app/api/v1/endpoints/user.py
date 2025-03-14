@@ -53,56 +53,13 @@ async def get_current_user_profile(
     """
     Get current user's profile information.
     
-    - Returns user profile data from cache if available
+    - Returns user profile data directly from database
     - Includes climber summary if available
     - Requires valid access token
-    - Caches result for 5 minutes
     """
-    start_time = time.time()
-    try:
-        # Try to get from cache first
-        cache_key = f"user_profile:{current_user.id}"
-        cached = await redis_client.get(cache_key)
-        
-        if cached:
-            profile = UserProfile.model_validate_json(cached)
-            logger.info("Profile retrieved from cache", extra={"user_id": str(current_user.id)})
-            return profile
-        
-        # Convert to Pydantic model for consistent serialization
-        profile = UserProfile.model_validate(current_user)
-        
-        # Cache for 5 minutes
-        await redis_client.setex(
-            cache_key,
-            300,  # 5 minutes TTL
-            profile.model_dump_json()
-        )
-        
-        logger.info("Profile cached", extra={"user_id": str(current_user.id)})
-        return profile
-        
-    except AuthenticationError as e:
-        logger.error(f"Authentication error in get_current_user_profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
-        )
-    except Exception as e:
-        logger.error(f"Error getting user profile: {e}")
-        # Return uncached profile on error
-        return UserProfile.model_validate(current_user)
-    finally:
-        duration = time.time() - start_time
-        logger.info(
-            f"Endpoint {request.url.path} completed",
-            extra={
-                "duration": f"{duration:.3f}s",
-                "user_id": str(current_user.id),
-                "path": request.url.path,
-                "cached": bool(cached)
-            }
-        )
+    profile = UserProfile.model_validate(current_user)
+    logger.info(f"returning profile: {profile}", extra={"user_id": str(current_user.id)})
+    return profile
 
 @router.patch("/me", response_model=UserProfile)
 async def update_user_profile(

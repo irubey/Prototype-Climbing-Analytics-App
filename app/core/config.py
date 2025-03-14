@@ -183,6 +183,12 @@ class Settings(BaseSettings):
         description="Stripe price ID for premium tier"
     )
     
+    # Frontend URL
+    FRONTEND_URL: str = Field(
+        default="http://localhost:3000",
+        description="Frontend application URL"
+    )
+    
     # Application URLs
     SERVER_HOST: str = Field(
         default="http://localhost:8000",
@@ -228,6 +234,20 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [i.strip() for i in v.split(",")]
         return v
+        
+    @property
+    def STRIPE_PRICE_IDS(self) -> Dict[str, str]:
+        """
+        Maps user tiers to their respective Stripe price IDs.
+        
+        Returns:
+            Dictionary mapping UserTier values to price IDs
+        """
+        from app.models.enums import UserTier
+        return {
+            UserTier.BASIC: self.STRIPE_PRICE_ID_BASIC,
+            UserTier.PREMIUM: self.STRIPE_PRICE_ID_PREMIUM
+        }
         
     model_config = ConfigDict(
         case_sensitive=True,

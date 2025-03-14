@@ -9,8 +9,9 @@ This module defines Pydantic models for:
 """
 
 from datetime import date as DateType
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from pydantic import BaseModel, Field, UUID4, HttpUrl, model_validator
+import math
 
 from app.models.enums import (
     ClimbingDiscipline,
@@ -40,7 +41,7 @@ class TickData(BaseModel):
     binned_code: Optional[int] = Field(
         None,
         ge=0,
-        le=100,
+        le=200,
         description="Numeric grade code"
     )
     tick_date: DateType = Field(
@@ -52,7 +53,7 @@ class TickData(BaseModel):
         max_length=200,
         description="Location of the route"
     )
-    discipline: ClimbingDiscipline = Field(
+    discipline: Optional[Union[ClimbingDiscipline, str]] = Field(
         ...,
         description="Climbing discipline"
     )
@@ -60,7 +61,7 @@ class TickData(BaseModel):
         ...,
         description="Whether the route was sent"
     )
-    route_url: Optional[HttpUrl] = Field(
+    route_url: Optional[Union[HttpUrl, str]] = Field(
         None,
         description="URL of the route"
     )
@@ -70,7 +71,7 @@ class TickData(BaseModel):
         le=5,
         description="Route quality rating"
     )
-    logbook_type: Optional[LogbookType] = Field(
+    logbook_type: Optional[Union[LogbookType, str]] = Field(
         None,
         description="Source of the tick data"
     )
@@ -84,14 +85,19 @@ class TickData(BaseModel):
     @model_validator(mode="after")
     def validate_tick_data(self) -> "TickData":
         """Validate tick data."""
-        if self.tick_date > DateType.today():
+        if self.tick_date and self.tick_date > DateType.today():
             raise ValueError("Tick date cannot be in the future")
+            
+        # Convert NaN route_quality to None
+        if self.route_quality is not None and (isinstance(self.route_quality, float) and math.isnan(self.route_quality)):
+            self.route_quality = None
+            
         return self
 
 class DashboardBaseMetrics(BaseModel):
     """Schema for basic dashboard visualization metrics."""
-    recent_ticks: List[TickData] = Field(
-        ...,
+    recent_ticks: Optional[List[TickData]] = Field(
+        [],
         max_length=50,
         description="Recent climbing ticks"
     )
@@ -112,6 +118,10 @@ class DashboardBaseMetrics(BaseModel):
     @model_validator(mode="after")
     def validate_metrics(self) -> "DashboardBaseMetrics":
         """Validate metric relationships."""
+        # Skip validation if we have no data
+        if not self.discipline_stats:
+            return self
+            
         total = sum(self.discipline_stats.values())
         if total != self.total_climbs:
             raise ValueError("Discipline stats total does not match total climbs")
@@ -160,21 +170,54 @@ class HardSend(BaseModel):
 
 class DashboardPerformanceMetrics(BaseModel):
     """Schema for performance-focused dashboard metrics."""
-    highest_grades: Dict[str, str] = Field(
-        ...,
+    highest_grades: Optional[Dict[str, str]] = Field(
+        {},
         description="Highest grades achieved by discipline"
     )
-    latest_hard_sends: List[HardSend] = Field(
-        ...,
+    latest_hard_sends: Optional[List[HardSend]] = Field(
+        [],
         max_length=10,
         description="Recent hard sends"
     )
 
 
+class DetailedPyramidEntry(BaseModel):
+    """Schema for detailed pyramid data entry."""
+    route_name: str
+    tick_date: DateType
+    route_grade: str
+    binned_grade: Optional[str] = None
+    binned_code: Optional[int] = None
+    length: Optional[int] = None
+    pitches: Optional[int] = None
+    location: Optional[str] = None
+    location_raw: Optional[str] = None
+    lead_style: Optional[str] = None
+    cur_max_rp_sport: Optional[str] = None
+    cur_max_rp_trad: Optional[str] = None
+    cur_max_boulder: Optional[str] = None
+    difficulty_category: Optional[str] = None
+    discipline: Optional[str] = None
+    send_bool: bool
+    length_category: Optional[str] = None
+    season_category: Optional[str] = None
+    route_url: Optional[str] = None
+    notes: Optional[str] = None
+    route_quality: Optional[float] = None
+    user_quality: Optional[float] = None
+    logbook_type: Optional[str] = None
+    tags: List[str] = []
+    send_date: Optional[DateType] = None
+    crux_angle: Optional[str] = None
+    crux_energy: Optional[str] = None
+    num_attempts: Optional[int] = None
+    days_attempts: Optional[int] = None
+    num_sends: Optional[int] = None
+    description: Optional[str] = None
 
 class PerformancePyramidData(BaseModel):
     """Schema for grade pyramid visualization data."""
-    discipline: ClimbingDiscipline = Field(
+    discipline: str = Field(
         ...,
         description="Climbing discipline"
     )
@@ -187,26 +230,33 @@ class PerformancePyramidData(BaseModel):
         ge=0,
         description="Total number of sends"
     )
-
+    detailed_data: List[DetailedPyramidEntry] = Field(
+        ...,
+        description="Detailed tick data with performance metrics"
+    )
 
     @model_validator(mode="after")
     def validate_counts(self) -> "PerformancePyramidData":
         """Validate grade count totals."""
+        # Skip validation if there's no data
+        if not self.grade_counts:
+            return self
+            
         if sum(self.grade_counts.values()) != self.total_sends:
             raise ValueError("Grade counts sum does not match total sends")
         return self
 
 class BaseVolumeData(BaseModel):
     """Schema for climbing volume analysis data."""
-    volume_by_difficulty: Dict[str, Dict[str, Union[int, float]]] = Field(
-        ...,
-        description="Volume metrics by difficulty category"
+    ticks_data: List[Dict[str, Any]] = Field(
+        [],
+        description="All tick data for volume analysis"
     )
 
 class ProgressionData(BaseModel):
     """Schema for climbing progression analysis data."""
-    progression_by_discipline: Dict[ClimbingDiscipline, List[Dict[str, Union[DateType, str]]]] = Field(
-        ...,
+    progression_by_discipline: Dict[str, List[Dict[str, Union[DateType, str]]]] = Field(
+        {},
         description="Progression data by discipline"
     )
 
@@ -214,11 +264,11 @@ class ProgressionData(BaseModel):
 class LocationAnalysis(BaseModel):
     """Schema for climbing location analysis data."""
     location_distribution: Dict[str, Dict[str, Union[int, List[str]]]] = Field(
-        ...,
+        {},
         description="Distribution of climbs by location"
     )
     seasonal_patterns: Dict[str, int] = Field(
-        ...,
+        {},
         description="Distribution of climbs by season"
     )
 
@@ -226,6 +276,10 @@ class LocationAnalysis(BaseModel):
     @model_validator(mode="after")
     def validate_seasonal_totals(self) -> "LocationAnalysis":
         """Validate seasonal distribution totals."""
+        # Skip validation if there's no data
+        if not self.location_distribution or not self.seasonal_patterns:
+            return self
+            
         location_total = sum(d.get("count", 0) for d in self.location_distribution.values())
         seasonal_total = sum(self.seasonal_patterns.values())
         if location_total != seasonal_total:
@@ -234,16 +288,20 @@ class LocationAnalysis(BaseModel):
 
 class PerformanceCharacteristics(BaseModel):
     """Schema for climbing performance characteristics data."""
-    angle_distribution: Dict[CruxAngle, int] = Field(
-        ...,
+    crux_types: Dict[str, int] = Field(
+        {},
+        description="Distribution of climbs by crux type"
+    )
+    angle_distribution: Dict[str, int] = Field(
+        {},
         description="Distribution of climbs by angle"
     )
-    energy_distribution: Dict[CruxEnergyType, int] = Field(
-        ...,
+    energy_distribution: Dict[str, int] = Field(
+        {},
         description="Distribution of climbs by energy type"
     )
     attempts_analysis: Dict[str, Union[float, int]] = Field(
-        ...,
+        {},
         description="Analysis of climbing attempts"
     )
 
@@ -251,6 +309,10 @@ class PerformanceCharacteristics(BaseModel):
     @model_validator(mode="after")
     def validate_distributions(self) -> "PerformanceCharacteristics":
         """Validate distribution totals."""
+        # Skip validation if there's no data
+        if not self.angle_distribution or not self.energy_distribution:
+            return self
+            
         angle_total = sum(self.angle_distribution.values())
         energy_total = sum(self.energy_distribution.values())
         if angle_total != energy_total:

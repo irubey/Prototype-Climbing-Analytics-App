@@ -128,11 +128,11 @@ class EightANuScraper:
             time.sleep(self.MIN_DELAY * (attempt + 1))  # Exponential backoff
         return ""
     
-    def authenticate(self, username: str, password: str) -> None:
-        """Authenticate with 8a.nu using provided credentials."""
+    def authenticate(self, username: str, password: str) -> str:
+        """Authenticate with 8a.nu using provided credentials and return the user slug."""
         if self._user_slug and os.path.exists(self._cookie_file):
             logger.info(f"Using existing session for slug: {self._user_slug}")
-            return
+            return self._user_slug
         
         script_path = os.path.join(self.scripts_dir, f"auth_{secrets.token_hex(8)}.js")
         try:
@@ -234,6 +234,7 @@ chromium.use(stealth);
                 raise ScrapingError("Could not extract user slug")
                 
             logger.info(f"Authenticated with 8a.nu, slug: {self._user_slug}")
+            return self._user_slug
             
         except Exception as e:
             logger.error("Authentication failed: %s", str(e), extra={"traceback": traceback.format_exc()})
@@ -427,7 +428,8 @@ chromium.use(stealth);
                 return {
                     "ascents": all_ascents,
                     "totalItems": len(all_ascents),
-                    "pageIndex": 0
+                    "pageIndex": 0,
+                    "user_slug": self._user_slug
                 }
             except ValueError as e:
                 logger.error("JSON parsing error: %s", str(e), extra={"traceback": traceback.format_exc()})

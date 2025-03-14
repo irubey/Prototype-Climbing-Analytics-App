@@ -61,11 +61,11 @@ class User(Base):
     
     # Mountain Project Integration
     mountain_project_url: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
-    mtn_project_last_sync: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    mountain_project_last_sync: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # 8a.nu Integration
     eight_a_nu_url: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
-    eight_a_last_sync: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    eight_a_nu_last_sync: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
