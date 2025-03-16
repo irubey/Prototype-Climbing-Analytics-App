@@ -88,7 +88,7 @@ class PyramidBuilder:
             results = []
             # Process each discipline separately
             for discipline in ClimbingDiscipline:
-                discipline_sends = sends_df[sends_df['discipline'] == discipline]
+                discipline_sends = sends_df[sends_df['discipline'] == discipline.value]
                 
                 if discipline_sends.empty:
                     logger.debug(f"No {discipline.value} sends found")
@@ -387,7 +387,7 @@ class PyramidBuilder:
         
         # Determine the grade system based on climb type
         grade_system = GradingSystem.YDS
-        if climb_type == ClimbingDiscipline.BOULDER:
+        if climb_type == 'boulder':
             grade_system = GradingSystem.V_SCALE
         
         # Get the list of grades for the discipline

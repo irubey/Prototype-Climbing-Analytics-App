@@ -29,11 +29,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # Application imports
-from app.db.base_class import Base
-
+from app.db.base_class import EntityBase
 from app.models.enums import UserTier, PaymentStatus
 
-class User(Base):
+class User(EntityBase):
     """Core user model for authentication and profile data."""
     
     __tablename__ = "users"

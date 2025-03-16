@@ -29,7 +29,6 @@ from app.models import (
 
 )
 from app.models.enums import (
-    ClimbingDiscipline,
     LogbookType
 )
 from app.services.utils.grade_service import (
@@ -62,6 +61,53 @@ class LogbookOrchestrator:
         self.db_service = db_service or DatabaseService(db)
         self.executor = ThreadPoolExecutor(max_workers=2)  # Allow 2 concurrent syncs
         logger.debug("LogbookOrchestrator services initialized")
+
+    STANDARDIZED_TAG_MAPPING = {
+        'firstAscent': 'First Ascent',
+        'chipped': 'Chipped Route',
+        'withKneepad': 'Used Kneepad',
+        'badAnchor': 'Bad Anchor',
+        'badBolts': 'Bad Bolts',
+        'highFirstBolt': 'High First Bolt',
+        'looseRock': 'Loose Rock',
+        'badClippingPosition': 'Bad Clipping Position',
+        'isHard': 'Hard for Grade',
+        'isSoft': 'Soft for Grade',
+        'isBoltedByMe': 'Bolted by Me',
+        'isOverhang': 'Overhang',
+        'isVertical': 'Vertical',
+        'isSlab': 'Slab',
+        'isRoof': 'Roof',
+        'isAthletic': 'Athletic',
+        'isEndurance': 'Endurance',
+        'isCrimpy': 'Crimpy',
+        'isCruxy': 'Cruxy',
+        'isSloper': 'Slopers',
+        'isTechnical': 'Technical',
+        'isDanger': 'Dangerous',
+        # Feature Tags:
+        'arete': 'Arete',
+        'corner': 'Corner',
+        
+        #Hold Types:
+        'pinch': 'Pinch',
+        'crimp': 'Crimp',
+        'sloper': 'Sloper',
+        'jug': 'Jug',
+        'pocket': 'Pocket',
+        'crack': 'Crack',
+
+        #positions
+        'gaston': 'Gaston',
+        'heelhook': 'Heelhook',
+        'sidepull': 'Sidepull',
+        'undercling': 'Undercling',
+        'dropknee': 'Dropknee',
+        'flag': 'Flag',
+        'crossthrough': 'Crossthrough',
+        'batHang': 'Bat Hang',
+    }
+
 
     async def process_logbook_data(
         self,
@@ -194,14 +240,13 @@ class LogbookOrchestrator:
             # Process grades first without requiring discipline
             df = await self._process_grades(df)
             
-            # Now process classifications using the processed grades
+            # Now process classifications using the processed grades 
+            #length_category is processed first because it is used in the discipline classification
+            #discipline is processed next because it is used in the send classification
+            df['length_category'] = classifier.classify_length(df)
             df['discipline'] = classifier.classify_discipline(df)
             df['send_bool'] = classifier.classify_sends(df)
-            df['length_category'] = classifier.classify_length(df)
             df['season_category'] = classifier.classify_season(df)
-            
-            # Convert disciplines to proper enum values after classification
-            df['discipline'] = df['discipline'].map(lambda x: ClimbingDiscipline(x.lower()) if pd.notna(x) else None)
             
             # Calculate max grades after discipline is set
             df = await self._calculate_max_grades(df)
@@ -235,43 +280,109 @@ class LogbookOrchestrator:
         user_id: UUID
     ) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
         """Build database entities from processed data"""
+        # Initialize tag tracking variables
+        tags_by_tick = {}  # Initialize empty dictionary
+        tag_data = []      # Initialize empty list
+        
+        logger.debug("Starting entity building", extra={
+            "columns": df.columns.tolist(),
+            "has_tags_column": 'tags' in df.columns,
+            "row_count": len(df)
+        })
+
         # Define valid columns from UserTicks model
         valid_columns = {
             'route_name', 'tick_date', 'route_grade', 'binned_grade', 'binned_code',
             'length', 'pitches', 'location', 'location_raw', 'lead_style',
-            'cur_max_rp_sport', 'cur_max_rp_trad', 'cur_max_boulder',
+            'cur_max_sport', 'cur_max_trad', 'cur_max_boulder', 'cur_max_tr', 'cur_max_alpine', 'cur_max_winter_ice', 'cur_max_aid', 'cur_max_mixed',
             'difficulty_category', 'discipline', 'send_bool', 'length_category',
             'season_category', 'route_url', 'notes', 'route_quality',
             'user_quality', 'logbook_type'
         }
         
+        if 'discipline' in df.columns:
+            df['discipline'] = df['discipline'].apply(
+                lambda x: x.lower() if pd.notna(x) and isinstance(x, str) else x
+            )
+            
         # Filter DataFrame to only include valid columns that exist
         valid_existing_columns = [col for col in df.columns if col in valid_columns]
-        # Create an explicit copy to avoid SettingWithCopyWarning
         filtered_df = df[valid_existing_columns].copy()
         
-        # Clean any remaining NaN values before conversion to dict
-        # For string columns, convert NaN to None
+        # Clean any remaining NaN values
         for col in filtered_df.columns:
             if filtered_df[col].dtype == 'object' or filtered_df[col].dtype == 'string':
-                # Use .loc to properly set values
                 filtered_df.loc[:, col] = filtered_df[col].astype(object).where(pd.notna(filtered_df[col]), None)
             elif filtered_df[col].dtype == 'float':
-                # For float columns, replace NaN with None 
                 filtered_df.loc[:, col] = filtered_df[col].where(pd.notna(filtered_df[col]), None)
         
-        # Convert filtered DataFrame rows to dictionaries for ticks
-        ticks_data = filtered_df.to_dict('records')
-        
-        # Store the original DataFrame for later use with pyramid builder
-        # We'll build the pyramid after the ticks are saved to the database
-        self._temp_processed_df = df
-        
-        # Extract tag data if present
-        tag_data = []
-        if 'tag' in df.columns:
-            tag_data = df['tag'].dropna().unique().tolist()
+        # Process tags if present
+        if 'tags' in df.columns:
+            logger.debug("Processing tags column", extra={
+                "sample_tags": df['tags'].head().tolist(),
+                "total_rows": len(df),
+                "rows_with_tags": df['tags'].notna().sum()
+            })
             
+            # Flatten tags from lists into a set of unique strings
+            unique_tags = set()
+            
+            # Process tags for each tick
+            for idx, row in df.iterrows():
+                tags = row.get('tags')
+                tick_tags = []
+                
+                try:
+                    if isinstance(tags, (list, pd.Series)) and len(tags) > 0:
+                        # Handle list or Series of tags
+                        tick_tags = [tag for tag in tags if tag and pd.notna(tag)]
+                    elif isinstance(tags, str) and tags:
+                        # Handle single string tag
+                        tick_tags = [tags]
+                        
+                    if tick_tags:
+                        # Store standardized tags for this tick
+                        standardized_tick_tags = [
+                            self.STANDARDIZED_TAG_MAPPING.get(tag, tag)
+                            for tag in tick_tags
+                            if tag in self.STANDARDIZED_TAG_MAPPING  # Only keep known tags
+                        ]
+                        if standardized_tick_tags:  # Only store if we have valid tags
+                            tags_by_tick[idx] = standardized_tick_tags
+                            unique_tags.update(standardized_tick_tags)
+                            
+                except Exception as e:
+                    logger.warning(f"Error processing tags for row {idx}", extra={
+                        "error": str(e),
+                        "raw_tags": tags
+                    })
+                    continue
+            
+            # Create final tag data list
+            tag_data = list(unique_tags)
+            
+            logger.info("Tag processing complete", extra={
+                "unique_tags": list(unique_tags),
+                "ticks_with_tags": len(tags_by_tick),
+                "total_tags": len(tag_data)
+            })
+        else:
+            logger.warning("No tags column found in DataFrame")
+        
+        # Convert filtered DataFrame rows to dictionaries for ticks
+        ticks_data = []
+        for idx, row in filtered_df.iterrows():
+            tick_dict = row.to_dict()
+            if idx in tags_by_tick:
+                tick_dict['_tags_list'] = tags_by_tick[idx]
+            ticks_data.append(tick_dict)
+            
+        logger.info("Entity building complete", extra={
+            "ticks_created": len(ticks_data),
+            "ticks_with_tags": len([t for t in ticks_data if '_tags_list' in t]),
+            "total_tags": len(tag_data)
+        })
+        
         return ticks_data, [], tag_data
 
     async def _commit_to_database(self, ticks_data: List[Dict], pyramid_data: List[Dict], tag_data: List[str], user_id: UUID, logbook_type: LogbookType, profile_url: Optional[str] = None):
@@ -334,15 +445,25 @@ class LogbookOrchestrator:
         df = df.sort_values('tick_date')
         
         # Initialize max grade columns
-        df['cur_max_rp_sport'] = 0
-        df['cur_max_rp_trad'] = 0
+        df['cur_max_sport'] = 0
+        df['cur_max_trad'] = 0
         df['cur_max_boulder'] = 0
+        df['cur_max_tr'] = 0
+        df['cur_max_alpine'] = 0
+        df['cur_max_winter_ice'] = 0
+        df['cur_max_aid'] = 0
+        df['cur_max_mixed'] = 0
         
         # Initialize running max values
         max_sport = 0
         max_boulder = 0
         max_trad = 0
-        
+        max_tr = 0
+        max_alpine = 0
+        max_winter_ice = 0
+        max_aid = 0
+        max_mixed = 0
+
         # Calculate running max values for each row
         for idx in df.index:
             # Get current row values
@@ -352,19 +473,39 @@ class LogbookOrchestrator:
             
             # Update max values based on sends
             if is_send:
-                if discipline == ClimbingDiscipline.SPORT:
+                if discipline == 'sport':
                     max_sport = max(max_sport, grade_code)
-                elif discipline == ClimbingDiscipline.BOULDER:
+                elif discipline == 'boulder':
                     if grade_code >= 101:  # Only count boulder grades
                         max_boulder = max(max_boulder, grade_code)
-                elif discipline == ClimbingDiscipline.TRAD:
+                elif discipline == 'trad':
                     if grade_code < 101:  # Only count route grades
                         max_trad = max(max_trad, grade_code)
+                elif discipline == 'tr':
+                    if grade_code < 101:  # Only count route grades
+                        max_tr = max(max_tr, grade_code)
+                elif discipline == 'alpine':
+                    if grade_code < 101:  # Only count route grades
+                        max_alpine = max(max_alpine, grade_code)
+                elif discipline == 'winter_ice':
+                    if grade_code < 101:  # Only count route grades
+                        max_winter_ice = max(max_winter_ice, grade_code)
+                elif discipline == 'aid':
+                    if grade_code < 101:  # Only count route grades
+                        max_aid = max(max_aid, grade_code)
+                elif discipline == 'mixed':
+                    if grade_code < 101:  # Only count route grades
+                        max_mixed = max(max_mixed, grade_code)
             
             # Set current max values for the row
-            df.at[idx, 'cur_max_rp_sport'] = max_sport
+            df.at[idx, 'cur_max_sport'] = max_sport
             df.at[idx, 'cur_max_boulder'] = max_boulder
-            df.at[idx, 'cur_max_rp_trad'] = max_trad
+            df.at[idx, 'cur_max_trad'] = max_trad
+            df.at[idx, 'cur_max_tr'] = max_tr
+            df.at[idx, 'cur_max_alpine'] = max_alpine
+            df.at[idx, 'cur_max_winter_ice'] = max_winter_ice
+            df.at[idx, 'cur_max_aid'] = max_aid
+            df.at[idx, 'cur_max_mixed'] = max_mixed
         
         return df
 
@@ -375,9 +516,14 @@ class LogbookOrchestrator:
             binned_code = row['binned_code']
             
             max_grade_cols = {
-                ClimbingDiscipline.SPORT: 'cur_max_rp_sport',
-                ClimbingDiscipline.TRAD: 'cur_max_rp_trad',
-                ClimbingDiscipline.BOULDER: 'cur_max_boulder'
+                'sport': 'cur_max_sport',
+                'trad': 'cur_max_trad',
+                'boulder': 'cur_max_boulder',
+                'tr': 'cur_max_tr',
+                'alpine': 'cur_max_alpine',
+                'winter_ice': 'cur_max_winter_ice',
+                'aid': 'cur_max_aid',
+                'mixed': 'cur_max_mixed'
             }
             
             if discipline not in max_grade_cols:
@@ -386,7 +532,7 @@ class LogbookOrchestrator:
             cur_max = row[max_grade_cols[discipline]]
             
             # Handle boulder vs route grade ranges
-            if discipline == ClimbingDiscipline.BOULDER:
+            if discipline == 'boulder':
                 if binned_code < 101:  # If current tick is not a boulder grade
                     return 'Other'
                 if cur_max < 101:  # If no previous boulder sends

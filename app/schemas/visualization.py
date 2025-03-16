@@ -193,9 +193,14 @@ class DetailedPyramidEntry(BaseModel):
     location: Optional[str] = None
     location_raw: Optional[str] = None
     lead_style: Optional[str] = None
-    cur_max_rp_sport: Optional[str] = None
-    cur_max_rp_trad: Optional[str] = None
-    cur_max_boulder: Optional[str] = None
+    cur_max_sport: Optional[int] = None
+    cur_max_trad: Optional[int] = None
+    cur_max_boulder: Optional[int] = None
+    cur_max_tr: Optional[int] = None
+    cur_max_alpine: Optional[int] = None
+    cur_max_winter_ice: Optional[int] = None
+    cur_max_aid: Optional[int] = None
+    cur_max_mixed: Optional[int] = None
     difficulty_category: Optional[str] = None
     discipline: Optional[str] = None
     send_bool: bool
@@ -317,3 +322,50 @@ class PerformanceCharacteristics(BaseModel):
         energy_total = sum(self.energy_distribution.values())
         if angle_total != energy_total:
             raise ValueError("Angle and energy distributions have different totals") 
+        
+# New models for get_overview_analytics
+class OverviewTick(BaseModel):
+    """Schema for tick data in overview analytics."""
+    route_name: str = Field(..., description="Name of the route")
+    tick_date: DateType = Field(..., description="Date of the tick")
+    route_grade: str = Field(..., description="Grade of the route")
+    binned_code: Optional[int] = Field(None, description="Numeric grade code")
+    location: str = Field(..., description="Location of the route")
+    lead_style: Optional[str] = Field(None, description="Style of lead (e.g., flash, onsight)")
+    difficulty_category: Optional[str] = Field(None, description="Difficulty category relative to max")
+    discipline: Optional[ClimbingDiscipline] = Field(None, description="Climbing discipline")
+    notes: Optional[str] = Field(None, description="User notes about the tick")
+    tags: List[str] = Field(default_factory=list, description="List of tag names associated with the tick")
+    num_attempts: Optional[int] = Field(None, ge=0, description="Number of attempts from performance pyramid")
+    days_attempts: Optional[int] = Field(None, ge=0, description="Number of days spent attempting from performance pyramid")
+
+class FavoriteLocation(BaseModel):
+    """Schema for favorite location data."""
+    location: str = Field(..., description="Name of the location")
+    pitch_sum: int = Field(..., ge=0, description="Total pitch count at this location")
+
+class UniqueLocations(BaseModel):
+    """Schema for unique locations data."""
+    num_unique_locations: int = Field(..., ge=0, description="Number of unique locations")
+    num_unique_states: int = Field(..., ge=0, description="Number of unique states extracted from locations")
+
+class BaseMetrics(BaseModel):
+    """Schema for base metrics in overview analytics."""
+    favorite_locations: List[FavoriteLocation] = Field(..., description="Top 3 locations with pitch counts")
+    discipline_distribution: Dict[str, int] = Field(..., description="Distribution of climbs by discipline")
+    total_pitches: int = Field(..., ge=0, description="Total number of pitches climbed")
+    unique_locations: UniqueLocations = Field(..., description="Count of unique locations and states")
+    total_days_outside: int = Field(..., ge=0, description="Total number of unique days outside")
+    first_day_recorded: Optional[DateType] = Field(None, description="Earliest recorded tick date")
+
+class PerformanceMetrics(BaseModel):
+    """Schema for performance metrics in overview analytics."""
+    recent_hard_sends: List[OverviewTick] = Field(..., description="Recent hard sends within time range")
+    best_performances: Dict[str, List[OverviewTick]] = Field(..., description="Best performances by discipline")
+    send_rate: float = Field(..., ge=0, le=100, description="Percentage of sends")
+    performance_attempts: int = Field(..., ge=0, description="Total pitches on projects")
+
+class OverviewAnalytics(BaseModel):
+    """Schema for overview analytics response."""
+    base_metrics: BaseMetrics = Field(..., description="Base climbing metrics")
+    performance_metrics: PerformanceMetrics = Field(..., description="Performance-related metrics")

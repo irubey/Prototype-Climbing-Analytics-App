@@ -31,7 +31,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 
 # Local imports with tracking
-from app.db.base_class import Base
+from app.db.base_class import EntityBase, AssociationBase
 from app.models.enums import (
     ClimbingDiscipline,
     CruxAngle,
@@ -40,7 +40,7 @@ from app.models.enums import (
     LogbookType
 )
 
-class UserTicks(Base):
+class UserTicks(EntityBase):
     """Records of user's climbing attempts and sends."""
     
     __tablename__ = "user_ticks"
@@ -60,9 +60,14 @@ class UserTicks(Base):
     location_raw: Mapped[Optional[str]] = mapped_column(String(255))
     #redpoint, flash, onsight, etc.
     lead_style: Mapped[Optional[str]] = mapped_column(String(255))
-    cur_max_rp_sport: Mapped[Optional[int]] = mapped_column(Integer)
-    cur_max_rp_trad: Mapped[Optional[int]] = mapped_column(Integer)
+    cur_max_sport: Mapped[Optional[int]] = mapped_column(Integer)
+    cur_max_trad: Mapped[Optional[int]] = mapped_column(Integer)
     cur_max_boulder: Mapped[Optional[int]] = mapped_column(Integer)
+    cur_max_tr: Mapped[Optional[int]] = mapped_column(Integer)
+    cur_max_alpine: Mapped[Optional[int]] = mapped_column(Integer)
+    cur_max_winter_ice: Mapped[Optional[int]] = mapped_column(Integer)
+    cur_max_aid: Mapped[Optional[int]] = mapped_column(Integer)
+    cur_max_mixed: Mapped[Optional[int]] = mapped_column(Integer)
     #difficulty category relative to cur max
     difficulty_category: Mapped[Optional[str]] = mapped_column(String(255))
     discipline: Mapped[Optional[ClimbingDiscipline]] = mapped_column(SQLEnum(ClimbingDiscipline))
@@ -102,11 +107,10 @@ class UserTicks(Base):
         Returns the UserTicks instance joined with its corresponding PerformancePyramid data.
         """
         if not self.performance_pyramid:
-            return None  # or handle as needed (e.g., empty list/dict)
+            return None
         
-        # Use SQLAlchemy's session to load the joined data
         from sqlalchemy.orm import Session
-        from app.db.session import SessionLocal  # Assuming you have a session factory
+        from app.db.session import SessionLocal
         
         with SessionLocal() as session:
             result = (
@@ -119,15 +123,15 @@ class UserTicks(Base):
                 return result.performance_pyramid
             return None
         
-class UserTicksTags(Base):
+class UserTicksTags(AssociationBase):
     """Association table for user ticks and tags."""
     
     __tablename__ = "user_ticks_tags"
     
-    user_tick_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_ticks.id"), primary_key=True)
-    tag_id: Mapped[int] = mapped_column(Integer, ForeignKey("tags.id"), primary_key=True)
+    user_tick_id = mapped_column(Integer, ForeignKey("user_ticks.id"), primary_key=True)
+    tag_id = mapped_column(Integer, ForeignKey("tags.id"), primary_key=True)
 
-class Tag(Base):
+class Tag(EntityBase):
     """Tags for categorizing climbs."""
     
     __tablename__ = "tags"
@@ -142,7 +146,7 @@ class Tag(Base):
         back_populates="tags",
     )
 
-class PerformancePyramid(Base):
+class PerformancePyramid(EntityBase):
     """Performance analysis data for climbing routes."""
     
     __tablename__ = "performance_pyramid"

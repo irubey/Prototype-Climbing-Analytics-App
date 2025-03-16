@@ -30,7 +30,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # Application imports
-from app.db.base_class import Base
+from app.db.base_class import EntityBase
 from app.models.enums import (
     ClimbingDiscipline,
     CruxAngle,
@@ -42,7 +42,7 @@ from app.models.enums import (
 )
 
 
-class ChatHistory(Base):
+class ChatHistory(EntityBase):
     __tablename__ = "chat_history"
     
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -66,7 +66,7 @@ class ChatHistory(Base):
     )
     
     
-class UserUpload(Base):
+class UserUpload(EntityBase):
     __tablename__ = "user_uploads"
     
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -87,7 +87,7 @@ class UserUpload(Base):
     )
     
     
-class ClimberContext(Base):
+class ClimberContext(EntityBase):
     __tablename__ = "climber_context"
     
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)

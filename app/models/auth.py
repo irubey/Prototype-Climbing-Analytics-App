@@ -15,14 +15,13 @@ from sqlalchemy import String, DateTime, func, LargeBinary, Column, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base_class import Base
+from app.db.base_class import EntityBase
 
-class RevokedToken(Base):
+class RevokedToken(EntityBase):
     """Model for tracking revoked JWT tokens."""
     __tablename__ = "revoked_tokens"
     __table_args__ = {"comment": "Track revoked JWT tokens to prevent reuse"}
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     jti: Mapped[str] = mapped_column(
         String(255),
         unique=True,
@@ -38,13 +37,12 @@ class RevokedToken(Base):
     def __repr__(self) -> str:
         return f"<RevokedToken {self.jti}>"
 
-class KeyHistory(Base):
+class KeyHistory(EntityBase):
     """Store key rotation history with encrypted private keys."""
     
     __tablename__ = "key_history"
     __table_args__ = {"comment": "Store key rotation history with encrypted private keys"}
     
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     kid: Mapped[str] = mapped_column(String(255), nullable=False, index=True, unique=True)
     private_key: Mapped[LargeBinary] = mapped_column(LargeBinary, nullable=False)
     public_key: Mapped[str] = mapped_column(String, nullable=False)

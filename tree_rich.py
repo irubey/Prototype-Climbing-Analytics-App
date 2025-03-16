@@ -3,7 +3,7 @@ from rich.console import Console
 import os
 
 def build_tree(root_path, tree):
-    excluded_dirs = {'__pycache__', '.pytest_cache', '.venv', '.vscode', 'logs', 'migrations', '.git'}
+    excluded_dirs = {'__pycache__', '.pytest_cache', '.venv', '.vscode', 'logs', 'migrations', '.git', 'node_modules'}
     for item in sorted(os.listdir(root_path)):
         if item in excluded_dirs:
             continue

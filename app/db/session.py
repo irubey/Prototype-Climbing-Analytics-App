@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import Pool, NullPool
 from fastapi import Request
 
-from app.db.base_class import Base
+from app.db.base_class import metadata
 
 # --- Helper Functions ---
 def _get_settings():
@@ -144,9 +144,17 @@ async def get_db(request: Request) -> AsyncSession:
     return request.state.db
 
 async def create_all() -> None:
+    """Create all database tables using unified metadata."""
+    logger = _get_logger()
     async with sessionmanager.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        logger.info("Creating all database tables...")
+        await conn.run_sync(metadata.create_all)
+        logger.info("All database tables created successfully")
 
 async def drop_all() -> None:
+    """Drop all database tables using unified metadata."""
+    logger = _get_logger()
     async with sessionmanager.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all) 
+        logger.info("Dropping all database tables...")
+        await conn.run_sync(metadata.drop_all)
+        logger.info("All database tables dropped successfully") 

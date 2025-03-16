@@ -9,7 +9,7 @@ This module provides functionality for:
 
 # Standard library imports
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Optional
 from uuid import UUID
 import traceback
 
@@ -88,7 +88,7 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
                 standardized_df.loc[mask, 'location_raw'] = df.loc[mask, 'location']
                 standardized_df.loc[mask, 'location'] = standardized_df.loc[mask, 'location'].apply(
                     lambda x: x.split('>')).apply(
-                        lambda x: f"{x[-1].strip()}, {x[0].strip()}" if len(x) >= 2 else x[0].strip()
+                        lambda x: f"{x[-2].strip()}, {x[0].strip()}" if len(x) >= 2 else x[0].strip()
                 )
             
             # Style and quality fields
@@ -111,13 +111,21 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
             standardized_df['season_category'] = None
             standardized_df['crux_angle'] = None
             standardized_df['crux_energy'] = None
+
+            # Extract tags from notes
+            standardized_df['tags'] = standardized_df['notes'].apply(self._extract_tags_from_notes)
             
             # Initialize grade processing fields (will be set by orchestrator)
             standardized_df['binned_grade'] = None
             standardized_df['binned_code'] = None
-            standardized_df['cur_max_rp_sport'] = 0
-            standardized_df['cur_max_rp_trad'] = 0
+            standardized_df['cur_max_sport'] = 0
+            standardized_df['cur_max_trad'] = 0
             standardized_df['cur_max_boulder'] = 0
+            standardized_df['cur_max_tr'] = 0
+            standardized_df['cur_max_alpine'] = 0
+            standardized_df['cur_max_winter_ice'] = 0
+            standardized_df['cur_max_aid'] = 0
+            standardized_df['cur_max_mixed'] = 0
             
             # Clean the dataframe to handle NaN values for database insertion
             # Replace NaN with None in string columns to avoid PostgreSQL errors
@@ -150,3 +158,89 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
                 "traceback": traceback.format_exc()
             })
             raise DataSourceError(f"Error normalizing Mountain Project data: {str(e)}")
+        
+    def _extract_tags_from_notes(self, notes: str) -> Optional[list]:
+        """Extract tags from the notes field with improved matching."""
+        if pd.isna(notes):
+            return None
+        
+        notes = notes.lower().strip()
+        if not notes:
+            return None
+            
+        logger.debug(f"Processing notes for tags: {notes[:100]}")  # Log first 100 chars
+        
+        tags = set()  
+        
+        # Define tag keywords with more flexible matching
+        tag_keywords = {
+            # 8a tags
+            'looseRock': ['choss', 'loose rock', 'breaking', 'broke', 'crumbling', 'sketchy rock'],
+            'isDanger': ['deck', 'sketchy', 'danger', 'scary', 'runout', 'no fall zone', 'run out'],
+            'isHard': ['hard', 'tough', 'difficult', 'sandbag', 'stout', 'old school'],
+            'isSoft': ['easy', 'soft', 'casual', 'walked'],
+            'isOverhang': ['overhang', 'overhanging'],
+            'isSlab': ['slab', 'friction', 'slabby'],
+            'isRoof': ['roof', 'ceiling'],
+            'isEndurance': ['pump', 'enduro', 'sustained', 'long', 'consistent', 'endurance'],
+            'isCrimpy': ['crimp', 'tiny', 'small', 'micro'],
+            'isCruxy': ['cruxy', 'hard move', 'difficult move', 'boulder problem', 'boulder crux'],
+            'isSloper': ['sloper', 'slopey', 'sloping'],
+            'isTechnical': ['tech', 'balance', 'precise', 'delicate', 'technical', 'techy'],
+            'badBolts': ['spinner', 'loose hardware', 'bad bolts', 'bad bolt', 'sketchy bolts', 'sketchy bolt', 'bad hardware'],
+            'highFirstBolt': ['high first clip', 'stick clip', 'high first bolt', 'first bolt pretty high', 'first bolt high'],
+            'badAnchor': ['bad anchor', 'sketchy anchor', 'loose anchor'],
+            'firstAscent': ['first ascent'],
+            'withKneepad': ['knee pad', 'kneepad', 'knee bar', 'kneebar'],
+            'isAthletic': ['athletic', 'powerful', 'dynamic', 'jump', 'dyno', 'dino', 'deadpoint', 'dead point', 'burly'],
+
+            # Feature Tags:
+            'arete': ['arete'],
+            'corner': ['corner', 'dihedral', 'dihedral'],
+            
+            #Hold Types:
+            'pinch': ['pinch', 'pinchy'],
+            'crimp': ['crimp', 'crimpy'],
+            'sloper': ['sloper', 'slopey'],
+            'jug': ['jug'],
+            'pocket': ['pocket'],
+            'crack': ['crack', 'fingercrack', 'fistjam', 'fingerjam', 'offwidth', 'off width', 'off-width', 'chicken wing', 'chickenwing', 'splitter'],
+
+            #positions
+            'gaston': ['shoulder', 'gaston'],
+            'heelhook': ['heelhook', 'heel hook'],
+            'sidepull': ['sidepull', 'side pull'],
+            'undercling': ['undercling'],
+            'dropknee': ['drop knee'],
+            'flag': ['flag', 'flagging'],
+            'crossthrough': ['crossthrough', 'crossover', 'rose move'],
+            'batHang': ['bat hang', 'bathang'],
+
+
+        }
+        
+        # Helper to check for negation within reasonable distance
+        def is_negated(text: str, start_idx: int, max_distance: int = 5) -> bool:
+            words = text[:start_idx].strip().split()
+            # Check last few words for negations
+            check_words = words[-max_distance:] if len(words) > max_distance else words
+            return any(neg in check_words for neg in ['not', 'no', 'never', "isn't", "wasn't", "aren't", "when", "if", "sometimes"])
+        
+        # Process each keyword pattern
+        for tag, patterns in tag_keywords.items():
+            for pattern in patterns:
+                idx = notes.find(pattern)
+                while idx != -1:
+                    # Check if it's a reasonable match (word boundaries or close enough)
+                    if (idx == 0 or notes[idx-1] in ' ,.!?-') and not is_negated(notes, idx):
+                        tags.add(tag)
+                        break  # Found a match for this tag, move to next tag
+                    idx = notes.find(pattern, idx + 1)
+        
+        # Convert set to list for return
+        extracted_tags = list(tags)
+        
+        if extracted_tags:
+            logger.debug(f"Extracted tags from notes: {extracted_tags}")
+        
+        return extracted_tags if extracted_tags else None

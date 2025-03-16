@@ -94,10 +94,6 @@ class BaseCSVProcessor(ABC):
             for tick in ticks_data:
                 tick['user_id'] = self.user_id
                 
-                # Convert discipline to enum if present
-                if 'discipline' in tick:
-                    tick['discipline'] = ClimbingDiscipline(tick['discipline'].lower())
-                
                 # Ensure boolean fields are proper booleans
                 if 'send_bool' in tick:
                     tick['send_bool'] = bool(tick['send_bool'])

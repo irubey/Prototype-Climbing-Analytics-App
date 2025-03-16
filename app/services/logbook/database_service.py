@@ -8,9 +8,9 @@ This module provides functionality for:
 - Bulk database operations
 """
 
-from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator
+from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator, Set
 from uuid import UUID
-from sqlalchemy import select, update
+from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
@@ -26,6 +26,7 @@ from app.models import (
     PerformancePyramid,
     Tag,
     User,
+    UserTicksTags,
 )
 from app.db.session import get_db
 
@@ -52,6 +53,8 @@ class DatabaseService:
             })
             raise DatabaseError("Failed to create database service instance")
     
+
+
     async def save_user_ticks(
         self,
         ticks_data: List[Dict[str, Any]],
@@ -65,7 +68,19 @@ class DatabaseService:
         
         try:
             # Create UserTicks objects
-            tick_objects = [UserTicks(**tick) for tick in ticks_data]
+            tick_objects = []
+            for tick in ticks_data:
+                # Extract tags_list before creating UserTicks object
+                tags_list = tick.pop('_tags_list', None) if '_tags_list' in tick else None
+                
+                if 'discipline' in tick and tick['discipline'] is not None:
+                    tick['discipline'] = tick['discipline'].lower()
+                    
+                tick_obj = UserTicks(**tick)
+                if tags_list:
+                    # Store tags_list as a set to ensure uniqueness
+                    tick_obj._tags_list = set(tags_list)
+                tick_objects.append(tick_obj)
             
             # Set user_id and created_at
             now = datetime.now(timezone.utc)
@@ -137,23 +152,16 @@ class DatabaseService:
             raise DatabaseError(f"Error saving performance pyramid: {str(e)}")
     
     async def save_tags(self, tag_names: List[str], tick_ids: List[int]) -> List[Tag]:
+        """Save tags and create associations with ticks."""
         logger.info("Saving tags and associations", extra={"tag_count": len(tag_names), "tick_count": len(tick_ids)})
         try:
             tag_objects = []
             new_tags = 0
             existing_tags = 0
 
-            # Eagerly load ticks with their tags
-            stmt = select(UserTicks).where(UserTicks.id.in_(tick_ids)).options(selectinload(UserTicks.tags))
-            result = await self.session.execute(stmt)
-            ticks = result.scalars().all()
-
-            if not ticks:
-                logger.warning("No ticks found for tag association")
-                return []
-
-            # Get or create tags
-            for name in tag_names:
+            # Get or create tags first
+            unique_tag_names = set(tag_names)  # Ensure uniqueness
+            for name in unique_tag_names:
                 stmt = select(Tag).where(Tag.name == name)
                 result = await self.session.execute(stmt)
                 tag = result.scalar_one_or_none()
@@ -165,16 +173,41 @@ class DatabaseService:
                     existing_tags += 1
                 tag_objects.append(tag)
 
-            await self.session.flush()
+            await self.session.flush()  # Ensure tags have IDs
 
-            # Create associations
+            # Eagerly load ticks with their existing tags
+            stmt = select(UserTicks).where(
+                and_(
+                    UserTicks.id.in_(tick_ids),
+                    ~UserTicks.id.in_(
+                        select(UserTicksTags.user_tick_id).where(
+                            UserTicksTags.tag_id.in_([tag.id for tag in tag_objects])
+                        )
+                    )
+                )
+            ).options(selectinload(UserTicks.tags))
+            
+            result = await self.session.execute(stmt)
+            ticks = result.scalars().all()
+
+            if not ticks:
+                logger.warning("No ticks found for tag association")
+                return tag_objects
+
+            # Create associations only for ticks that don't already have these tags
             associations_created = 0
             for tick in ticks:
-                existing_tag_names = {tag.name for tag in tick.tags}  # Tags are already loaded
-                for tag in tag_objects:
-                    if tag.name not in existing_tag_names:
-                        tick.tags.append(tag)
-                        associations_created += 1
+                if hasattr(tick, '_tags_list') and tick._tags_list:
+                    existing_tag_names = {tag.name for tag in tick.tags}
+                    for tag_name in tick._tags_list:
+                        matching_tag = next((tag for tag in tag_objects if tag.name == tag_name), None)
+                        if matching_tag and matching_tag.name not in existing_tag_names:
+                            association = UserTicksTags(
+                                user_tick_id=tick.id,
+                                tag_id=matching_tag.id
+                            )
+                            self.session.add(association)
+                            associations_created += 1
 
             await self.session.flush()
 

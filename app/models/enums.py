@@ -58,6 +58,7 @@ class ClimbingDiscipline(str, Enum):
     BOULDER = "boulder"
     SPORT = "sport"
     TRAD = "trad"
+    ALPINE = "alpine"
     MIXED = "mixed"
     WINTER_ICE = "winter_ice"
     AID = "aid"

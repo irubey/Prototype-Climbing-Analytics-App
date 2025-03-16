@@ -1,29 +1,22 @@
 from sqlalchemy.orm import declarative_base, declared_attr
-from sqlalchemy import Column, Integer  # Import common column types here
+from sqlalchemy import Column, Integer, MetaData
 from typing import Any, Dict
 from loguru import logger
 
-class Base:  # Define a mixin class first
-    """
-    Base class which provides automated table name
-    and surrogate primary key column.
+# Create a unified metadata object for both entity and association tables
+metadata = MetaData()
 
-    Mixin Class provides:
-        * Automated table name generation.
-        * Surrogate integer primary key column named 'id'.
+class BaseMixin:
     """
-
+    Base mixin providing common functionality for all models.
+    """
     @declared_attr
-    def __tablename__(cls):
+    def __tablename__(cls) -> str:
+        """Generate table name from class name."""
         return cls.__name__.lower()
 
-    id = Column(Integer, primary_key=True)
-
     def model_dump(self, exclude: set = None) -> Dict[str, Any]:
-        """
-        Convert model instance to dictionary.
-        Handles special types like datetime, UUID, and enums.
-        """
+        """Convert model instance to dictionary."""
         exclude = exclude or set()
         return {
             column.name: getattr(self, column.name)
@@ -32,10 +25,7 @@ class Base:  # Define a mixin class first
         }
 
     def update(self, **kwargs: Any) -> None:
-        """
-        Update model instance with given attributes.
-        Only updates existing attributes.
-        """
+        """Update model instance with given attributes."""
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
@@ -46,18 +36,32 @@ class Base:  # Define a mixin class first
         return {column.name for column in cls.__table__.columns}
 
     def __repr__(self) -> str:
-        """
-        String representation of the model.
-        Includes class name and primary key if available.
-        """
+        """String representation of the model."""
         attrs = []
         for primary_key in self.__table__.primary_key.columns:
             if hasattr(self, primary_key.name):
                 attrs.append(f"{primary_key.name}={getattr(self, primary_key.name)}")
         return f"<{self.__class__.__name__}({', '.join(attrs)})>"
 
-# Create the declarative base, inheriting from the mixin
-Base = declarative_base(cls=Base)
+class EntityMixin(BaseMixin):
+    """
+    Mixin for entity tables that require an auto-incrementing primary key.
+    """
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
-logger.info(f"Base instance created: {id(Base)}")
-logger.info(f"Base registry: {id(Base.registry)}") 
+class AssociationMixin(BaseMixin):
+    """
+    Mixin for association tables that use composite primary keys.
+    No auto-incrementing id column is provided.
+    """
+    pass
+
+# Create the declarative bases with shared metadata
+EntityBase = declarative_base(cls=EntityMixin, metadata=metadata)
+AssociationBase = declarative_base(cls=AssociationMixin, metadata=metadata)
+
+logger.info(f"EntityBase instance created: {id(EntityBase)}")
+logger.info(f"AssociationBase instance created: {id(AssociationBase)}")
+logger.info(f"Shared metadata instance created: {id(metadata)}")
+logger.info(f"EntityBase registry: {id(EntityBase.registry)}")
+logger.info(f"AssociationBase registry: {id(AssociationBase.registry)}") 

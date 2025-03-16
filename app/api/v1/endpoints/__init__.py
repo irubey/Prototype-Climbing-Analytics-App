@@ -13,7 +13,6 @@ from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.logbook import router as logbook_router
 from app.api.v1.endpoints.payment import router as payment_router
 from app.api.v1.endpoints.user import router as user_router
-from app.api.v1.endpoints.view_routes import router as view_router
 from app.api.v1.endpoints.visualization import router as visualization_router
 
 __all__ = [
@@ -25,6 +24,5 @@ __all__ = [
     "logbook_router",
     "payment_router",
     "user_router",
-    "view_router",
     "visualization_router"
 ]

@@ -17,15 +17,12 @@ from app.models import (
 )
 from app.models.enums import ClimbingDiscipline
 from app.schemas.visualization import (
-    DashboardBaseMetrics,
-    DashboardPerformanceMetrics,
     PerformancePyramidData,
     BaseVolumeData,
-    ProgressionData,
-    LocationAnalysis,
-    PerformanceCharacteristics,
+    OverviewAnalytics,
+
 )
-from app.services.dashboard.dashboard_analytics import get_dashboard_base_metrics, get_dashboard_performance_metrics, get_overview_analytics
+from app.services.dashboard.dashboard_analytics import get_overview_analytics
 
 router = APIRouter()
 
@@ -128,9 +125,14 @@ async def get_base_volume_data(db: AsyncSession, user_id: UUID) -> Dict:
             "location": tick.location,
             "location_raw": tick.location_raw,
             "lead_style": tick.lead_style,
-            "cur_max_rp_sport": tick.cur_max_rp_sport,
-            "cur_max_rp_trad": tick.cur_max_rp_trad,
+            "cur_max_sport": tick.cur_max_sport,
+            "cur_max_trad": tick.cur_max_trad,
             "cur_max_boulder": tick.cur_max_boulder,
+            "cur_max_tr": tick.cur_max_tr,
+            "cur_max_alpine": tick.cur_max_alpine,
+            "cur_max_winter_ice": tick.cur_max_winter_ice,
+            "cur_max_aid": tick.cur_max_aid,
+            "cur_max_mixed": tick.cur_max_mixed,
             "difficulty_category": tick.difficulty_category,
             "discipline": tick.discipline.value if tick.discipline else None,
             "send_bool": tick.send_bool,
@@ -149,166 +151,9 @@ async def get_base_volume_data(db: AsyncSession, user_id: UUID) -> Dict:
         "ticks_data": volume_data
     }
 
-async def get_progression_data(db: AsyncSession, user_id: UUID) -> Dict:
-    """Get user's progression analysis data."""
-    result = await db.execute(
-        select(UserTicks)
-        .filter(
-            UserTicks.user_id == user_id,
-            UserTicks.send_bool.is_(True)
-        )
-        .order_by(UserTicks.tick_date)
-    )
-    ticks = result.unique().scalars().all()
 
-    # Process progression data
-    progression_by_discipline = {}
-    for tick in ticks:
-        if tick.discipline not in progression_by_discipline:
-            progression_by_discipline[tick.discipline] = []
-        progression_by_discipline[tick.discipline].append({
-            "date": tick.tick_date,
-            "grade": tick.route_grade,
-            "name": tick.route_name
-        })
 
-    return {
-        "progression_by_discipline": progression_by_discipline
-    }
-
-async def get_location_analysis_data(db: AsyncSession, user_id: UUID) -> Dict:
-    """Get user's climbing location analysis data."""
-    # Get location distribution
-    result = await db.execute(
-        select(
-            UserTicks.location,
-            func.count(UserTicks.id).label("count"),
-            func.array_agg(UserTicks.route_grade).label("grades")
-        )
-        .filter(UserTicks.user_id == user_id)
-        .group_by(UserTicks.location)
-    )
-    location_data = result.all()
-
-    # Get seasonal patterns
-    result = await db.execute(
-        select(
-            UserTicks.season_category,
-            func.count(UserTicks.id).label("count")
-        )
-        .filter(UserTicks.user_id == user_id)
-        .group_by(UserTicks.season_category)
-    )
-    seasonal_data = {
-        season: count
-        for season, count in result.all()
-    }
-
-    return {
-        "location_distribution": {
-            location: {
-                "count": count,
-                "grades": grades
-            }
-            for location, count, grades in location_data
-        },
-        "seasonal_patterns": seasonal_data
-    }
-
-async def get_performance_characteristics_data(db: AsyncSession, user_id: UUID) -> Dict:
-    """Get user's performance characteristics analysis data."""
-    # First get all user ticks with performance pyramid data
-    result = await db.execute(
-        select(UserTicks)
-        .options(joinedload(UserTicks.performance_pyramid))
-        .filter(
-            UserTicks.user_id == user_id,
-            UserTicks.send_bool.is_(True)
-        )
-    )
-    ticks = result.unique().scalars().all()
-    
-    # Extract all performance pyramid entries
-    performance_data = []
-    for tick in ticks:
-        if tick.performance_pyramid:
-            performance_data.extend(tick.performance_pyramid)
-    
-    # Analyze performance characteristics
-    angle_distribution = {}
-    energy_distribution = {}
-    crux_types = {}
-    attempts_analysis = {
-        "flash_rate": 0,
-        "avg_attempts": 0,
-        "max_attempts": 0
-    }
-
-    total_climbs = len(performance_data)
-    if total_climbs > 0:
-        for entry in performance_data:
-            # Crux type analysis
-            if hasattr(entry, 'crux_type') and entry.crux_type:
-                crux_types[entry.crux_type] = crux_types.get(entry.crux_type, 0) + 1
-            
-            # Angle analysis
-            if entry.crux_angle:
-                angle_distribution[entry.crux_angle] = (
-                    angle_distribution.get(entry.crux_angle, 0) + 1
-                )
-
-            # Energy type analysis
-            if entry.crux_energy:
-                energy_distribution[entry.crux_energy] = (
-                    energy_distribution.get(entry.crux_energy, 0) + 1
-                )
-
-            # Attempts analysis
-            if entry.num_attempts == 1:
-                attempts_analysis["flash_rate"] += 1
-            if entry.num_attempts:
-                attempts_analysis["avg_attempts"] += entry.num_attempts
-                attempts_analysis["max_attempts"] = max(
-                    attempts_analysis["max_attempts"],
-                    entry.num_attempts
-                )
-
-        attempts_analysis["flash_rate"] = attempts_analysis["flash_rate"] / total_climbs
-        attempts_analysis["avg_attempts"] = attempts_analysis["avg_attempts"] / total_climbs
-
-    return {
-        "crux_types": crux_types,
-        "angle_distribution": angle_distribution,
-        "energy_distribution": energy_distribution,
-        "attempts_analysis": attempts_analysis
-    }
-
-@router.get("/dashboard-base-metrics", response_model=DashboardBaseMetrics)
-async def get_dashboard_data(
-    time_range: Optional[int] = None,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-) -> Any:
-    """Get user's climbing dashboard overview."""
-    try:
-        # Convert days to timedelta if specified
-        filter_range = timedelta(days=time_range) if time_range else None
-        
-        # Get dashboard metrics using analytics service
-        return await get_dashboard_base_metrics(
-            db=db,
-            user_id=current_user.id,
-            time_range=filter_range
-        )
-
-    except Exception as e:
-        logger.error(f"Error fetching dashboard data: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not fetch dashboard data"
-        )
-
-@router.get("/overview-analytics", response_model=Dict)
+@router.get("/overview-analytics", response_model=OverviewAnalytics)
 async def get_overview_data(
     time_range: Optional[int] = None,
     current_user: User = Depends(get_current_active_user),
@@ -331,33 +176,6 @@ async def get_overview_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not fetch overview analytics"
-        )
-
-@router.get("/dashboard-performance-metrics", response_model=DashboardPerformanceMetrics)
-async def get_performance_data(
-    discipline: Optional[ClimbingDiscipline] = None,
-    time_range: Optional[int] = None,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-) -> Any:
-    """Get user's performance metrics."""
-    try:
-        # Convert days to timedelta if specified
-        filter_range = timedelta(days=time_range) if time_range else None
-        
-        # Get performance metrics using analytics service
-        return await get_dashboard_performance_metrics(
-            db=db,
-            user_id=current_user.id,
-            discipline=discipline,
-            time_range=filter_range
-        )
-
-    except Exception as e:
-        logger.error(f"Error fetching performance data: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not fetch performance data"
         )
 
 @router.get("/performance-pyramid", response_model=PerformancePyramidData)
@@ -398,47 +216,7 @@ async def get_base_volume(
             detail="Could not fetch base volume data"
         )
 
-@router.get("/progression", response_model=ProgressionData)
-async def get_progression(
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-) -> Any:
-    """Get user's progression analysis."""
-    try:
-        return await get_progression_data(
-            db=db,
-            user_id=current_user.id
-        )
-    except Exception as e:
-        logger.error(f"Error fetching progression data: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not fetch progression data"
-        )
 
-@router.get("/location-analysis", response_model=LocationAnalysis)
-async def get_location_analysis(
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-) -> Any:
-    """Get user's climbing location analysis."""
-    try:
-        return await get_location_analysis_data(
-            db=db,
-            user_id=current_user.id
-        )
-    except Exception as e:
-        logger.error(f"Error fetching location analysis: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not fetch location analysis"
-        )
-
-@router.get("/performance-characteristics", response_model=PerformanceCharacteristics)
-async def get_performance_characteristics(
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-) -> Any:
     """Get user's performance characteristics analysis."""
     try:
         return await get_performance_characteristics_data(
