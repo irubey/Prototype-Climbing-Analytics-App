@@ -70,8 +70,8 @@ async def get_performance_pyramid_data(db: AsyncSession, user_id: UUID, discipli
                     "location": tick.location,
                     "location_raw": tick.location_raw,
                     "lead_style": tick.lead_style,
-                    "cur_max_rp_sport": tick.cur_max_rp_sport,
-                    "cur_max_rp_trad": tick.cur_max_rp_trad,
+                    "cur_max_sport": tick.cur_max_sport,
+                    "cur_max_trad": tick.cur_max_trad,
                     "cur_max_boulder": tick.cur_max_boulder,
                     "difficulty_category": tick.difficulty_category,
                     "discipline": tick.discipline.value if tick.discipline else None,
@@ -86,13 +86,14 @@ async def get_performance_pyramid_data(db: AsyncSession, user_id: UUID, discipli
                     "tags": [tag.name for tag in tick.tags] if tick.tags else [],
                     
                     # PerformancePyramid fields
-                    "send_date": pyramid_entry.send_date,
+                    "first_sent": pyramid_entry.first_sent,
                     "crux_angle": pyramid_entry.crux_angle.value if pyramid_entry.crux_angle else None,
                     "crux_energy": pyramid_entry.crux_energy.value if pyramid_entry.crux_energy else None,
                     "num_attempts": pyramid_entry.num_attempts,
                     "days_attempts": pyramid_entry.days_attempts,
                     "num_sends": pyramid_entry.num_sends,
-                    "description": pyramid_entry.description
+                    "description": pyramid_entry.description,
+                    "agg_notes": pyramid_entry.agg_notes
                 }
                 detailed_pyramid_data.append(entry_data)
     

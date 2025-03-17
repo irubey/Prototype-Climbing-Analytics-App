@@ -37,17 +37,16 @@ class PyramidBuilder:
         """Load style and characteristic keyword mappings"""
         logger.debug("Loading style and characteristic keywords")
         
-        self.crux_angle_keywords = {
-            CruxAngle.SLAB: ['slab', 'low angle', 'friction'],
-            CruxAngle.VERTICAL: ['vertical', 'face', 'straight up'],
-            CruxAngle.OVERHANG: ['overhang', 'steep', 'overhanging'],
-            CruxAngle.ROOF: ['roof', 'horizontal', 'ceiling']
+        self.angle_tag_map = {
+            'Overhang': CruxAngle.OVERHANG,
+            'Slab': CruxAngle.SLAB,
+            'Vertical': CruxAngle.VERTICAL,
+            'Roof': CruxAngle.ROOF
         }
         
-        self.crux_energy_keywords = {
-            CruxEnergyType.POWER: ['power', 'powerful', 'dynamic', 'explosive'],
-            CruxEnergyType.POWER_ENDURANCE: ['power endurance', 'sustained', 'pumpy'],
-            CruxEnergyType.ENDURANCE: ['endurance', 'stamina', 'continuous']
+        self.energy_tag_map = {
+            'Endurance': CruxEnergyType.ENDURANCE,
+            'Cruxy': CruxEnergyType.POWER,
         }
 
     async def build_performance_pyramid(
@@ -69,167 +68,155 @@ class PyramidBuilder:
         
         try:
             if df.empty:
-                logger.debug("No ticks found for user")
+                logger.debug("No ticks found")
                 return []
-            
-            # Get successful sends only
+
+            # Ensure consistent data types and required columns
+            required_columns = {'discipline', 'binned_code', 'send_bool', 'tick_date', 'route_name'}
+            missing_columns = required_columns - set(df.columns)
+            if missing_columns:
+                logger.error(f"Missing required columns: {missing_columns}")
+                raise DataSourceError(f"Missing required columns: {missing_columns}")
+
+            df['discipline'] = df['discipline'].str.lower()
+            df['binned_code'] = pd.to_numeric(df['binned_code'], errors='coerce')
+            df['send_bool'] = df['send_bool'].astype(bool)
+            df['tick_date'] = pd.to_datetime(df['tick_date'], errors='coerce')
+
+            # Step 1: Compute max grade per discipline and filter top grades
             sends_df = df[df['send_bool']].copy()
             if sends_df.empty:
-                logger.debug("No successful sends found")
+                logger.debug("No sends found")
                 return []
-            
-            # Debug discipline distribution
-            discipline_counts = sends_df['discipline'].value_counts()
-            logger.debug(
-                "Discipline distribution in sends",
-                extra={"counts": discipline_counts.to_dict()}
+
+            max_grades = sends_df.groupby('discipline')['binned_code'].max()
+            df = df.merge(
+                max_grades.reset_index().rename(columns={'binned_code': 'max_code'}),
+                on='discipline',
+                how='left'
             )
-            
-            results = []
-            # Process each discipline separately
-            for discipline in ClimbingDiscipline:
-                discipline_sends = sends_df[sends_df['discipline'] == discipline.value]
+            df = df[
+                (df['binned_code'] >= df['max_code'] - 3) & 
+                (df['binned_code'] <= df['max_code'])
+            ]
+
+            # Step 2: Filter routes with at least one send
+            sent_routes = sends_df.groupby(['route_name', 'location']).size().index
+            df = df[df.set_index(['route_name', 'location']).index.isin(sent_routes)]
+
+            # Step 3: Group and aggregate
+            grouped = df.groupby(['discipline', 'route_name', 'location'])
+            pyramid_entries = []
+
+            for (discipline, route_name, _), group in grouped:
+                # Aggregations
+                days_attempts = group['tick_date'].nunique()
+                num_sends = group['send_bool'].sum()
+                length_category = group['length_category'].iloc[0] if 'length_category' in group.columns else None
                 
-                if discipline_sends.empty:
-                    logger.debug(f"No {discipline.value} sends found")
-                    continue
+                # Calculate attempts based on length category
+                if length_category == 'multipitch':
+                    num_attempts = len(group)
+                else:
+                    num_attempts = group['pitches'].sum() if 'pitches' in group.columns else len(group)
+
+                # Aggregate notes with error handling
+                notes_agg = None
+                if 'notes' in group.columns:
+                    try:
+                        notes_agg = ' || '.join(
+                            f"{row['tick_date'].date()}: {row['notes']}"
+                            for _, row in group.iterrows() 
+                            if pd.notna(row['notes']) and isinstance(row['notes'], str)
+                        ) or None
+                    except Exception as e:
+                        logger.warning(f"Error aggregating notes for {route_name}: {str(e)}")
+
+                # Crux characteristics from tags with robust error handling
+                all_tags = set()
+                if 'tags' in group.columns:
+                    for _, row in group.iterrows():
+                        tags = row.get('tags')
+                        try:
+                            if isinstance(tags, (list, set)):
+                                all_tags.update(tag for tag in tags if isinstance(tag, str))
+                            elif isinstance(tags, str):
+                                all_tags.add(tags)
+                            elif tags is not None:  # Log unexpected types
+                                logger.warning(
+                                    f"Unexpected tag type for {route_name}",
+                                    extra={
+                                        "type": type(tags).__name__,
+                                        "value": str(tags)[:100]  # Truncate long values
+                                    }
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"Error processing tags for {route_name}",
+                                extra={
+                                    "error": str(e),
+                                    "tags": str(tags)[:100]
+                                }
+                            )
                 
-                # Get top 4 grades for this discipline
-                top_grades = discipline_sends['binned_code'].sort_values(ascending=False).unique()[:4]
-                top_sends = discipline_sends[discipline_sends['binned_code'].isin(top_grades)]
-                
-                logger.debug(
-                    f"Processing top sends for {discipline.value}",
-                    extra={"count": len(top_sends)}
+                crux_angle = next(
+                    (self.angle_tag_map[tag] for tag in all_tags if tag in self.angle_tag_map),
+                    None
                 )
-                
-                # Process each send
-                for _, send in top_sends.iterrows():
-                    # Get all attempts for this route before the send date
-                    route_attempts = df[
-                        (df['route_name'] == send['route_name']) & 
-                        (df['location_raw'] == send['location_raw']) &
-                        (df['tick_date'] <= send['tick_date'])
-                    ]
+                crux_energy = next(
+                    (self.energy_tag_map[tag] for tag in all_tags if tag in self.energy_tag_map),
+                    None
+                )
+
+                # First send details with robust ID handling
+                sent_group = group[group['send_bool']]
+                if not sent_group.empty:
+                    first_sent_row = sent_group.sort_values('tick_date').iloc[0]
+                    first_sent = first_sent_row['tick_date']
                     
-                    # Calculate attempts based on style and route type
-                    num_attempts = await self._calculate_attempts(
-                        route_attempts,
-                        send['lead_style'],
-                        send['length_category']
-                    )
-                    
-                    # Calculate days spent attempting
-                    days_attempts = route_attempts['tick_date'].nunique()
-                    
-                    # Predict crux characteristics
-                    crux_angle = await self._predict_crux_angle(send['notes'])
-                    crux_energy = await self._predict_crux_energy(send['notes'])
-                    
-                    pyramid_entry = {
-                        'user_id': user_id,
-                        'tick_id': 0,  # Placeholder, will be updated by orchestrator
-                        'send_date': send['tick_date'],
-                        'location': send['location'],
-                        'crux_angle': crux_angle,
-                        'crux_energy': crux_energy,
-                        'binned_code': send['binned_code'],
-                        'num_attempts': num_attempts,
-                        'days_attempts': days_attempts,
-                        'num_sends': len(route_attempts[route_attempts['send_bool']])
-                    }
-                    
-                    results.append(pyramid_entry)
-            
-            if not results:
-                logger.debug("No performance pyramid entries generated")
-                return []
-            
-            logger.info(
-                "Successfully built performance pyramid",
-                extra={"entry_count": len(results)}
+                    # Handle missing or invalid tick IDs
+                    if 'id' not in first_sent_row:
+                        logger.warning(
+                            f"No ID column found for {route_name}; may be pre-database insertion",
+                            extra={"first_send_date": str(first_sent)}
+                        )
+                        continue
+                        
+                    tick_id = first_sent_row.get('id')
+                    if tick_id is None:
+                        logger.warning(
+                            f"No tick ID found for {route_name}; skipping until database insertion",
+                            extra={"first_send_date": str(first_sent)}
+                        )
+                        continue
+                else:
+                    continue  # Skip if no send (shouldn't happen due to Step 2)
+
+                pyramid_entries.append({
+                    'user_id': user_id,
+                    'tick_id': tick_id,
+                    'first_sent': first_sent,
+                    'crux_angle': crux_angle,
+                    'crux_energy': crux_energy,
+                    'num_attempts': num_attempts,
+                    'days_attempts': days_attempts,
+                    'num_sends': num_sends,
+                    'agg_notes': notes_agg,
+                    'description': None
+                })
+
+            logger.info(f"Built {len(pyramid_entries)} pyramid entries")
+            return pyramid_entries
+
+        except Exception as e:
+            logger.error(
+                f"Error building pyramid",
+                extra={
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
+                }
             )
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error building performance pyramid: {str(e)}")
-            raise DataSourceError(f"Error building performance pyramid: {str(e)}")
-
-    async def _calculate_attempts(
-        self,
-        attempts_df: pd.DataFrame,
-        lead_style: str,
-        length_category: str
-    ) -> int:
-        """Calculate number of attempts based on style and route type"""
-        try:
-            logger.debug("Calculating attempts", extra={
-                "lead_style": lead_style,
-                "length_category": length_category,
-                "total_entries": len(attempts_df)
-            })
-            
-            if lead_style and lead_style.lower() in ['onsight', 'flash']:
-                logger.debug("Single attempt style detected", extra={
-                    "style": lead_style
-                })
-                return 1
-                
-            if length_category == 'multipitch':
-                attempts = len(attempts_df)
-                logger.debug("Multipitch attempts calculated", extra={
-                    "attempts": attempts
-                })
-                return attempts
-                
-            attempts = attempts_df['pitches'].sum() or 1
-            logger.debug("Standard attempts calculated", extra={
-                "attempts": attempts,
-                "total_pitches": attempts_df['pitches'].sum()
-            })
-            return attempts
-            
-        except Exception as e:
-            logger.error("Error calculating attempts", extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "traceback": traceback.format_exc()
-            })
-            return 1
-
-    async def _predict_crux_angle(self, notes: str) -> Optional[CruxAngle]:
-        """Predict crux angle from notes"""
-        if pd.isna(notes):
-            return None
-            
-        notes = notes.lower()
-        for angle, keywords in self.crux_angle_keywords.items():
-            if any(k in notes for k in keywords):
-                logger.debug("Crux angle predicted", extra={
-                    "angle": str(angle),
-                    "matching_keywords": [k for k in keywords if k in notes]
-                })
-                return angle
-                
-        logger.debug("No crux angle found in notes")
-        return None
-
-    async def _predict_crux_energy(self, notes: str) -> Optional[CruxEnergyType]:
-        """Predict crux energy type from notes"""
-        if pd.isna(notes):
-            return None
-            
-        notes = notes.lower()
-        for energy, keywords in self.crux_energy_keywords.items():
-            if any(k in notes for k in keywords):
-                logger.debug("Crux energy type predicted", extra={
-                    "energy_type": str(energy),
-                    "matching_keywords": [k for k in keywords if k in notes]
-                })
-                return energy
-                
-        logger.debug("No crux energy type found in notes")
-        return None
+            raise DataSourceError(f"Error building pyramid: {str(e)}")
 
     def build_angle_distribution(self, ticks_data: List[Dict]) -> Dict:
         """

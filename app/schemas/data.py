@@ -37,6 +37,7 @@ class BinnedCode(BaseModel):
 class PyramidInput(BaseModel):
     """Schema for manual performance pyramid data input."""
     tick_id: int = Field(..., ge=1, description="ID of the associated tick")
+    first_sent: date = Field(..., description="Date of first successful send")
     crux_angle: Optional[CruxAngle] = Field(None, description="Angle of the crux")
     crux_energy: Optional[CruxEnergyType] = Field(None, description="Energy type of the crux")
     num_attempts: Optional[int] = Field(
@@ -56,6 +57,11 @@ class PyramidInput(BaseModel):
         max_length=1000,
         description="Additional notes or description"
     )
+    agg_notes: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Aggregated notes from multiple attempts"
+    )
 
 
     @model_validator(mode="after")
@@ -68,6 +74,7 @@ class PyramidInput(BaseModel):
 
 class PerformanceData(BaseModel):
     """Schema for detailed performance metrics."""
+    first_sent: date = Field(..., description="Date of first successful send")
     crux_angle: Optional[CruxAngle] = Field(None, description="Angle of the crux")
     crux_energy: Optional[CruxEnergyType] = Field(None, description="Energy type of the crux")
     num_attempts: Optional[int] = Field(
@@ -92,6 +99,11 @@ class PerformanceData(BaseModel):
         ge=0,
         le=1000,
         description="Number of successful sends"
+    )
+    agg_notes: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Aggregated notes from multiple attempts"
     )
 
 

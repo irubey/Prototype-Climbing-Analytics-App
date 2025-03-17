@@ -154,15 +154,14 @@ class PerformancePyramid(EntityBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     tick_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_ticks.id"), nullable=False)
-    send_date: Mapped[Date] = mapped_column(Date, nullable=False, index=True)
-    location: Mapped[Optional[str]] = mapped_column(String(255))
+    first_sent: Mapped[Date] = mapped_column(Date, nullable=False, index=True)
     crux_angle: Mapped[Optional[CruxAngle]] = mapped_column(SQLEnum(CruxAngle))
     crux_energy: Mapped[Optional[CruxEnergyType]] = mapped_column(SQLEnum(CruxEnergyType))
-    binned_code: Mapped[int] = mapped_column(Integer, nullable=False)
     num_attempts: Mapped[Optional[int]] = mapped_column(Integer)
     days_attempts: Mapped[Optional[int]] = mapped_column(Integer)
     num_sends: Mapped[Optional[int]] = mapped_column(Integer)
     description: Mapped[Optional[str]] = mapped_column(Text)
+    agg_notes: Mapped[Optional[str]] = mapped_column(Text)
     
     # Relationships with type annotations
     user: Mapped["User"] = relationship(

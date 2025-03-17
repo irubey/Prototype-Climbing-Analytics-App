@@ -151,10 +151,23 @@ class LogbookOrchestrator:
         profile_url: Optional[str] = None
     ) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
         """Centralized processing logic for all logbook types."""
+        # Step 1: Normalize and process data
         normalized_df = await self._normalize_data(raw_df, logbook_type, user_id)
         processed_df = await self._process_data(normalized_df)
-        ticks, pyramids, tags = await self._build_entities(processed_df, user_id)
-        await self._commit_to_database(ticks, pyramids, tags, user_id, logbook_type, profile_url)
+
+        # Step 2: Build initial entities (ticks and tags)
+        ticks_data, _, tag_data = await self._build_entities(processed_df, user_id)
+
+        # Step 3: Persist and build pyramids
+        ticks, pyramids, tags = await self._persist_and_analyze(
+            user_id, 
+            ticks_data, 
+            tag_data, 
+            processed_df,  # Pass the processed DataFrame for pyramid building
+            logbook_type, 
+            profile_url
+        )
+
         logger.info(f"{logbook_type.value} sync completed", extra={
             "user_id": str(user_id),
             "total_ticks": len(ticks),
@@ -163,6 +176,101 @@ class LogbookOrchestrator:
         })
         return ticks, pyramids, tags
 
+    async def _persist_and_analyze(
+        self,
+        user_id: UUID,
+        ticks_data: List[Dict],
+        tag_data: List[str],
+        processed_df: pd.DataFrame,
+        logbook_type: LogbookType,
+        profile_url: Optional[str] = None
+    ) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
+        """
+        Persist ticks, build pyramids, and save all entities within a single transaction.
+        
+        Args:
+            user_id: User identifier
+            ticks_data: List of tick dictionaries to save
+            tag_data: List of tag strings to save
+            processed_df: Original processed DataFrame with all required columns
+            logbook_type: Type of logbook being processed
+            profile_url: Optional URL of the user's profile
+            
+        Returns:
+            Tuple of (saved ticks, saved pyramids, saved tags)
+        """
+        async with self.db.begin():
+            # Reset index for consistent alignment
+            processed_df = processed_df.reset_index(drop=True)
+            
+            # Save ticks and get IDs
+            ticks = await self.db_service.save_user_ticks(ticks_data, user_id)
+            
+            # Validate alignment
+            if len(ticks) != len(ticks_data) or len(ticks) != len(processed_df):
+                logger.error("Mismatch in tick counts", extra={
+                    "ticks_saved": len(ticks),
+                    "ticks_data": len(ticks_data),
+                    "df_rows": len(processed_df)
+                })
+                raise DataSourceError("Tick count mismatch after saving")
+            
+            # Directly assign tick IDs to processed_df
+            processed_df['id'] = [tick.id for tick in ticks]
+            
+            # Log mapping statistics
+            logger.debug("Tick ID mapping created", extra={
+                "total_ticks": len(ticks),
+                "mapped_ticks": processed_df['id'].notna().sum(),
+                "unmapped_ticks": processed_df['id'].isna().sum()
+            })
+            
+            if processed_df['id'].isna().any():
+                logger.warning("Some ticks could not be mapped", extra={
+                    "unmapped_count": processed_df['id'].isna().sum(),
+                    "sample_unmapped": processed_df[processed_df['id'].isna()][['route_name', 'tick_date']].head().to_dict()
+                })
+            
+            # Build pyramids using the complete DataFrame with tick IDs
+            try:
+                # Ensure all required columns are present
+                required_columns = {
+                    'id', 'discipline', 'binned_code', 'send_bool', 
+                    'tick_date', 'route_name', 'location', 'pitches', 
+                    'length_category', 'notes', 'tags'
+                }
+                missing_columns = required_columns - set(processed_df.columns)
+                if missing_columns:
+                    logger.warning("Missing columns for pyramid building", extra={
+                        "missing_columns": list(missing_columns)
+                    })
+                
+                pyramid_data = await self.pyramid_builder.build_performance_pyramid(processed_df, user_id)
+                pyramids = await self.db_service.save_performance_pyramid(pyramid_data, user_id)
+                logger.info("Performance pyramid data built and saved", extra={
+                    "pyramid_entries": len(pyramid_data)
+                })
+            except Exception as e:
+                logger.error("Failed to build/save performance pyramid", extra={
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                    "available_columns": list(processed_df.columns)
+                })
+                raise DataSourceError(f"Error building performance pyramid: {str(e)}")
+
+            # Save tags
+            tags = await self.db_service.save_tags(tag_data, [tick.id for tick in ticks])
+            
+            # Update sync timestamp
+            await self.db_service.update_sync_timestamp(user_id, logbook_type, profile_url)
+
+            logger.info("Persistence and analysis completed", extra={
+                "ticks_saved": len(ticks),
+                "pyramids_built": len(pyramid_data),
+                "tags_saved": len(tags)
+            })
+
+            return ticks, pyramids, tags
     async def process_mountain_project_ticks(self, user_id: UUID, profile_url: str):
         """Process Mountain Project ticks."""
         try:
@@ -278,11 +386,10 @@ class LogbookOrchestrator:
         self,
         df: pd.DataFrame,
         user_id: UUID
-    ) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
-        """Build database entities from processed data"""
-        # Initialize tag tracking variables
-        tags_by_tick = {}  # Initialize empty dictionary
-        tag_data = []      # Initialize empty list
+    ) -> Tuple[List[Dict], List[Dict], List[str]]:
+        """Build initial entities (ticks and tags) from processed data."""
+        tags_by_tick = {}
+        tag_data = []
         
         logger.debug("Starting entity building", extra={
             "columns": df.columns.tolist(),
@@ -290,14 +397,13 @@ class LogbookOrchestrator:
             "row_count": len(df)
         })
 
-        # Define valid columns from UserTicks model
         valid_columns = {
             'route_name', 'tick_date', 'route_grade', 'binned_grade', 'binned_code',
             'length', 'pitches', 'location', 'location_raw', 'lead_style',
-            'cur_max_sport', 'cur_max_trad', 'cur_max_boulder', 'cur_max_tr', 'cur_max_alpine', 'cur_max_winter_ice', 'cur_max_aid', 'cur_max_mixed',
-            'difficulty_category', 'discipline', 'send_bool', 'length_category',
-            'season_category', 'route_url', 'notes', 'route_quality',
-            'user_quality', 'logbook_type'
+            'cur_max_sport', 'cur_max_trad', 'cur_max_boulder', 'cur_max_tr', 'cur_max_alpine', 
+            'cur_max_winter_ice', 'cur_max_aid', 'cur_max_mixed', 'difficulty_category', 
+            'discipline', 'send_bool', 'length_category', 'season_category', 'route_url', 
+            'notes', 'route_quality', 'user_quality', 'logbook_type'
         }
         
         if 'discipline' in df.columns:
@@ -305,62 +411,46 @@ class LogbookOrchestrator:
                 lambda x: x.lower() if pd.notna(x) and isinstance(x, str) else x
             )
             
-        # Filter DataFrame to only include valid columns that exist
         valid_existing_columns = [col for col in df.columns if col in valid_columns]
         filtered_df = df[valid_existing_columns].copy()
         
-        # Clean any remaining NaN values
         for col in filtered_df.columns:
             if filtered_df[col].dtype == 'object' or filtered_df[col].dtype == 'string':
                 filtered_df.loc[:, col] = filtered_df[col].astype(object).where(pd.notna(filtered_df[col]), None)
             elif filtered_df[col].dtype == 'float':
                 filtered_df.loc[:, col] = filtered_df[col].where(pd.notna(filtered_df[col]), None)
         
-        # Process tags if present
         if 'tags' in df.columns:
             logger.debug("Processing tags column", extra={
                 "sample_tags": df['tags'].head().tolist(),
                 "total_rows": len(df),
                 "rows_with_tags": df['tags'].notna().sum()
             })
-            
-            # Flatten tags from lists into a set of unique strings
             unique_tags = set()
-            
-            # Process tags for each tick
             for idx, row in df.iterrows():
                 tags = row.get('tags')
                 tick_tags = []
-                
                 try:
                     if isinstance(tags, (list, pd.Series)) and len(tags) > 0:
-                        # Handle list or Series of tags
                         tick_tags = [tag for tag in tags if tag and pd.notna(tag)]
                     elif isinstance(tags, str) and tags:
-                        # Handle single string tag
                         tick_tags = [tags]
-                        
                     if tick_tags:
-                        # Store standardized tags for this tick
                         standardized_tick_tags = [
                             self.STANDARDIZED_TAG_MAPPING.get(tag, tag)
                             for tag in tick_tags
-                            if tag in self.STANDARDIZED_TAG_MAPPING  # Only keep known tags
+                            if tag in self.STANDARDIZED_TAG_MAPPING
                         ]
-                        if standardized_tick_tags:  # Only store if we have valid tags
+                        if standardized_tick_tags:
                             tags_by_tick[idx] = standardized_tick_tags
                             unique_tags.update(standardized_tick_tags)
-                            
                 except Exception as e:
                     logger.warning(f"Error processing tags for row {idx}", extra={
                         "error": str(e),
                         "raw_tags": tags
                     })
                     continue
-            
-            # Create final tag data list
             tag_data = list(unique_tags)
-            
             logger.info("Tag processing complete", extra={
                 "unique_tags": list(unique_tags),
                 "ticks_with_tags": len(tags_by_tick),
@@ -369,7 +459,6 @@ class LogbookOrchestrator:
         else:
             logger.warning("No tags column found in DataFrame")
         
-        # Convert filtered DataFrame rows to dictionaries for ticks
         ticks_data = []
         for idx, row in filtered_df.iterrows():
             tick_dict = row.to_dict()
@@ -383,19 +472,8 @@ class LogbookOrchestrator:
             "total_tags": len(tag_data)
         })
         
+        # Return empty list for pyramid_data as it will be built after ticks are saved
         return ticks_data, [], tag_data
-
-    async def _commit_to_database(self, ticks_data: List[Dict], pyramid_data: List[Dict], tag_data: List[str], user_id: UUID, logbook_type: LogbookType, profile_url: Optional[str] = None):
-        try:
-            async with self.db.begin():  # Transaction scope
-                ticks = await self.db_service.save_user_ticks(ticks_data, user_id)
-                pyramids = await self.db_service.save_performance_pyramid(pyramid_data, user_id)
-                tags = await self.db_service.save_tags(tag_data, [tick.id for tick in ticks])
-                await self.db_service.update_sync_timestamp(user_id, logbook_type, profile_url)
-            # Commit happens automatically on successful exit
-        except Exception as e:
-            logger.error("Database commit failed", extra={"user_id": str(user_id), "error": str(e)})
-            raise
 
     async def _process_grades(self, df: pd.DataFrame) -> pd.DataFrame:
         """Process grades and calculate grade-related metrics"""

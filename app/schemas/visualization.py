@@ -212,13 +212,14 @@ class DetailedPyramidEntry(BaseModel):
     user_quality: Optional[float] = None
     logbook_type: Optional[str] = None
     tags: List[str] = []
-    send_date: Optional[DateType] = None
+    first_sent: Optional[DateType] = None
     crux_angle: Optional[str] = None
     crux_energy: Optional[str] = None
     num_attempts: Optional[int] = None
     days_attempts: Optional[int] = None
     num_sends: Optional[int] = None
     description: Optional[str] = None
+    agg_notes: Optional[str] = None
 
 class PerformancePyramidData(BaseModel):
     """Schema for grade pyramid visualization data."""
