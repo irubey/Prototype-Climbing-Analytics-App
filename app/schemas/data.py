@@ -24,7 +24,7 @@ class BinnedCode(BaseModel):
     binned_code: int = Field(
         ...,
         ge=0,
-        le=100,
+        le=300,
         description="Numeric grade code"
     )
     binned_grade: str = Field(
@@ -129,18 +129,18 @@ class TickCreate(BaseModel):
     )
     route_grade: str = Field(
         ...,
-        max_length=10,
+        max_length=50,
         description="Grade of the route"
     )
     binned_grade: Optional[str] = Field(
         None,
-        max_length=10,
+        max_length=50,
         description="Standardized grade bin"
     )
     binned_code: Optional[int] = Field(
         None,
         ge=0,
-        le=100,
+        le=300,
         description="Numeric grade code"
     )
     tick_date: date = Field(..., description="Date of the tick")
@@ -233,15 +233,6 @@ class TickCreate(BaseModel):
 
 
 
-    @model_validator(mode="after")
-    def validate_tick_data(self) -> "TickCreate":
-        """Validate tick data relationships."""
-        if self.tick_date > date.today():
-            raise ValueError("Tick date cannot be in the future")
-        if self.pitches and self.length and self.pitches * 30 > self.length:
-            raise ValueError("Length seems too short for number of pitches")
-        return self
-
 class TickResponse(TickCreate):
     """Schema for tick response with metadata."""
     id: int = Field(..., ge=1, description="Tick ID")
@@ -283,7 +274,7 @@ class Tag(BaseModel):
         ...,
         min_length=1,
         max_length=50,
-        pattern="^[a-zA-Z0-9-_]+$",
+        pattern="^[a-zA-Z0-9-_ ]+$",
         description="Tag name"
     )
 
@@ -334,7 +325,7 @@ class GradeConversion(BaseModel):
     """Schema for grade conversion requests."""
     grade: str = Field(
         ...,
-        max_length=10,
+        max_length=50,
         description="Grade to convert"
     )
     source_scale: str = Field(
@@ -352,18 +343,18 @@ class GradeConversionResponse(BaseModel):
     """Schema for grade conversion results."""
     original_grade: str = Field(
         ...,
-        max_length=10,
+        max_length=50,
         description="Original grade"
     )
     converted_grade: str = Field(
         ...,
-        max_length=10,
+        max_length=50,
         description="Converted grade"
     )
     binned_code: int = Field(
         ...,
         ge=0,
-        le=100,
+        le=300,
         description="Numeric grade code"
     )
     equivalent_grades: Dict[str, str] = Field(
@@ -417,3 +408,39 @@ class DataImportStatus(BaseModel):
             self.completed_at < self.created_at):
             raise ValueError("Completion time cannot be before creation time")
         return self 
+
+
+
+class PerformanceDataUpdate(BaseModel):
+    """Schema for performance data in batch updates."""
+    first_sent: Optional[date] = Field(None, description="Date of first successful send")
+    crux_angle: Optional[CruxAngle] = Field(None, description="Angle of the crux")
+    crux_energy: Optional[CruxEnergyType] = Field(None, description="Energy type of the crux")
+    num_attempts: Optional[int] = Field(None, ge=1, le=1000, description="Number of attempts")
+    days_attempts: Optional[int] = Field(None, ge=1, le=365, description="Days spent attempting")
+    num_sends: Optional[int] = Field(None, ge=0, le=1000, description="Number of successful sends")
+    description: Optional[str] = Field(None, max_length=1000, description="Additional notes")
+    agg_notes: Optional[str] = Field(None, max_length=1000, description="Aggregated notes")
+
+class LogbookTickUpdate(TickCreate):
+    """Schema for creating or updating ticks in batch operations."""
+    id: Optional[int] = Field(None, ge=1, description="Tick ID for updates")
+    performance_data: Optional[PerformanceDataUpdate] = Field(None, description="Performance metrics")
+    tags: Optional[List[str]] = Field(None, max_length=20, description="Tags for the tick")
+
+class LogbookBatchUpdate(BaseModel):
+    """Schema for batch tick operations."""
+    creates: List[LogbookTickUpdate] = Field(default_factory=list, description="Ticks to create")
+    updates: List[LogbookTickUpdate] = Field(default_factory=list, description="Ticks to update")
+    deletes: List[int] = Field(default_factory=list, description="Tick IDs to delete")
+
+class LogbookBatchUpdateResponse(BaseModel):
+    """Schema for batch update response."""
+    success: bool = Field(..., description="Operation success status")
+    created: List[int] = Field(..., description="IDs of created ticks")
+    updated: List[int] = Field(..., description="IDs of updated ticks")
+    deleted: List[int] = Field(..., description="IDs of deleted ticks")
+    errors: Optional[Dict[str, Dict[int, str]]] = Field(
+        None,
+        description="Errors indexed by operation type and item index"
+    )
