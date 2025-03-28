@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 # Third-party imports
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 # Application imports
 from app.core.logging import logger
@@ -200,20 +201,39 @@ class LogbookOrchestrator:
             Tuple of (saved ticks, saved pyramids, saved tags)
         """
         async with self.db.begin():
+            # Get existing ticks for deduplication
+            stmt = select(UserTicks).where(UserTicks.user_id == user_id)
+            result = await self.db.execute(stmt)
+            existing_ticks = result.scalars().all()
+            
+            # Create a set of existing route_name + tick_date combinations
+            existing_combinations = {
+                (tick.route_name, tick.tick_date.isoformat() if tick.tick_date else None)
+                for tick in existing_ticks
+            }
+            
+            # Filter processed_df to only include new unique ticks
+            processed_df = processed_df.copy()
+            processed_df['tick_date_str'] = processed_df['tick_date'].apply(
+                lambda x: x.isoformat() if pd.notna(x) else None
+            )
+            processed_df['combination'] = list(zip(processed_df['route_name'], processed_df['tick_date_str']))
+            processed_df = processed_df[~processed_df['combination'].isin(existing_combinations)]
+            processed_df = processed_df.drop(['tick_date_str', 'combination'], axis=1)
+            
+            if processed_df.empty:
+                logger.info("No new ticks to process")
+                return [], [], []
+            
             # Reset index for consistent alignment
             processed_df = processed_df.reset_index(drop=True)
             
             # Save ticks and get IDs
             ticks = await self.db_service.save_user_ticks(ticks_data, user_id)
             
-            # Validate alignment
-            if len(ticks) != len(ticks_data) or len(ticks) != len(processed_df):
-                logger.error("Mismatch in tick counts", extra={
-                    "ticks_saved": len(ticks),
-                    "ticks_data": len(ticks_data),
-                    "df_rows": len(processed_df)
-                })
-                raise DataSourceError("Tick count mismatch after saving")
+            if not ticks:
+                logger.info("No new ticks saved")
+                return [], [], []
             
             # Directly assign tick IDs to processed_df
             processed_df['id'] = [tick.id for tick in ticks]
@@ -225,13 +245,7 @@ class LogbookOrchestrator:
                 "unmapped_ticks": processed_df['id'].isna().sum()
             })
             
-            if processed_df['id'].isna().any():
-                logger.warning("Some ticks could not be mapped", extra={
-                    "unmapped_count": processed_df['id'].isna().sum(),
-                    "sample_unmapped": processed_df[processed_df['id'].isna()][['route_name', 'tick_date']].head().to_dict()
-                })
-            
-            # Build pyramids using the complete DataFrame with tick IDs
+            # Build pyramids using only the new unique ticks
             try:
                 # Ensure all required columns are present
                 required_columns = {
@@ -245,7 +259,15 @@ class LogbookOrchestrator:
                         "missing_columns": list(missing_columns)
                     })
                 
-                pyramid_data = await self.pyramid_builder.build_performance_pyramid(processed_df, user_id)
+                # Get all user ticks for complete pyramid building
+                all_user_ticks = await self.db_service.get_user_ticks(user_id)
+                all_ticks_df = pd.DataFrame([tick.__dict__ for tick in all_user_ticks])
+                
+                # Combine existing and new ticks for pyramid building
+                combined_df = pd.concat([all_ticks_df, processed_df], ignore_index=True)
+                combined_df = combined_df.drop_duplicates(subset=['route_name', 'tick_date'], keep='last')
+                
+                pyramid_data = await self.pyramid_builder.build_performance_pyramid(combined_df, user_id)
                 pyramids = await self.db_service.save_performance_pyramid(pyramid_data, user_id)
                 logger.info("Performance pyramid data built and saved", extra={
                     "pyramid_entries": len(pyramid_data)
@@ -271,6 +293,7 @@ class LogbookOrchestrator:
             })
 
             return ticks, pyramids, tags
+
     async def process_mountain_project_ticks(self, user_id: UUID, profile_url: str):
         """Process Mountain Project ticks."""
         try:
@@ -300,6 +323,13 @@ class LogbookOrchestrator:
             # Construct the profile URL
             profile_url = f"https://www.8a.nu/user/{user_slug}"
             logger.info(f"Constructed 8a.nu profile URL: {profile_url}", extra={"user_id": str(user_id)})
+            
+            # Save hashed credentials
+            await self.db_service.update_eight_a_nu_credentials(
+                user_id=user_id,
+                username=username,
+                password=password
+            )
             
             # Pass the profile_url to _process_ticks
             return await self._process_ticks(user_id, LogbookType.EIGHT_A_NU, raw_df, profile_url=profile_url)

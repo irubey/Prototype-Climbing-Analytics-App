@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
+from cryptography.fernet import Fernet
 import redis.asyncio as redis
 
 # Application imports
@@ -45,6 +46,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Security configuration
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Initialize Fernet cipher for credential encryption
+credential_cipher = Fernet(settings.CREDENTIAL_KEY.encode())
 
 # Redis client for rate limiting
 _redis_client: Optional[redis.Redis] = None
@@ -738,3 +742,19 @@ async def get_token_from_header(request: Request) -> str:
         detail="Missing or invalid Authorization header",
         headers={"WWW-Authenticate": "Bearer"}
     )
+
+async def encrypt_credential(credential: str) -> str:
+    """Encrypt a credential using Fernet."""
+    try:
+        return credential_cipher.encrypt(credential.encode()).decode()
+    except Exception as e:
+        logger.error(f"Error encrypting credential: {str(e)}")
+        raise AuthenticationError("Failed to encrypt credential")
+
+async def decrypt_credential(encrypted_credential: str) -> str:
+    """Decrypt a credential using Fernet."""
+    try:
+        return credential_cipher.decrypt(encrypted_credential.encode()).decode()
+    except Exception as e:
+        logger.error(f"Error decrypting credential: {str(e)}")
+        raise AuthenticationError("Failed to decrypt credential")

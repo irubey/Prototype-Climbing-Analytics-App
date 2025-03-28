@@ -65,6 +65,8 @@ class User(EntityBase):
     # 8a.nu Integration
     eight_a_nu_url: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
     eight_a_nu_last_sync: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    eight_a_nu_encrypted_username: Mapped[Optional[str]] = mapped_column(String(255))
+    eight_a_nu_encrypted_password: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

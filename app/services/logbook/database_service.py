@@ -29,6 +29,7 @@ from app.models import (
     UserTicksTags,
 )
 from app.db.session import get_db
+from app.core.auth import get_password_hash
 
 class DatabaseService:
     """Service for handling all database operations for the logbook service"""
@@ -60,16 +61,54 @@ class DatabaseService:
         ticks_data: List[Dict[str, Any]],
         user_id: UUID
     ) -> List[UserTicks]:
-        """Save user ticks to database"""
+        """Save user ticks to database, skipping existing records with same route_name and tick_date"""
         logger.info("Saving user ticks", extra={
             "user_id": str(user_id),
             "tick_count": len(ticks_data)
         })
         
         try:
-            # Create UserTicks objects
-            tick_objects = []
+            # Get existing ticks for this user
+            stmt = select(UserTicks).where(
+                UserTicks.user_id == user_id
+            )
+            result = await self.session.execute(stmt)
+            existing_ticks = result.scalars().all()
+            
+            # Create a set of existing route_name + tick_date combinations
+            existing_combinations = {
+                (tick.route_name, tick.tick_date.isoformat() if tick.tick_date else None)
+                for tick in existing_ticks
+            }
+            
+            # Filter out ticks that already exist
+            new_ticks_data = []
+            skipped_count = 0
+            
             for tick in ticks_data:
+                tick_date = tick.get('tick_date')
+                if isinstance(tick_date, datetime):
+                    tick_date = tick_date.isoformat()
+                    
+                combination = (tick.get('route_name'), tick_date)
+                if combination not in existing_combinations:
+                    new_ticks_data.append(tick)
+                else:
+                    skipped_count += 1
+            
+            logger.info("Filtered existing ticks", extra={
+                "total_ticks": len(ticks_data),
+                "new_ticks": len(new_ticks_data),
+                "skipped_ticks": skipped_count
+            })
+            
+            if not new_ticks_data:
+                logger.info("No new ticks to save")
+                return []
+            
+            # Create UserTicks objects for new ticks
+            tick_objects = []
+            for tick in new_ticks_data:
                 # Extract tags_list before creating UserTicks object
                 tags_list = tick.pop('_tags_list', None) if '_tags_list' in tick else None
                 
@@ -92,9 +131,10 @@ class DatabaseService:
             self.session.add_all(tick_objects)
             await self.session.flush()
             
-            logger.info("Successfully saved user ticks", extra={
+            logger.info("Successfully saved new user ticks", extra={
                 "user_id": str(user_id),
                 "saved_count": len(tick_objects),
+                "skipped_count": skipped_count,
                 "timestamp": now.isoformat()
             })
             
@@ -255,6 +295,42 @@ class DatabaseService:
         except Exception as e:
             logger.error("Error updating sync timestamp", extra={"user_id": str(user_id), "logbook_type": logbook_type.value, "error": str(e)})
             raise DatabaseError(f"Error updating sync timestamp: {str(e)}")
+
+    async def update_eight_a_nu_credentials(self, user_id: UUID, username: str, password: str) -> None:
+        """Update user's hashed 8a.nu credentials"""
+        logger.info("Updating 8a.nu credentials", extra={"user_id": str(user_id)})
+        try:
+            stmt = select(User).where(User.id == user_id)
+            result = await self.session.execute(stmt)
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                logger.error("User not found", extra={"user_id": str(user_id)})
+                raise DatabaseError(f"User {user_id} not found")
+            
+            # Hash credentials using the same mechanism as user passwords
+            hashed_username = get_password_hash(username)
+            hashed_password = get_password_hash(password)
+            
+            # Update hashed credentials
+            user.eight_a_nu_hashed_username = hashed_username
+            user.eight_a_nu_hashed_password = hashed_password
+            
+            await self.session.flush()
+            logger.info("Successfully updated 8a.nu credentials", extra={
+                "user_id": str(user_id),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+            
+        except Exception as e:
+            logger.error("Error updating 8a.nu credentials", extra={
+                "user_id": str(user_id),
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            })
+            raise DatabaseError(f"Error updating 8a.nu credentials: {str(e)}")
+
     async def get_user_ticks(
         self,
         user_id: UUID,

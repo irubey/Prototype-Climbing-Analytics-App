@@ -21,6 +21,9 @@ from pydantic import (
 import secrets
 from pathlib import Path
 from uuid import uuid4
+import os
+import base64
+from datetime import timedelta
 
 
 
@@ -215,6 +218,10 @@ class Settings(BaseSettings):
         default=None,
         description="DeepSeek API URL"
     )
+
+    # Credential encryption key
+    CREDENTIAL_KEY: str = os.getenv("CREDENTIAL_KEY", base64.urlsafe_b64encode(os.urandom(32)).decode())
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: str | List[str]) -> List[str] | str:
