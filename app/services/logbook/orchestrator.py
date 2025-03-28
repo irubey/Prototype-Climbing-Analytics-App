@@ -14,6 +14,7 @@ from uuid import UUID
 import traceback
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone, date
 
 # Third-party imports
 import pandas as pd
@@ -208,18 +209,60 @@ class LogbookOrchestrator:
             
             # Create a set of existing route_name + tick_date combinations
             existing_combinations = {
-                (tick.route_name, tick.tick_date.isoformat() if tick.tick_date else None)
+                (tick.route_name, 
+                 tick.tick_date.isoformat() if isinstance(tick.tick_date, (date, datetime)) 
+                 else tick.tick_date.date().isoformat() if tick.tick_date 
+                 else None)
                 for tick in existing_ticks
             }
             
             # Filter processed_df to only include new unique ticks
             processed_df = processed_df.copy()
-            processed_df['tick_date_str'] = processed_df['tick_date'].apply(
+            
+            # Handle NaN values and ensure consistent datetime format
+            processed_df['tick_date'] = pd.to_datetime(processed_df['tick_date'], utc=True)
+            processed_df['tick_date_str'] = processed_df['tick_date'].dt.date.apply(
                 lambda x: x.isoformat() if pd.notna(x) else None
             )
+            
+            # Log sample of datetime conversions
+            logger.debug("DateTime conversion sample", extra={
+                "existing": [{
+                    "route_name": tick.route_name,
+                    "tick_date_type": type(tick.tick_date).__name__,
+                    "tick_date_raw": str(tick.tick_date),
+                    "tick_date_converted": (tick.tick_date.isoformat() if isinstance(tick.tick_date, (date, datetime)) 
+                                         else tick.tick_date.date().isoformat() if tick.tick_date else None)
+                } for tick in list(existing_ticks)[:3]],
+                "incoming": processed_df[['route_name', 'tick_date', 'tick_date_str']].head(3).to_dict('records')
+            })
+            
+            # Replace NaN with None in route_name to ensure consistent comparison
+            processed_df['route_name'] = processed_df['route_name'].where(pd.notna(processed_df['route_name']), None)
+            
             processed_df['combination'] = list(zip(processed_df['route_name'], processed_df['tick_date_str']))
+            
+            # Log deduplication details
+            logger.info("Deduplication analysis", extra={
+                "existing_combinations": len(existing_combinations),
+                "incoming_combinations": len(processed_df),
+                "sample_existing": list(existing_combinations)[:3],
+                "sample_incoming": processed_df['combination'].head(3).tolist(),
+                "date_format_example": {
+                    "existing": next(iter(existing_combinations))[1] if existing_combinations else None,
+                    "incoming": processed_df['tick_date_str'].iloc[0] if not processed_df.empty else None
+                }
+            })
+            
+            # Filter out existing combinations
             processed_df = processed_df[~processed_df['combination'].isin(existing_combinations)]
             processed_df = processed_df.drop(['tick_date_str', 'combination'], axis=1)
+            
+            logger.info("Deduplication results", extra={
+                "original_count": len(ticks_data),
+                "filtered_count": len(processed_df),
+                "duplicates_removed": len(ticks_data) - len(processed_df)
+            })
             
             if processed_df.empty:
                 logger.info("No new ticks to process")
@@ -228,8 +271,21 @@ class LogbookOrchestrator:
             # Reset index for consistent alignment
             processed_df = processed_df.reset_index(drop=True)
             
+            # Filter ticks_data to match processed_df
+            filtered_ticks_data = [
+                tick for tick in ticks_data 
+                if (tick['route_name'], tick['tick_date'].isoformat() if isinstance(tick['tick_date'], (datetime, pd.Timestamp)) else None) 
+                not in existing_combinations
+            ]
+            
+            logger.info("Ticks data filtering results", extra={
+                "original_ticks_data_count": len(ticks_data),
+                "filtered_ticks_data_count": len(filtered_ticks_data),
+                "duplicates_removed": len(ticks_data) - len(filtered_ticks_data)
+            })
+            
             # Save ticks and get IDs
-            ticks = await self.db_service.save_user_ticks(ticks_data, user_id)
+            ticks = await self.db_service.save_user_ticks(filtered_ticks_data, user_id)
             
             if not ticks:
                 logger.info("No new ticks saved")

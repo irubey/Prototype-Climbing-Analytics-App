@@ -13,8 +13,9 @@ from uuid import UUID
 from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 import traceback
+import pandas as pd
 
 from app.core.logging import logger
 from app.core.exceptions import DatabaseError
@@ -81,25 +82,92 @@ class DatabaseService:
                 for tick in existing_ticks
             }
             
+            # Log detailed datetime information for existing ticks
+            sample_existing = [(tick.route_name, tick.tick_date, 
+                              type(tick.tick_date).__name__ if tick.tick_date else None,
+                              tick.tick_date.isoformat() if tick.tick_date else None) 
+                             for tick in existing_ticks[:3]]
+            
+            logger.info("Database deduplication datetime analysis", extra={
+                "sample_existing_ticks": [{
+                    "route_name": name,
+                    "tick_date_raw": str(date),
+                    "tick_date_type": type_,
+                    "tick_date_iso": iso
+                } for name, date, type_, iso in sample_existing],
+                "existing_ticks_count": len(existing_ticks)
+            })
+            
             # Filter out ticks that already exist
             new_ticks_data = []
             skipped_count = 0
+            duplicate_samples = []
+            
+            # Log sample of incoming tick dates
+            sample_incoming = ticks_data[:3]
+            logger.info("Database incoming tick date analysis", extra={
+                "sample_incoming": [{
+                    "route_name": tick.get('route_name'),
+                    "tick_date_raw": str(tick.get('tick_date')),
+                    "tick_date_type": type(tick.get('tick_date')).__name__,
+                    "tick_date_iso": tick.get('tick_date').isoformat() if tick.get('tick_date') else None
+                } for tick in sample_incoming]
+            })
             
             for tick in ticks_data:
                 tick_date = tick.get('tick_date')
-                if isinstance(tick_date, datetime):
+                
+                # Handle NaN values in tags
+                if '_tags_list' in tick:
+                    tags = tick['_tags_list']
+                    if isinstance(tags, (list, pd.Series)):
+                        # Keep only valid tags
+                        tick['_tags_list'] = [tag for tag in tags if tag and not pd.isna(tag)]
+                        if not tick['_tags_list']:  # If all tags were invalid, set to None
+                            tick['_tags_list'] = None
+                    elif pd.isna(tags):  # Single NaN value
+                        tick['_tags_list'] = None
+                
+                # Ensure consistent datetime format
+                if isinstance(tick_date, (date, datetime)):
                     tick_date = tick_date.isoformat()
-                    
+                elif isinstance(tick_date, pd.Timestamp):
+                    tick_date = tick_date.date().isoformat()
+                elif isinstance(tick_date, str):
+                    try:
+                        tick_date = pd.to_datetime(tick_date, utc=True).date().isoformat()
+                    except Exception as e:
+                        logger.warning(f"Invalid tick_date format", extra={
+                            "error": str(e),
+                            "route_name": tick.get('route_name'),
+                            "raw_tick_date": tick_date,
+                            "tick_date_type": type(tick_date).__name__
+                        })
+                        continue
+                
                 combination = (tick.get('route_name'), tick_date)
                 if combination not in existing_combinations:
                     new_ticks_data.append(tick)
                 else:
                     skipped_count += 1
+                    if len(duplicate_samples) < 3:
+                        duplicate_samples.append({
+                            "route_name": tick.get('route_name'),
+                            "tick_date": tick_date,
+                            "tick_date_type": type(tick_date).__name__
+                        })
+                    logger.debug("Skipping duplicate tick", extra={
+                        "route_name": tick.get('route_name'),
+                        "tick_date": tick_date,
+                        "combination": str(combination)
+                    })
             
-            logger.info("Filtered existing ticks", extra={
+            logger.info("Database deduplication results", extra={
                 "total_ticks": len(ticks_data),
                 "new_ticks": len(new_ticks_data),
-                "skipped_ticks": skipped_count
+                "skipped_ticks": skipped_count,
+                "sample_duplicates": duplicate_samples,
+                "example_combinations": str(list(existing_combinations)[:3]) if existing_combinations else "None"
             })
             
             if not new_ticks_data:

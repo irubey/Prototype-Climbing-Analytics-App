@@ -72,7 +72,7 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
             # Route information (direct mappings)
             standardized_df['route_name'] = df['route_name']
             standardized_df['route_grade'] = df['route_grade']
-            standardized_df['tick_date'] = pd.to_datetime(df['tick_date'])
+            standardized_df['tick_date'] = pd.to_datetime(df['tick_date'], utc=True)
             standardized_df['length'] = pd.to_numeric(df['length'], errors='coerce').fillna(0).astype(int)
             standardized_df['pitches'] = pd.to_numeric(df['pitches'], errors='coerce').fillna(1).astype(int)
             standardized_df['route_url'] = df['route_url']

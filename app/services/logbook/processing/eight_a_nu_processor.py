@@ -122,7 +122,7 @@ class EightANuProcessor(BaseCSVProcessor):
             df['pitches'] = 1
 
             # Process dates
-            df['tick_date'] = pd.to_datetime(df['date']).dt.date  # Convert to date-only for UserTicks
+            df['tick_date'] = pd.to_datetime(df['date'], utc=True)  # Convert to UTC-aware datetime
 
             # Calculate difficulty categories
             logger.debug("Calculating difficulty categories")

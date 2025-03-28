@@ -10,7 +10,7 @@ This module provides:
 
 # Standard library imports
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 from uuid import UUID
 import traceback
@@ -69,8 +69,8 @@ class BaseCSVProcessor(ABC):
                 raise DataSourceError(f"Missing required columns: {missing_columns}")
             
             # Convert dates
-            df['tick_date'] = pd.to_datetime(df['tick_date']).dt.date
-            df['created_at'] = datetime.now()
+            df['tick_date'] = pd.to_datetime(df['tick_date'], utc=True)
+            df['created_at'] = datetime.now(timezone.utc)
             
             # Process numeric columns
             numeric_columns = {
