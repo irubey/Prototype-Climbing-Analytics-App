@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from datetime import timedelta
 from uuid import UUID
+import math
 
 from app.core.auth import (
     get_current_active_user,
@@ -28,9 +29,103 @@ router = APIRouter()
 
 # Helper functions for unit testing - these encapsulate database operations for easier mocking
 
-async def get_performance_pyramid_data(db: AsyncSession, user_id: UUID, discipline: ClimbingDiscipline) -> Dict:
+async def get_performance_pyramid_data(db: AsyncSession, user_id: UUID, discipline: Optional[ClimbingDiscipline] = None) -> Dict:
     """Get user's performance pyramid data with detailed climbing and performance information."""
-    # Query for user ticks with the given discipline and send status, with joined performance pyramid data
+    # If no specific discipline is requested, return data for all disciplines
+    if discipline is None:
+        # Query for all user ticks with send_bool=True
+        result = await db.execute(
+            select(UserTicks)
+            .filter(
+                UserTicks.user_id == user_id,
+                UserTicks.send_bool.is_(True)
+            )
+            .options(
+                joinedload(UserTicks.performance_pyramid),
+                joinedload(UserTicks.tags)
+            )
+            .order_by(UserTicks.route_grade)
+        )
+        ticks = result.unique().scalars().all()
+        
+        # Group ticks by discipline
+        disciplines_data = {}
+        for tick in ticks:
+            if not tick.discipline:
+                continue
+                
+            if tick.discipline.value not in disciplines_data:
+                disciplines_data[tick.discipline.value] = {
+                    "grade_counts": {},
+                    "detailed_data": []
+                }
+            
+            if tick.performance_pyramid:
+                # Add to grade counts for summary stats
+                grade = tick.route_grade
+                disciplines_data[tick.discipline.value]["grade_counts"][grade] = \
+                    disciplines_data[tick.discipline.value]["grade_counts"].get(grade, 0) + 1
+                
+                # Build detailed data with both tick and performance pyramid information
+                for pyramid_entry in tick.performance_pyramid:
+                    # Handle NaN values for float fields
+                    route_quality = tick.route_quality
+                    if route_quality is not None and isinstance(route_quality, float) and math.isnan(route_quality):
+                        route_quality = None
+                        
+                    user_quality = tick.user_quality
+                    if user_quality is not None and isinstance(user_quality, float) and math.isnan(user_quality):
+                        user_quality = None
+                    
+                    entry_data = {
+                        # UserTicks fields
+                        "route_name": tick.route_name,
+                        "tick_date": tick.tick_date,
+                        "route_grade": tick.route_grade,
+                        "binned_grade": tick.binned_grade,
+                        "binned_code": tick.binned_code,
+                        "length": tick.length,
+                        "pitches": tick.pitches,
+                        "location": tick.location,
+                        "location_raw": tick.location_raw,
+                        "lead_style": tick.lead_style,
+                        "cur_max_sport": tick.cur_max_sport,
+                        "cur_max_trad": tick.cur_max_trad,
+                        "cur_max_boulder": tick.cur_max_boulder,
+                        "difficulty_category": tick.difficulty_category,
+                        "discipline": tick.discipline.value,
+                        "send_bool": tick.send_bool,
+                        "length_category": tick.length_category,
+                        "season_category": tick.season_category,
+                        "route_url": tick.route_url,
+                        "notes": tick.notes,
+                        "route_quality": route_quality,
+                        "user_quality": user_quality,
+                        "logbook_type": tick.logbook_type.value if tick.logbook_type else None,
+                        "tags": [tag.name for tag in tick.tags] if tick.tags else [],
+                        
+                        # PerformancePyramid fields
+                        "first_sent": pyramid_entry.first_sent,
+                        "crux_angle": pyramid_entry.crux_angle.value if pyramid_entry.crux_angle else None,
+                        "crux_energy": pyramid_entry.crux_energy.value if pyramid_entry.crux_energy else None,
+                        "num_attempts": pyramid_entry.num_attempts,
+                        "days_attempts": pyramid_entry.days_attempts,
+                        "num_sends": pyramid_entry.num_sends,
+                        "description": pyramid_entry.description,
+                        "agg_notes": pyramid_entry.agg_notes
+                    }
+                    disciplines_data[tick.discipline.value]["detailed_data"].append(entry_data)
+        
+        # Calculate total sends for each discipline
+        for discipline_value, data in disciplines_data.items():
+            data["total_sends"] = len(data["detailed_data"])
+        
+        return {
+            "all_disciplines": True,
+            "disciplines_data": disciplines_data
+        }
+    
+    # Original logic for a specific discipline
     result = await db.execute(
         select(UserTicks)
         .filter(
@@ -58,6 +153,15 @@ async def get_performance_pyramid_data(db: AsyncSession, user_id: UUID, discipli
             
             # Build detailed data with both tick and performance pyramid information
             for pyramid_entry in tick.performance_pyramid:
+                # Handle NaN values for float fields
+                route_quality = tick.route_quality
+                if route_quality is not None and isinstance(route_quality, float) and math.isnan(route_quality):
+                    route_quality = None
+                    
+                user_quality = tick.user_quality
+                if user_quality is not None and isinstance(user_quality, float) and math.isnan(user_quality):
+                    user_quality = None
+                
                 entry_data = {
                     # UserTicks fields
                     "route_name": tick.route_name,
@@ -80,8 +184,8 @@ async def get_performance_pyramid_data(db: AsyncSession, user_id: UUID, discipli
                     "season_category": tick.season_category,
                     "route_url": tick.route_url,
                     "notes": tick.notes,
-                    "route_quality": tick.route_quality,
-                    "user_quality": tick.user_quality,
+                    "route_quality": route_quality,
+                    "user_quality": user_quality,
                     "logbook_type": tick.logbook_type.value if tick.logbook_type else None,
                     "tags": [tag.name for tag in tick.tags] if tick.tags else [],
                     
@@ -98,6 +202,7 @@ async def get_performance_pyramid_data(db: AsyncSession, user_id: UUID, discipli
                 detailed_pyramid_data.append(entry_data)
     
     return {
+        "all_disciplines": False,
         "discipline": discipline.value,
         "grade_counts": grade_counts,
         "total_sends": len(detailed_pyramid_data),
@@ -115,6 +220,15 @@ async def get_base_volume_data(db: AsyncSession, user_id: UUID) -> Dict:
 
     volume_data = []
     for tick in ticks_data:
+        # Handle NaN values for float fields
+        route_quality = tick.route_quality
+        if route_quality is not None and isinstance(route_quality, float) and math.isnan(route_quality):
+            route_quality = None
+            
+        user_quality = tick.user_quality
+        if user_quality is not None and isinstance(user_quality, float) and math.isnan(user_quality):
+            user_quality = None
+        
         tick_data = {
             "route_name": tick.route_name,
             "tick_date": tick.tick_date,
@@ -141,8 +255,8 @@ async def get_base_volume_data(db: AsyncSession, user_id: UUID) -> Dict:
             "season_category": tick.season_category,
             "route_url": tick.route_url,
             "notes": tick.notes,
-            "route_quality": tick.route_quality,
-            "user_quality": tick.user_quality,
+            "route_quality": route_quality,
+            "user_quality": user_quality,
             "logbook_type": tick.logbook_type.value if tick.logbook_type else None,
             "tags": [tag.name for tag in tick.tags] if tick.tags else []
         }
@@ -179,13 +293,13 @@ async def get_overview_data(
             detail="Could not fetch overview analytics"
         )
 
-@router.get("/performance-pyramid", response_model=PerformancePyramidData)
+@router.get("/performance-pyramid", response_model=Any)
 async def get_performance_pyramid(
-    discipline: ClimbingDiscipline = ClimbingDiscipline.SPORT,
+    discipline: Optional[ClimbingDiscipline] = None,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
-    """Get user's performance pyramid for a specific discipline."""
+    """Get user's performance pyramid for a specific discipline or all disciplines."""
     try:
         return await get_performance_pyramid_data(
             db=db,

@@ -87,6 +87,13 @@ class BaseCSVProcessor(ABC):
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(default)
             
+            # Fix NaN values before converting to dict
+            float_columns = ['route_quality', 'user_quality']
+            for col in float_columns:
+                if col in df.columns:
+                    # Replace NaN with None for JSON serialization
+                    df[col] = df[col].where(~pd.isna(df[col]), None)
+            
             # Convert to list of dicts
             ticks_data = df.to_dict('records')
             
