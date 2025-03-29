@@ -57,9 +57,6 @@ async def get_user_ticks(
         route_quality = None if tick.route_quality is None or math.isnan(tick.route_quality) else tick.route_quality * 5
         user_quality = None if tick.user_quality is None or math.isnan(tick.user_quality) else tick.user_quality * 5
 
-        # Handle None discipline by defaulting to 'sport'
-        discipline = tick.discipline if tick.discipline else ClimbingDiscipline.SPORT
-
         response.append(
             UserTicksWithTags(
                 id=tick.id,
@@ -74,7 +71,7 @@ async def get_user_ticks(
                 location=tick.location,
                 location_raw=tick.location_raw,
                 lead_style=tick.lead_style,
-                discipline=discipline,
+                discipline=tick.discipline,
                 send_bool=tick.send_bool,
                 route_url=tick.route_url,
                 created_at=tick.created_at.date(),
@@ -99,20 +96,52 @@ async def get_performance_pyramid(
         select(UserTicks)
         .join(PerformancePyramid, UserTicks.id == PerformancePyramid.tick_id)
         .filter(UserTicks.user_id == current_user.id)
-        .options(selectinload(UserTicks.tags))
+        .options(
+            selectinload(UserTicks.tags),
+            selectinload(UserTicks.performance_pyramid)
+        )
     )
     ticks = result.scalars().all()
 
     detailed_data = []
     for tick in ticks:
-        pyramid = tick.performance_pyramid[0]  # Assumes one pyramid per tick
+        # Safely get pyramid data if it exists
+        pyramid_data = None
+        if tick.performance_pyramid and len(tick.performance_pyramid) > 0:
+            pyramid = tick.performance_pyramid[0]
+            try:
+                # Safely handle enum values
+                crux_angle = pyramid.crux_angle.value if hasattr(pyramid.crux_angle, 'value') else pyramid.crux_angle
+                crux_energy = pyramid.crux_energy.value if hasattr(pyramid.crux_energy, 'value') else pyramid.crux_energy
+                
+                pyramid_data = {
+                    "first_sent": pyramid.first_sent,
+                    "crux_angle": crux_angle,
+                    "crux_energy": crux_energy,
+                    "num_attempts": pyramid.num_attempts,
+                    "days_attempts": pyramid.days_attempts,
+                    "num_sends": pyramid.num_sends,
+                    "description": pyramid.description,
+                    "agg_notes": pyramid.agg_notes
+                }
+            except Exception as e:
+                logger.error(f"Error processing pyramid data for tick {tick.id}", extra={
+                    "error": str(e),
+                    "tick_id": tick.id,
+                    "pyramid_id": pyramid.id if pyramid else None
+                })
+                continue  # Skip this tick if we can't process its pyramid data
 
-        # Convert quality scores from 0-1 to 0-5 scale
-        route_quality = None if tick.route_quality is None or math.isnan(tick.route_quality) else tick.route_quality * 5
-        user_quality = None if tick.user_quality is None or math.isnan(tick.user_quality) else tick.user_quality * 5
+        # Safely handle quality scores
+        try:
+            route_quality = None if tick.route_quality is None or math.isnan(tick.route_quality) else tick.route_quality * 5
+        except (ValueError, TypeError):
+            route_quality = None
 
-        # Handle None discipline by defaulting to 'sport'
-        discipline = tick.discipline if tick.discipline else ClimbingDiscipline.SPORT
+        try:
+            user_quality = None if tick.user_quality is None or math.isnan(tick.user_quality) else tick.user_quality * 5
+        except (ValueError, TypeError):
+            user_quality = None
 
         detailed_data.append(
             UserTicksWithTags(
@@ -128,7 +157,7 @@ async def get_performance_pyramid(
                 location=tick.location,
                 location_raw=tick.location_raw,
                 lead_style=tick.lead_style,
-                discipline=discipline,
+                discipline=tick.discipline,
                 send_bool=tick.send_bool,
                 route_url=tick.route_url,
                 created_at=tick.created_at.date(),
@@ -137,16 +166,7 @@ async def get_performance_pyramid(
                 user_quality=user_quality,
                 logbook_type=tick.logbook_type,
                 tags=[TagResponse(id=tag.id, name=tag.name) for tag in tick.tags],
-                performance_pyramid={
-                    "first_sent": pyramid.first_sent,
-                    "crux_angle": pyramid.crux_angle.value if pyramid.crux_angle else None,
-                    "crux_energy": pyramid.crux_energy.value if pyramid.crux_energy else None,
-                    "num_attempts": pyramid.num_attempts,
-                    "days_attempts": pyramid.days_attempts,
-                    "num_sends": pyramid.num_sends,
-                    "description": pyramid.description,
-                    "agg_notes": pyramid.agg_notes
-                }
+                performance_pyramid=pyramid_data
             )
         )
 

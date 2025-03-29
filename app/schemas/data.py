@@ -154,7 +154,7 @@ class TickCreate(BaseModel):
         max_length=500,
         description="Raw location string"
     )
-    discipline: ClimbingDiscipline = Field(..., description="Climbing discipline")
+    discipline: Optional[ClimbingDiscipline] = Field(None, description="Climbing discipline")
     length: Optional[int] = Field(
         None,
         ge=0,
@@ -238,6 +238,7 @@ class TickResponse(TickCreate):
     id: int = Field(..., ge=1, description="Tick ID")
     user_id: UUID4 = Field(..., description="User ID")
     created_at: date = Field(..., description="Creation timestamp")
+    discipline: Optional[ClimbingDiscipline] = Field(None, description="Climbing discipline")
 
 
 class BatchTickCreate(BaseModel):
