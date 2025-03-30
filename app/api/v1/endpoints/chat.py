@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Security, Request
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
 from fastapi.responses import StreamingResponse
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, List
 from unittest.mock import AsyncMock
 from app.services.chat.events.manager import EventManager, EventType
 from app.services.chat.ai.basic_chat import BasicChatService
@@ -14,6 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as redis
 from app.services.chat.ai.model_client import Grok3Client
 import json
+from datetime import datetime
+from pydantic import BaseModel
+from sqlalchemy import select, func, desc
+from app.models.chat import ChatHistory
+from app.models.user import User
+from app.schemas.chat import ConversationSummary
 
 router = APIRouter()
 event_manager = EventManager()
@@ -198,3 +204,43 @@ async def get_conversation_history(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving conversation history: {str(e)}")
+
+# --- New Endpoint for Listing Conversation History ---
+@router.get("/history/list", response_model=List[ConversationSummary])
+async def list_conversation_history(
+    current_user: User = Security(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0, # Optional pagination: number of records to skip
+    limit: int = 100 # Optional pagination: max number of records to return
+):
+    """
+    Retrieve a list of conversation summaries (ID, timestamp, and preview)
+    for the current user, ordered by the most recent message first.
+    Supports pagination via skip and limit query parameters.
+    """
+    try:
+        # Construct the query to get the latest message timestamp and first message for each conversation
+        stmt = (
+            select(
+                ChatHistory.conversation_id,
+                func.max(ChatHistory.created_at).label("last_updated"),
+                func.min(ChatHistory.message).label("preview")  # Get the first message of each conversation
+            )
+            .where(ChatHistory.user_id == current_user.id) # Filter by the current user
+            .group_by(ChatHistory.conversation_id) # Group by conversation to get one row per conversation
+            .order_by(desc("last_updated")) # Order by the latest message timestamp descending
+            .offset(skip) # Apply pagination offset
+            .limit(limit) # Apply pagination limit
+        )
+        
+        # Execute the query
+        result = await db.execute(stmt)
+        conversation_summaries = result.mappings().all() # Fetch results as list of dict-like objects
+        
+        # FastAPI will automatically use the response_model to validate and serialize
+        return conversation_summaries
+
+    except Exception as e:
+        # Consider adding logging here for better debugging
+        # logger.error(f"Error retrieving conversation list for user {current_user.id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error retrieving conversation list: {str(e)}")

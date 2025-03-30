@@ -1,8 +1,10 @@
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Union
+from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.client import Redis
 import asyncio
+from app.core.logging import logger
 
 from app.services.chat.context.data_aggregator import DataAggregator
 from app.services.chat.context.context_enhancer import ContextEnhancer
@@ -76,7 +78,7 @@ class ContextOrchestrator:
 
     async def _generate_context(
         self,
-        user_id: int,
+        user_id: Union[int, str, UUID],
         query: Optional[str] = None
     ) -> Dict:
         """
@@ -89,16 +91,29 @@ class ContextOrchestrator:
         Returns:
             Generated context data
         """
-        # Step 1: Aggregate raw data
-        raw_data = await self.data_aggregator.aggregate_all_data(user_id)
-        
-        # Step 2: Enhance with trends and insights
-        enhanced_data = await self.context_enhancer.enhance_context(raw_data, query)
-        
-        # Step 3: Format into unified structure (synchronous call)
-        formatted_context = self.formatter.format_context(enhanced_data, query)
-        
-        return formatted_context
+        try:
+            # Step 1: Aggregate raw data
+            raw_data = await self.data_aggregator.aggregate_all_data(user_id)
+            if not raw_data or not raw_data.get('climber_context'):
+                return {}  # Return empty context if no data found
+            
+            # Step 2: Enhance with trends and insights
+            enhanced_data = await self.context_enhancer.enhance_context(raw_data, query)
+            
+            # Step 3: Format into unified structure (synchronous call)
+            formatted_context = self.formatter.format_context(enhanced_data, query)
+            
+            return formatted_context
+            
+        except Exception as e:
+            logger.error(
+                "Context generation error",
+                extra={
+                    "error": str(e),
+                    "user_id": str(user_id)
+                }
+            )
+            return {}
 
     async def _update_relevance(
         self,

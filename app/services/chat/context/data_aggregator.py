@@ -32,7 +32,10 @@ class DataAggregator:
         try:
             # Convert user_id to UUID if it's not already
             if isinstance(user_id, str):
-                user_id = UUID(user_id)
+                try:
+                    user_id = UUID(user_id)
+                except ValueError:
+                    raise DatabaseError(f"Invalid user_id format: badly formed hexadecimal UUID string")
             elif isinstance(user_id, int):
                 # For testing purposes, create a deterministic UUID from int
                 user_id = UUID(int=user_id, version=4)
@@ -46,8 +49,8 @@ class DataAggregator:
             if row is None:
                 return {}
             return dict(row._mapping)
-        except (ValueError, TypeError) as e:
-            raise DatabaseError(f"Invalid user_id format: {str(e)}")
+        except DatabaseError as e:
+            raise e
         except Exception as e:
             raise DatabaseError(f"Error fetching climber context: {str(e)}")
 

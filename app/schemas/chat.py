@@ -216,6 +216,16 @@ class ChatSettings(BaseModel):
             raise ValueError("Remaining messages cannot exceed daily limit")
         return self
 
+
+class ConversationSummary(BaseModel):
+    """Schema for conversation list summary."""
+    conversation_id: str = Field(..., description="Unique conversation identifier")
+    last_updated: datetime = Field(..., description="Timestamp of the last message in the conversation")
+    preview: str = Field(..., description="First few sentences of the conversation")
+
+    class Config:
+        orm_mode = True # Enable ORM mode for automatic mapping
+
 # Log module initialization complete
 logger.info(
     "Chat schemas module loaded",
@@ -224,7 +234,8 @@ logger.info(
         "schemas_defined": [
             cls.__name__ for cls in [
                 Message, ChatHistoryCreate, ChatHistoryResponse,
-                ChatMessage, ChatResponse, OnboardingData, ChatSettings
+                ChatMessage, ChatResponse, OnboardingData, ChatSettings,
+                ConversationSummary
             ]
         ]
     }
