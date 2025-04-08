@@ -11,6 +11,12 @@ This module defines Pydantic models for:
 from datetime import date, datetime
 from typing import List, Optional, Dict, Any, Set
 from pydantic import BaseModel, Field, UUID4, HttpUrl, model_validator
+from datetime import date, datetime
+from typing import Optional, List, Dict, Any
+from uuid import UUID
+from pydantic import BaseModel
+from app.models.enums import ClimbingDiscipline, LogbookType  # Assuming these are defined elsewhere
+
 
 from app.models.enums import (
     ClimbingDiscipline,
@@ -71,6 +77,17 @@ class PyramidInput(BaseModel):
             self.days_attempts > self.num_attempts):
             raise ValueError("Days attempting cannot exceed number of attempts")
         return self
+    
+class PerformanceDataUpdate(BaseModel):
+    """Schema for performance data in batch updates."""
+    first_sent: Optional[date] = Field(None, description="Date of first successful send")
+    crux_angle: Optional[CruxAngle] = Field(None, description="Angle of the crux")
+    crux_energy: Optional[CruxEnergyType] = Field(None, description="Energy type of the crux")
+    num_attempts: Optional[int] = Field(None, ge=1, le=1000, description="Number of attempts")
+    days_attempts: Optional[int] = Field(None, ge=1, le=365, description="Days spent attempting")
+    num_sends: Optional[int] = Field(None, ge=0, le=1000, description="Number of successful sends")
+    description: Optional[str] = Field(None, max_length=1000, description="Additional notes")
+    agg_notes: Optional[str] = Field(None, max_length=1000, description="Aggregated notes")
 
 class PerformanceData(BaseModel):
     """Schema for detailed performance metrics."""
@@ -121,117 +138,31 @@ class PerformanceData(BaseModel):
 
 class TickCreate(BaseModel):
     """Schema for creating a new climbing tick."""
-    route_name: str = Field(
-        ...,
-        min_length=1,
-        max_length=200,
-        description="Name of the route"
-    )
-    route_grade: str = Field(
-        ...,
-        max_length=50,
-        description="Grade of the route"
-    )
-    binned_grade: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Standardized grade bin"
-    )
-    binned_code: Optional[int] = Field(
-        None,
-        ge=0,
-        le=300,
-        description="Numeric grade code"
-    )
+    route_name: str = Field(..., min_length=1, max_length=200, description="Name of the route")
+    route_grade: str = Field(..., max_length=50, description="Grade of the route")
     tick_date: date = Field(..., description="Date of the tick")
-    location: str = Field(
-        ...,
-        max_length=200,
-        description="Location of the route"
-    )
-    location_raw: Optional[str] = Field(
-        None,
-        max_length=500,
-        description="Raw location string"
-    )
-    discipline: Optional[ClimbingDiscipline] = Field(None, description="Climbing discipline")
-    length: Optional[int] = Field(
-        None,
-        ge=0,
-        le=2000,
-        description="Length in meters"
-    )
-    pitches: Optional[int] = Field(
-        None,
-        ge=1,
-        le=100,
-        description="Number of pitches"
-    )
-    lead_style: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Style of lead"
-    )
+    location: str = Field(..., max_length=200, description="Location of the route")
     send_bool: bool = Field(..., description="Whether the route was sent")
-    route_url: Optional[HttpUrl] = Field(None, description="URL of the route")
-    notes: Optional[str] = Field(
-        None,
-        max_length=1000,
-        description="Additional notes"
-    )
-    route_quality: Optional[float] = Field(
-        None,
-        ge=0,
-        le=5,
-        description="Route quality rating"
-    )
-    user_quality: Optional[float] = Field(
-        None,
-        ge=0,
-        le=5,
-        description="User's rating"
-    )
     logbook_type: LogbookType = Field(..., description="Source of the tick data")
-    difficulty_category: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Difficulty category"
-    )
-    length_category: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Length category"
-    )
-    season_category: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Season category"
-    )
-    cur_max_rp_sport: Optional[int] = Field(
-        None,
-        ge=0,
-        le=100,
-        description="Current max sport redpoint"
-    )
-    cur_max_rp_trad: Optional[int] = Field(
-        None,
-        ge=0,
-        le=100,
-        description="Current max trad redpoint"
-    )
-    cur_max_boulder: Optional[int] = Field(
-        None,
-        ge=0,
-        le=100,
-        description="Current max boulder"
-    )
-    performance_data: Optional[PerformanceData] = Field(
-        None,
-        description="Performance metrics"
-    )
-
-
-
+    # Optional fields
+    binned_grade: Optional[str] = Field(None, max_length=50, description="Standardized grade bin")
+    binned_code: Optional[int] = Field(None, ge=0, le=300, description="Numeric grade code")
+    location_raw: Optional[str] = Field(None, max_length=500, description="Raw location string")
+    discipline: Optional[ClimbingDiscipline] = Field(None, description="Climbing discipline")
+    length: Optional[int] = Field(None, ge=0, le=2000, description="Length in meters")
+    pitches: Optional[int] = Field(None, ge=1, le=100, description="Number of pitches")
+    lead_style: Optional[str] = Field(None, max_length=50, description="Style of lead")
+    route_url: Optional[HttpUrl] = Field(None, description="URL of the route")
+    notes: Optional[str] = Field(None, max_length=1000, description="Additional notes")
+    route_quality: Optional[float] = Field(None, ge=0, le=5, description="Route quality rating")
+    user_quality: Optional[float] = Field(None, ge=0, le=5, description="User's rating")
+    difficulty_category: Optional[str] = Field(None, max_length=50, description="Difficulty category")
+    length_category: Optional[str] = Field(None, max_length=50, description="Length category")
+    season_category: Optional[str] = Field(None, max_length=50, description="Season category")
+    cur_max_sport: Optional[int] = Field(None, ge=0, le=100, description="Current max sport redpoint")
+    cur_max_trad: Optional[int] = Field(None, ge=0, le=100, description="Current max trad redpoint")
+    cur_max_boulder: Optional[int] = Field(None, ge=0, le=100, description="Current max boulder")
+    performance_data: Optional[PerformanceDataUpdate] = Field(None, description="Performance metrics")
 
 class TickResponse(TickCreate):
     """Schema for tick response with metadata."""
@@ -289,17 +220,70 @@ class TagResponse(Tag):
     id: int = Field(..., ge=1, description="Tag ID")
 
 
-class UserTicksWithTags(TickResponse):
-    """Schema for tick data with associated tags and performance data."""
-    tags: List[TagResponse] = Field(
-        default_factory=list,
-        max_length=20,
-        description="Associated tags"
-    )
-    performance_pyramid: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Associated pyramid data"
-    )
+
+# Response model for Tag (used in the tags relationship)
+class TagResponse(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True  # Allows mapping from SQLAlchemy objects
+
+# Response model for PerformancePyramid (used in the performance_pyramid relationship)
+class PerformancePyramidResponse(BaseModel):
+    id: Optional[int] = Field(default=None)
+    user_id: Optional[UUID] = Field(default=None)
+    tick_id: Optional[int] = Field(default=None)
+    first_sent: Optional[date] = Field(default=None)
+    crux_angle: Optional[str] = Field(default=None)  # Enum values will be converted to strings
+    crux_energy: Optional[str] = Field(default=None)  # Enum values will be converted to strings
+    num_attempts: Optional[int] = Field(default=None)
+    days_attempts: Optional[int] = Field(default=None)
+    num_sends: Optional[int] = Field(default=None)
+    description: Optional[str] = Field(default=None)
+    agg_notes: Optional[str] = Field(default=None)
+
+    class Config:
+        from_attributes = True
+
+# Expanded UserTicksWithTags response model including all UserTicks fields
+class UserTicksWithTags(BaseModel):
+    id: int
+    user_id: UUID
+    route_name: Optional[str]
+    tick_date: Optional[date]
+    route_grade: Optional[str]
+    binned_grade: Optional[str]
+    binned_code: Optional[int]
+    length: Optional[int]
+    pitches: Optional[int]
+    location: Optional[str]
+    location_raw: Optional[str]
+    lead_style: Optional[str]
+    cur_max_sport: Optional[int] = Field(default=0)
+    cur_max_trad: Optional[int] = Field(default=0)
+    cur_max_boulder: Optional[int] = Field(default=0)
+    cur_max_tr: Optional[int] = Field(default=0)
+    cur_max_alpine: Optional[int] = Field(default=0)
+    cur_max_winter_ice: Optional[int] = Field(default=0)
+    cur_max_aid: Optional[int] = Field(default=0)
+    cur_max_mixed: Optional[int] = Field(default=0)
+    difficulty_category: Optional[str] = Field(default="Unknown")
+    discipline: Optional[ClimbingDiscipline]
+    send_bool: Optional[bool]
+    length_category: Optional[str] = Field(default="Unknown")
+    season_category: Optional[str] = Field(default="Unknown")
+    route_url: Optional[str]
+    created_at: datetime
+    notes: Optional[str]
+    route_quality: Optional[float]
+    user_quality: Optional[float]
+    logbook_type: Optional[LogbookType]
+    tags: List[TagResponse]
+    performance_pyramid: Optional[PerformancePyramidResponse]
+
+    class Config:
+        from_attributes = True  # Allows mapping from SQLAlchemy objects
 
 
 class BulkTagUpdate(BaseModel):
@@ -423,15 +407,44 @@ class PerformanceDataUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000, description="Additional notes")
     agg_notes: Optional[str] = Field(None, max_length=1000, description="Aggregated notes")
 
-class LogbookTickUpdate(TickCreate):
-    """Schema for creating or updating ticks in batch operations."""
-    id: Optional[int] = Field(None, ge=1, description="Tick ID for updates")
+class LogbookTickUpdate(BaseModel):
+    """Schema for updating existing climbing ticks."""
+    id: Optional[int] = Field(None, ge=1, description="Tick ID for updates (required for updates)")
+    route_name: Optional[str] = Field(None, min_length=1, max_length=200, description="Name of the route")
+    route_grade: Optional[str] = Field(None, max_length=50, description="Grade of the route")
+    tick_date: Optional[date] = Field(None, description="Date of the tick")
+    location: Optional[str] = Field(None, max_length=200, description="Location of the route")
+    send_bool: Optional[bool] = Field(None, description="Whether the route was sent")
+    logbook_type: Optional[LogbookType] = Field(None, description="Source of the tick data")
+    binned_grade: Optional[str] = Field(None, max_length=50, description="Standardized grade bin")
+    binned_code: Optional[int] = Field(None, ge=0, le=300, description="Numeric grade code")
+    location_raw: Optional[str] = Field(None, max_length=500, description="Raw location string")
+    discipline: Optional[ClimbingDiscipline] = Field(None, description="Climbing discipline")
+    length: Optional[int] = Field(None, ge=0, le=2000, description="Length in meters")
+    pitches: Optional[int] = Field(None, ge=1, le=100, description="Number of pitches")
+    lead_style: Optional[str] = Field(None, max_length=50, description="Style of lead")
+    route_url: Optional[HttpUrl] = Field(None, description="URL of the route")
+    notes: Optional[str] = Field(None, max_length=1000, description="Additional notes")
+    route_quality: Optional[float] = Field(None, ge=0, le=5, description="Route quality rating")
+    user_quality: Optional[float] = Field(None, ge=0, le=5, description="User's rating")
+    difficulty_category: Optional[str] = Field(None, max_length=50, description="Difficulty category")
+    length_category: Optional[str] = Field(None, max_length=50, description="Length category")
+    season_category: Optional[str] = Field(None, max_length=50, description="Season category")
+    cur_max_sport: Optional[int] = Field(None, ge=0, le=100, description="Current max sport redpoint")
+    cur_max_trad: Optional[int] = Field(None, ge=0, le=100, description="Current max trad redpoint")
+    cur_max_boulder: Optional[int] = Field(None, ge=0, le=100, description="Current max boulder")
     performance_data: Optional[PerformanceDataUpdate] = Field(None, description="Performance metrics")
     tags: Optional[List[str]] = Field(None, max_length=20, description="Tags for the tick")
 
+    @model_validator(mode="after")
+    def check_id_for_updates(self):
+        if self.id is None:
+            raise ValueError("ID is required for updates")
+        return self
+
 class LogbookBatchUpdate(BaseModel):
     """Schema for batch tick operations."""
-    creates: List[LogbookTickUpdate] = Field(default_factory=list, description="Ticks to create")
+    creates: List[TickCreate] = Field(default_factory=list, description="Ticks to create")
     updates: List[LogbookTickUpdate] = Field(default_factory=list, description="Ticks to update")
     deletes: List[int] = Field(default_factory=list, description="Tick IDs to delete")
 

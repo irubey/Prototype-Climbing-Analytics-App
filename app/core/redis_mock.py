@@ -48,45 +48,32 @@ class MockRedis:
         self._storage[key] = value
         return True
         
-    async def setex(self, name, time=None, time_seconds=None, time_param=None, value=None, *args, **kwargs):
-        """Set a value with expiration time."""
-        # Handle both positional and keyword arguments
-        seconds = None
-        val = None
+    async def setex(self, name, time=None, value=None, *args, **kwargs):
+        """Set a value with expiration time.
         
-        # First check explicit keyword args
-        if time is not None:
-            seconds = time
-        elif time_seconds is not None:
-            seconds = time_seconds
-        elif time_param is not None:
-            seconds = time_param
-            
-        if value is not None:
-            val = value
-        
-        # Handle positional args passed after name
-        if seconds is None and args and len(args) >= 1:
-            seconds = args[0]
-            
-        if val is None and args and len(args) >= 2:
-            val = args[1]
-            
-        # Handle any other keyword args that might be passed
-        if seconds is None and 'time' in kwargs:
-            seconds = kwargs['time']
-            
-        if val is None and 'value' in kwargs:
-            val = kwargs['value']
-            
-        # Ensure we have both seconds and value
-        if seconds is not None and val is not None:
-            self._storage[name] = val
-            self._expirations[name] = time_module.time() + seconds
+        Supports both Redis command formats:
+        - setex(name, time, value)
+        - setex(name, time=time, value=value)
+        """
+        # Handle positional arguments
+        if time is not None and value is not None:
+            self._storage[name] = value
+            self._expirations[name] = time_module.time() + time
             return True
             
-        # If we get here, we couldn't find the parameters we need
-        raise ValueError(f"Invalid parameters for setex - need time and value. Got args={args}, kwargs={kwargs}")
+        # Handle keyword arguments
+        if 'time' in kwargs and 'value' in kwargs:
+            self._storage[name] = kwargs['value']
+            self._expirations[name] = time_module.time() + kwargs['time']
+            return True
+            
+        # Handle additional positional args
+        if args and len(args) >= 2:
+            self._storage[name] = args[1]
+            self._expirations[name] = time_module.time() + args[0]
+            return True
+            
+        raise ValueError(f"setex requires both time and value parameters. Got time={time}, value={value}, args={args}, kwargs={kwargs}")
         
     async def delete(self, *keys) -> int:
         """Delete keys from storage, return number of keys deleted."""
@@ -203,31 +190,28 @@ class MockRedisPipeline:
         return self
         
     def setex(self, name, time=None, value=None, *args, **kwargs):
-        """Add setex command to pipeline."""
-        # For pipeline commands, we need to store the args in the same format
-        # that they'll be passed to the actual method
+        """Add setex command to pipeline.
         
-        # If using positional args
+        Supports both Redis command formats:
+        - setex(name, time, value)
+        - setex(name, time=time, value=value)
+        """
+        # Handle positional arguments
         if time is not None and value is not None:
             self._commands.append(('setex', name, time, value))
-        # If using positional args via *args
-        elif args and len(args) >= 2:
-            self._commands.append(('setex', name, args[0], args[1]))
-        # If using kwargs
-        elif 'time' in kwargs and 'value' in kwargs:
+            return self
+            
+        # Handle keyword arguments
+        if 'time' in kwargs and 'value' in kwargs:
             self._commands.append(('setex', name, kwargs['time'], kwargs['value']))
-        else:
-            # Store whatever we have and let the method handle it
-            cmd_args = [name]
-            if time is not None:
-                cmd_args.append(time)
-            if value is not None:
-                cmd_args.append(value)
-            cmd_args.extend(args)
+            return self
             
-            self._commands.append(('setex', *cmd_args))
+        # Handle additional positional args
+        if args and len(args) >= 2:
+            self._commands.append(('setex', name, args[0], args[1]))
+            return self
             
-        return self
+        raise ValueError(f"setex requires both time and value parameters. Got time={time}, value={value}, args={args}, kwargs={kwargs}")
         
     async def execute(self) -> List[Any]:
         """Execute all commands in the pipeline and return results."""

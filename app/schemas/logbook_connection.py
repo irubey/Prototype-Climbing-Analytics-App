@@ -235,12 +235,18 @@ class SyncStatus(BaseModel):
     
 class LogbookConnectPayload(BaseModel):
     """Schema for logbook connection payload."""
-    source: str = Field(..., description="Source of the logbook connection")
+    source: LogbookType = Field(..., description="Source of the logbook connection")
     profile_url: Optional[HttpUrl] = Field(None, description="URL to external profile")
     username: Optional[str] = Field(None, description="External username")
     password: Optional[str] = Field(None, description="External password")
 
-class IngestionType(str, Enum):
-    """Enum for logbook ingestion types."""
-    MOUNTAIN_PROJECT = "mountain_project"
-    EIGHT_A_NU = "eight_a_nu"
+    @model_validator(mode="before")
+    def convert_source_value(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert source value to match LogbookType enum."""
+        if "source" in values:
+            source = values["source"].lower()
+            if source == "mountain_project":
+                values["source"] = LogbookType.MOUNTAIN_PROJECT
+            elif source == "eight_a_nu":
+                values["source"] = LogbookType.EIGHT_A_NU
+        return values

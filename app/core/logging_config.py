@@ -68,6 +68,7 @@ def setup_logging(log_dir: str = "logs", console_log_level: str = "DEBUG") -> No
         colorize=True,
         backtrace=True,
         diagnose=True,
+        serialize=True  # Enable JSON serialization for structured logging
     )
 
     # Create logs directory
@@ -76,43 +77,35 @@ def setup_logging(log_dir: str = "logs", console_log_level: str = "DEBUG") -> No
 
     # Common log configuration
     log_config: Dict[str, Any] = {
-        "rotation": "1 day",  # Rotate logs daily
-        "retention": "7 days",  # Keep logs for 7 days
-        "compression": "zip",  # Compress old log files
-        "backtrace": True,  # Capture stack traces for debugging
-        "diagnose": True,  # Show variable values in stack traces
+        "rotation": "1 day",
+        "retention": "7 days",
+        "compression": "zip",
+        "backtrace": True,
+        "diagnose": True,
+        "serialize": True  # Enable JSON serialization for file logs
     }
+
+    # Context-specific log
+    logger.add(
+        log_directory / "context.log",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message} | {extra}",
+        level="DEBUG",
+        filter=lambda record: "context" in record["extra"].get("module", "").lower(),
+        **log_config
+    )
 
     # Error log with all log levels and details
     logger.add(
         log_directory / "error.log",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message} | {extra}",
-        level="DEBUG",  # Log everything to the error log
-        **log_config,
-    )
-
-    # Scraping-specific log (example)
-    logger.add(
-        log_directory / "scraping.log",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message} | {extra}",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message} | {extra}",
         level="DEBUG",
-        filter=lambda record: "scraping" in record["extra"].get("error_type", "").lower(),
-        **log_config,
-    )
-
-    # API request log (example)
-    logger.add(
-        log_directory / "api.log",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message} | {extra}",
-        level="DEBUG",
-        filter=lambda record: record["extra"].get("type") == "api_request",
-        **log_config,
+        **log_config
     )
 
     # Configure standard library logging interception
     logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
 
-    # Silence noisy loggers (optional, but good practice)
+    # Silence noisy loggers
     for logger_name in logging.root.manager.loggerDict:
         if logger_name.startswith(("uvicorn", "gunicorn", "sqlalchemy")):
             logging.getLogger(logger_name).handlers = []

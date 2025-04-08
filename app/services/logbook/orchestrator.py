@@ -170,6 +170,13 @@ class LogbookOrchestrator:
             profile_url
         )
 
+        # Step 4: Update sync timestamp after successful processing
+        await self.db_service.update_sync_timestamp(
+            user_id=user_id,
+            logbook_type=logbook_type,
+            profile_url=profile_url
+        )
+
         logger.info(f"{logbook_type.value} sync completed", extra={
             "user_id": str(user_id),
             "total_ticks": len(ticks),
@@ -201,7 +208,7 @@ class LogbookOrchestrator:
         Returns:
             Tuple of (saved ticks, saved pyramids, saved tags)
         """
-        async with self.db.begin():
+        try:
             # Get existing ticks for deduplication
             stmt = select(UserTicks).where(UserTicks.user_id == user_id)
             result = await self.db.execute(stmt)
@@ -225,44 +232,14 @@ class LogbookOrchestrator:
                 lambda x: x.isoformat() if pd.notna(x) else None
             )
             
-            # Log sample of datetime conversions
-            logger.debug("DateTime conversion sample", extra={
-                "existing": [{
-                    "route_name": tick.route_name,
-                    "tick_date_type": type(tick.tick_date).__name__,
-                    "tick_date_raw": str(tick.tick_date),
-                    "tick_date_converted": (tick.tick_date.isoformat() if isinstance(tick.tick_date, (date, datetime)) 
-                                         else tick.tick_date.date().isoformat() if tick.tick_date else None)
-                } for tick in list(existing_ticks)[:3]],
-                "incoming": processed_df[['route_name', 'tick_date', 'tick_date_str']].head(3).to_dict('records')
-            })
-            
             # Replace NaN with None in route_name to ensure consistent comparison
             processed_df['route_name'] = processed_df['route_name'].where(pd.notna(processed_df['route_name']), None)
             
             processed_df['combination'] = list(zip(processed_df['route_name'], processed_df['tick_date_str']))
             
-            # Log deduplication details
-            logger.info("Deduplication analysis", extra={
-                "existing_combinations": len(existing_combinations),
-                "incoming_combinations": len(processed_df),
-                "sample_existing": list(existing_combinations)[:3],
-                "sample_incoming": processed_df['combination'].head(3).tolist(),
-                "date_format_example": {
-                    "existing": next(iter(existing_combinations))[1] if existing_combinations else None,
-                    "incoming": processed_df['tick_date_str'].iloc[0] if not processed_df.empty else None
-                }
-            })
-            
             # Filter out existing combinations
             processed_df = processed_df[~processed_df['combination'].isin(existing_combinations)]
             processed_df = processed_df.drop(['tick_date_str', 'combination'], axis=1)
-            
-            logger.info("Deduplication results", extra={
-                "original_count": len(ticks_data),
-                "filtered_count": len(processed_df),
-                "duplicates_removed": len(ticks_data) - len(processed_df)
-            })
             
             if processed_df.empty:
                 logger.info("No new ticks to process")
@@ -278,12 +255,6 @@ class LogbookOrchestrator:
                 not in existing_combinations
             ]
             
-            logger.info("Ticks data filtering results", extra={
-                "original_ticks_data_count": len(ticks_data),
-                "filtered_ticks_data_count": len(filtered_ticks_data),
-                "duplicates_removed": len(ticks_data) - len(filtered_ticks_data)
-            })
-            
             # Save ticks and get IDs
             ticks = await self.db_service.save_user_ticks(filtered_ticks_data, user_id)
             
@@ -293,13 +264,6 @@ class LogbookOrchestrator:
             
             # Directly assign tick IDs to processed_df
             processed_df['id'] = [tick.id for tick in ticks]
-            
-            # Log mapping statistics
-            logger.debug("Tick ID mapping created", extra={
-                "total_ticks": len(ticks),
-                "mapped_ticks": processed_df['id'].notna().sum(),
-                "unmapped_ticks": processed_df['id'].isna().sum()
-            })
             
             # Build pyramids using only the new unique ticks
             try:
@@ -323,6 +287,9 @@ class LogbookOrchestrator:
                 combined_df = pd.concat([all_ticks_df, processed_df], ignore_index=True)
                 combined_df = combined_df.drop_duplicates(subset=['route_name', 'tick_date'], keep='last')
                 
+                # Clean up existing pyramid data before rebuilding
+                await self.db_service.cleanup_performance_pyramid(user_id)
+                
                 pyramid_data = await self.pyramid_builder.build_performance_pyramid(combined_df, user_id)
                 pyramids = await self.db_service.save_performance_pyramid(pyramid_data, user_id)
                 logger.info("Performance pyramid data built and saved", extra={
@@ -339,16 +306,21 @@ class LogbookOrchestrator:
             # Save tags
             tags = await self.db_service.save_tags(tag_data, [tick.id for tick in ticks])
             
-            # Update sync timestamp
-            await self.db_service.update_sync_timestamp(user_id, logbook_type, profile_url)
-
-            logger.info("Persistence and analysis completed", extra={
-                "ticks_saved": len(ticks),
-                "pyramids_built": len(pyramid_data),
-                "tags_saved": len(tags)
-            })
-
+            # Update sync timestamp after successful processing
+            await self.db_service.update_sync_timestamp(
+                user_id=user_id,
+                logbook_type=logbook_type,
+                profile_url=profile_url
+            )
+            
             return ticks, pyramids, tags
+            
+        except Exception as e:
+            logger.error("Error in persist and analyze", extra={
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            })
+            raise DataSourceError(f"Error persisting and analyzing data: {str(e)}")
 
     async def process_mountain_project_ticks(self, user_id: UUID, profile_url: str):
         """Process Mountain Project ticks."""

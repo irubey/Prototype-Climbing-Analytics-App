@@ -39,7 +39,7 @@ class ClimbClassifier:
         self.lead_indicators = ['Lead', 'Onsight', 'Flash', 'Redpoint', 'Pinkpoint']
         self.gear_indicators = ['Gear', 'Trad', 'Placed Gear', 'Traditional']
         self.sport_indicators = ['Bolts', 'Sport', 'Quickdraws']
-        self.follow_indicators = ['Follow', 'TR', 'Second', 'Top Rope', 'Following']
+        self.follow_indicators = ['follow', 'tr', 'second', 'top rope', 'following']
         
         # Load crux characteristic keywords
         self.crux_angle_keywords = {
@@ -93,17 +93,17 @@ class ClimbClassifier:
 
             # Extract types
             types = [t.strip() for t in str(row['route_type']).split(',')]
-            style = str(row.get('style', '')).lower() if pd.notna(row.get('style', None)) else ''  # Changed from lead_style
+            style = str(row.get('style', '')).lower() if pd.notna(row.get('style', None)) else ''
             notes = str(row.get('notes', '')) if pd.notna(row.get('notes', None)) else ''
 
             logger.debug("Processing route classification", extra={
                 "route_name": row.get('route_name', 'Unknown'),
                 "types": types,
-                "style": style  # Updated logging to reflect style
+                "style": style
             })
 
-            # Check for explicit TR/Follow style first if the length_category is not multipitch
-            if not row.get('length_category') == 'multipitch' and any(fi in style for fi in self.follow_indicators):
+            # Check for TR style first - this overrides all other classifications
+            if any(fi in style for fi in self.follow_indicators):
                 return ClimbingDiscipline.TR.value
 
             # Check if it's a boulder based on grade range
@@ -131,19 +131,19 @@ class ClimbClassifier:
 
             # Sport/TR combinations
             if 'Sport' in types and 'TR' in types:
-                if 'lead' in style:  # Check style for "lead" instead of lead_style
+                if 'lead' in style:
                     return ClimbingDiscipline.SPORT.value
-                return ClimbingDiscipline.TR.value  # Default to TR if no "lead" in style
+                return ClimbingDiscipline.TR.value
 
             # Trad/TR combinations
             if 'Trad' in types and 'TR' in types:
-                if 'lead' in style:  # Check style for "lead" instead of lead_style
+                if 'lead' in style:
                     return ClimbingDiscipline.TRAD.value
-                return ClimbingDiscipline.TR.value  # Default to TR if no "lead" in style
+                return ClimbingDiscipline.TR.value
 
             # Trad/Sport combinations
             if ('Trad' in types and 'Sport' in types) or ('Sport' in types and 'Trad' in types):
-                return None  # Require user confirmation
+                return ClimbingDiscipline.MIXED.value
 
             # Handle Ice/Mixed combinations
             if 'Ice' in types:
@@ -188,7 +188,8 @@ class ClimbClassifier:
         # - Style is None/empty -> check notes for send indicators
         if 'discipline' in df.columns:
             is_boulder = df['discipline'] == ClimbingDiscipline.BOULDER
-            is_roped = df['discipline'].isin([ClimbingDiscipline.SPORT, ClimbingDiscipline.TRAD])
+            is_roped = df['discipline'].isin([ClimbingDiscipline.SPORT, ClimbingDiscipline.TRAD, ClimbingDiscipline.MIXED, 
+                                              ClimbingDiscipline.AID, ClimbingDiscipline.ALPINE, ClimbingDiscipline.WINTER_ICE])
             is_tr = df['discipline'] == ClimbingDiscipline.TR
         else:
             # If discipline column is missing, make best guess from style/lead_style

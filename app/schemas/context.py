@@ -57,6 +57,10 @@ class ContextResponse(BaseModel):
         default_factory=list,
         description="List of processed uploads"
     )
+    is_new_user: bool = Field(
+        default=False,
+        description="Flag indicating if this is a new user with no context"
+    )
 
     class Config:
         json_schema_extra = {
@@ -80,6 +84,7 @@ class ContextResponse(BaseModel):
                 "goals": {
                     "climbing_goals": "Send V8 by December"
                 },
-                "uploads": []
+                "uploads": [],
+                "is_new_user": False
             }
         } 

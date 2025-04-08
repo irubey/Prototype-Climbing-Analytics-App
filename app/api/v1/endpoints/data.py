@@ -4,23 +4,26 @@ from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import math
+import pandas as pd
 
 from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models import User, UserTicks, PerformancePyramid, UserTicksTags, Tag
 from app.models.enums import ClimbingDiscipline
 from app.schemas.data import (
-    TickCreate,
-    BatchTickCreate,
     PyramidInput,
-    RefreshStatus,
-    TickResponse,
+    PerformancePyramidResponse,
     UserTicksWithTags,
     LogbookBatchUpdate,
     LogbookBatchUpdateResponse,
     TagResponse
 )
 from app.services.utils.grade_service import GradeService, GradingSystem
+from app.core.logging import logger
+from app.services.logbook.climb_classifier import ClimbClassifier
+from app.services.logbook.pyramid_builder import PyramidBuilder
+from app.services.logbook.database_service import DatabaseService
+from app.services.logbook.recalculation_service import RecalculationService
 
 router = APIRouter()
 
@@ -44,19 +47,16 @@ async def get_user_ticks(
     response = []
     for tick in ticks:
         performance_data = (
-            tick.performance_pyramid[0].__dict__ if tick.performance_pyramid else None
-        )
-        if performance_data:
-            # Remove internal SQLAlchemy fields and unwanted keys
-            performance_data.pop('_sa_instance_state', None)
-            performance_data.pop('user_id', None)
-            performance_data.pop('tick_id', None)
-            performance_data.pop('id', None)
+            PerformancePyramidResponse.from_orm(tick.performance_pyramid[0])
+            if tick.performance_pyramid
+            else None
+            )
 
         # Convert quality scores from 0-1 to 0-5 scale
         route_quality = None if tick.route_quality is None or math.isnan(tick.route_quality) else tick.route_quality * 5
         user_quality = None if tick.user_quality is None or math.isnan(tick.user_quality) else tick.user_quality * 5
 
+        # Build the full response object
         response.append(
             UserTicksWithTags(
                 id=tick.id,
@@ -71,10 +71,21 @@ async def get_user_ticks(
                 location=tick.location,
                 location_raw=tick.location_raw,
                 lead_style=tick.lead_style,
+                cur_max_sport=tick.cur_max_sport,
+                cur_max_trad=tick.cur_max_trad,
+                cur_max_boulder=tick.cur_max_boulder,
+                cur_max_tr=tick.cur_max_tr,
+                cur_max_alpine=tick.cur_max_alpine,
+                cur_max_winter_ice=tick.cur_max_winter_ice,
+                cur_max_aid=tick.cur_max_aid,
+                cur_max_mixed=tick.cur_max_mixed,
+                difficulty_category=tick.difficulty_category,
                 discipline=tick.discipline,
                 send_bool=tick.send_bool,
+                length_category=tick.length_category,
+                season_category=tick.season_category,
                 route_url=tick.route_url,
-                created_at=tick.created_at.date(),
+                created_at=tick.created_at,  # Keeping as datetime; adjust to .date() if preferred
                 notes=tick.notes,
                 route_quality=route_quality,
                 user_quality=user_quality,
@@ -83,6 +94,14 @@ async def get_user_ticks(
                 performance_pyramid=performance_data
             )
         )
+
+    # Log the response data, including data[9] specifically
+    logger.info("Outgoing ticks data", extra={
+        "total_ticks": len(response),
+        "sample_tick": response[9].model_dump() if len(response) > 9 else None,
+        "first_tick": response[0].model_dump() if response else None,
+        "last_tick": response[-1].model_dump() if response else None
+    })
 
     return response
 
@@ -185,7 +204,7 @@ async def batch_update_ticks(
     deleted_ids = []
     errors = {"creates": {}, "updates": {}, "deletes": {}}
 
-    # Process creates
+    # Process creates (unchanged, requires full data)
     for idx, tick_data in enumerate(batch_update.creates):
         try:
             binned_code = await grade_service.convert_to_code(
@@ -199,12 +218,9 @@ async def batch_update_ticks(
             db.add(db_tick)
             await db.flush()
 
-            # Handle tags
             if tick_data.tags:
                 for tag_name in tick_data.tags:
-                    tag = await db.execute(
-                        select(Tag).filter(Tag.name == tag_name)
-                    )
+                    tag = await db.execute(select(Tag).filter(Tag.name == tag_name))
                     tag = tag.scalar_one_or_none()
                     if not tag:
                         tag = Tag(name=tag_name)
@@ -212,7 +228,6 @@ async def batch_update_ticks(
                         await db.flush()
                     db.add(UserTicksTags(user_tick_id=db_tick.id, tag_id=tag.id))
 
-            # Handle performance data
             if tick_data.performance_data:
                 pyramid = PerformancePyramid(
                     user_id=current_user.id,
@@ -225,11 +240,9 @@ async def batch_update_ticks(
         except Exception as e:
             errors["creates"][idx] = str(e)
 
-    # Process updates
+    # Process updates (handle partial data)
     for idx, tick_data in enumerate(batch_update.updates):
         try:
-            if not tick_data.id:
-                raise ValueError("Tick ID required for update")
             tick = await db.execute(
                 select(UserTicks)
                 .filter(UserTicks.id == tick_data.id, UserTicks.user_id == current_user.id)
@@ -238,26 +251,30 @@ async def batch_update_ticks(
             if not tick:
                 raise HTTPException(status_code=404, detail="Tick not found")
 
-            binned_code = await grade_service.convert_to_code(
-                tick_data.route_grade, GradingSystem.YDS
-            )
-            update_data = tick_data.model_dump(exclude={"id", "performance_data", "tags"})
-            update_data["binned_code"] = binned_code
-            await db.execute(
-                update(UserTicks)
-                .where(UserTicks.id == tick_data.id)
-                .values(**update_data)
-            )
+            # Filter out None values and exclude performance_data and tags for base update
+            update_data = {
+                k: v for k, v in tick_data.model_dump(exclude={"id", "performance_data", "tags"}).items()
+                if v is not None
+            }
+            if "route_grade" in update_data:
+                update_data["binned_code"] = await grade_service.convert_to_code(
+                    update_data["route_grade"], GradingSystem.YDS
+                )
 
-            # Update tags
+            if update_data:
+                await db.execute(
+                    update(UserTicks)
+                    .where(UserTicks.id == tick_data.id)
+                    .values(**update_data)
+                )
+
+            # Update tags if provided (even if empty)
             if tick_data.tags is not None:
                 await db.execute(
                     delete(UserTicksTags).filter(UserTicksTags.user_tick_id == tick_data.id)
                 )
                 for tag_name in tick_data.tags:
-                    tag = await db.execute(
-                        select(Tag).filter(Tag.name == tag_name)
-                    )
+                    tag = await db.execute(select(Tag).filter(Tag.name == tag_name))
                     tag = tag.scalar_one_or_none()
                     if not tag:
                         tag = Tag(name=tag_name)
@@ -265,24 +282,29 @@ async def batch_update_ticks(
                         await db.flush()
                     db.add(UserTicksTags(user_tick_id=tick_data.id, tag_id=tag.id))
 
-            # Update or create performance data
-            if tick_data.performance_data:
+            # Update performance data if provided
+            if tick_data.performance_data is not None:
                 pyramid = await db.execute(
                     select(PerformancePyramid)
                     .filter(PerformancePyramid.tick_id == tick_data.id)
                 )
                 pyramid = pyramid.scalar_one_or_none()
+                performance_data = {
+                    k: v for k, v in tick_data.performance_data.model_dump().items()
+                    if v is not None
+                }
                 if pyramid:
-                    await db.execute(
-                        update(PerformancePyramid)
-                        .where(PerformancePyramid.tick_id == tick_data.id)
-                        .values(**tick_data.performance_data.model_dump())
-                    )
+                    if performance_data:
+                        await db.execute(
+                            update(PerformancePyramid)
+                            .where(PerformancePyramid.tick_id == tick_data.id)
+                            .values(**performance_data)
+                        )
                 else:
                     pyramid = PerformancePyramid(
                         user_id=current_user.id,
                         tick_id=tick_data.id,
-                        **tick_data.performance_data.model_dump()
+                        **performance_data
                     )
                     db.add(pyramid)
 
@@ -290,7 +312,7 @@ async def batch_update_ticks(
         except Exception as e:
             errors["updates"][idx] = str(e)
 
-    # Process deletes
+    # Process deletes (unchanged)
     for idx, tick_id in enumerate(batch_update.deletes):
         try:
             tick = await db.execute(
@@ -316,13 +338,32 @@ async def batch_update_ticks(
 
     await db.commit()
 
+    recalculation_service = RecalculationService(db)
+    success, recalculation_errors = await recalculation_service.recalculate_fields_and_pyramids(
+        current_user.id, created_ids, updated_ids, deleted_ids
+    )
+
+    if not success:
+        # Format recalculation errors to match the expected schema
+        formatted_recalculation_errors = {
+            "recalculation": {
+                idx: str(error) for idx, error in enumerate(recalculation_errors)
+            }
+        }
+        if errors is None:
+            errors = formatted_recalculation_errors
+        else:
+            errors.update(formatted_recalculation_errors)
+
     # Clean up empty error dictionaries
-    if not errors["creates"]:
-        errors.pop("creates")
-    if not errors["updates"]:
-        errors.pop("updates")
-    if not errors["deletes"]:
-        errors.pop("deletes")
+    if errors and not errors.get("creates"):
+        errors.pop("creates", None)
+    if errors and not errors.get("updates"):
+        errors.pop("updates", None)
+    if errors and not errors.get("deletes"):
+        errors.pop("deletes", None)
+    if errors and not errors.get("recalculation"):
+        errors.pop("recalculation", None)
     errors = errors if errors else None
 
     return LogbookBatchUpdateResponse(

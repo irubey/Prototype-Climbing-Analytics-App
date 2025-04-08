@@ -113,6 +113,7 @@ class LogbookType(str, Enum):
     
     MOUNTAIN_PROJECT = "Mountain Project"
     EIGHT_A_NU = "8a.nu"
+    USER = "User"
 
     @classmethod
     def get_values(cls) -> List[str]:

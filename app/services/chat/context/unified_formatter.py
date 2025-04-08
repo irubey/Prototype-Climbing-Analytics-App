@@ -190,35 +190,67 @@ class UnifiedFormatter:
         Returns:
             Formatted context in unified JSON format
         """
+        # Get climber context
+        climber_context = enhanced_data.get('climber_context', {})
+        
         # Determine experience level
         experience_level = self.determine_experience_level(enhanced_data)
         
         # Generate human-readable summary
         summary = self.generate_summary(enhanced_data, experience_level)
         
-        # Structure the formatted context
-        formatted_context = {
-            "context_version": self.context_version,
-            "summary": summary,
-            "profile": {
-                "experience_level": experience_level,
-                "years_climbing": enhanced_data.get('climber_context', {}).get('years_climbing', 0),
-                "preferred_styles": enhanced_data.get('climber_context', {}).get('preferred_styles', [])
-            },
-            "performance": self.format_performance_data(enhanced_data),
-            "training": self.format_training_data(enhanced_data),
-            "health": self.format_health_data(enhanced_data),
-            "goals": enhanced_data.get('goals', {}),
-            "recent_activity": {
-                "ticks": enhanced_data.get('recent_ticks', [])[:10],  # Last 10 climbs
-                "chat_history": enhanced_data.get('chat_history', [])
-            }
+        # Format profile data
+        profile = {
+            'experience_level': experience_level,
+            'years_climbing': climber_context.get('years_climbing', 0),
+            'total_climbs': climber_context.get('total_climbs', 0),
+            'favorite_discipline': climber_context.get('favorite_discipline'),
+            'interests': climber_context.get('interests', []),
+            'training_frequency': climber_context.get('current_training_frequency'),
+            'home_equipment': climber_context.get('home_equipment', [])
         }
         
-        # Add relevance scores if query provided
-        if query and 'relevance' in enhanced_data:
-            formatted_context['relevance'] = enhanced_data['relevance']
-            
+        # Format performance data
+        performance = {
+            'highest_grades': {
+                'sport': climber_context.get('highest_grade_sport_sent_clean_on_lead'),
+                'trad': climber_context.get('highest_grade_trad_sent_clean_on_lead'),
+                'boulder': climber_context.get('highest_grade_boulder_sent_clean'),
+                'tr': climber_context.get('highest_grade_tr_sent_clean')
+            },
+            'recent_activity': enhanced_data.get('trends', {}).get('activity_levels', {}),
+            'training_consistency': enhanced_data.get('trends', {}).get('training_consistency', 0)
+        }
+        
+        # Format trends data
+        trends = enhanced_data.get('trends', {})
+        
+        # Format goals data
+        goals = {
+            'current_goals': climber_context.get('climbing_goals', []),
+            'progress': enhanced_data.get('goals', {}).get('progress', {
+                'status': 'not_set',
+                'progress': 0.0,
+                'time_remaining': None
+            })
+        }
+        
+        # Format relevance scores if query provided
+        relevance = enhanced_data.get('relevance', {}) if query else {}
+        
+        # Construct final response
+        formatted_context = {
+            'context_version': self.context_version,
+            'summary': summary,
+            'profile': profile,
+            'performance': performance,
+            'trends': trends,
+            'relevance': relevance,
+            'goals': goals,
+            'uploads': enhanced_data.get('uploads', []),
+            'is_new_user': not bool(climber_context)
+        }
+        
         return formatted_context
 
     def to_json(self, formatted_context: Dict) -> str:

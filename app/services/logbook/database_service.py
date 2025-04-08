@@ -10,7 +10,7 @@ This module provides functionality for:
 
 from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator, Set
 from uuid import UUID
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, and_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone, date
@@ -482,3 +482,126 @@ class DatabaseService:
                 "error_type": type(e).__name__,
                 "traceback": traceback.format_exc()
             })
+
+    async def cleanup_performance_pyramid(self, user_id: UUID) -> None:
+        """Clean up all performance pyramid data for a user."""
+        logger.info("Cleaning up performance pyramid data", extra={
+            "user_id": str(user_id)
+        })
+        
+        try:
+            # Delete all pyramid entries for the user
+            await self.session.execute(
+                delete(PerformancePyramid).where(PerformancePyramid.user_id == user_id)
+            )
+            await self.session.flush()
+            
+            logger.info("Successfully cleaned up performance pyramid data", extra={
+                "user_id": str(user_id)
+            })
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error("Error cleaning up performance pyramid", extra={
+                "user_id": str(user_id),
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            })
+            raise DatabaseError(f"Error cleaning up performance pyramid: {str(e)}")
+
+    async def cleanup_logbook_data(
+        self,
+        user_id: UUID,
+        logbook_type: LogbookType
+    ) -> None:
+        """
+        Clean up all data associated with a specific logbook type for a user.
+        This includes:
+        - UserTicks
+        - PerformancePyramid
+        - Tags (if they are only associated with the deleted ticks)
+        - User sync timestamps
+        """
+        logger.info("Cleaning up logbook data", extra={
+            "user_id": str(user_id),
+            "logbook_type": logbook_type.value
+        })
+        
+        try:
+            # Get all ticks for this user and logbook type
+            stmt = select(UserTicks).where(
+                and_(
+                    UserTicks.user_id == user_id,
+                    UserTicks.logbook_type == logbook_type
+                )
+            )
+            result = await self.session.execute(stmt)
+            ticks = result.scalars().all()
+            
+            if not ticks:
+                logger.info("No existing data to clean up")
+                return
+            
+            # Get all tick IDs for deletion
+            tick_ids = [tick.id for tick in ticks]
+            
+            # Delete performance pyramid entries
+            await self.session.execute(
+                delete(PerformancePyramid).where(
+                    PerformancePyramid.tick_id.in_(tick_ids)
+                )
+            )
+            
+            # Delete tag associations
+            await self.session.execute(
+                delete(UserTicksTags).where(
+                    UserTicksTags.user_tick_id.in_(tick_ids)
+                )
+            )
+            
+            # Delete the ticks
+            await self.session.execute(
+                delete(UserTicks).where(
+                    UserTicks.id.in_(tick_ids)
+                )
+            )
+            
+            # Update user sync timestamp
+            if logbook_type == LogbookType.MOUNTAIN_PROJECT:
+                await self.session.execute(
+                    update(User).where(
+                        User.id == user_id
+                    ).values(
+                        mountain_project_last_sync=None,
+                        mountain_project_url=None
+                    )
+                )
+            elif logbook_type == LogbookType.EIGHT_A_NU:
+                await self.session.execute(
+                    update(User).where(
+                        User.id == user_id
+                    ).values(
+                        eight_a_nu_last_sync=None,
+                        eight_a_nu_url=None,
+                        eight_a_nu_encrypted_username=None,
+                        eight_a_nu_encrypted_password=None
+                    )
+                )
+            
+            logger.info("Successfully cleaned up logbook data", extra={
+                "user_id": str(user_id),
+                "logbook_type": logbook_type.value,
+                "deleted_ticks": len(tick_ids)
+            })
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error("Error cleaning up logbook data", extra={
+                "user_id": str(user_id),
+                "logbook_type": logbook_type.value,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            })
+            raise DatabaseError(f"Error cleaning up logbook data: {str(e)}")

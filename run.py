@@ -16,8 +16,9 @@ def run_app(reload_mode: bool = False):
         "app": settings.APP_IMPORT, # e.g. defined as "app.main:app" in config
         "host": settings.HOST if hasattr(settings, "HOST") else "0.0.0.0",
         "port": settings.PORT if hasattr(settings, "PORT") else 8000,
-        "log_level": "info",
-        "workers": 1
+        "log_level": "debug",
+        "workers": 1,
+        "log_config": None
     }
     
     if reload_mode:

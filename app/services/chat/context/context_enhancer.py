@@ -5,6 +5,9 @@ import pandas as pd
 from collections import defaultdict
 from app.services.utils.grade_service import GradeService, GradingSystem
 from app.models.enums import ClimbingDiscipline
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ContextEnhancer:
     """
@@ -33,43 +36,51 @@ class ContextEnhancer:
         if not ticks:
             return {'all_time': 0.0, 'recent': 0.0}
 
-        # Convert ticks to DataFrame for analysis
-        df = pd.DataFrame(ticks)
-        df['date'] = pd.to_datetime(df['date'])
-        
-        # Convert grades to numeric codes using GradeService
-        grades = df['grade'].tolist()
-        # Determine if these are boulder or route grades based on the first grade
-        sample_grade = grades[0] if grades else None
-        discipline = ClimbingDiscipline.BOULDER if sample_grade and sample_grade.startswith('V') else ClimbingDiscipline.SPORT
-        grade_codes = await self.grade_service.convert_grades_to_codes(grades, discipline)
-        df['grade_value'] = grade_codes
+        try:
+            # Convert ticks to DataFrame for analysis
+            df = pd.DataFrame(ticks)
+            # Use tick_date instead of date
+            df['date'] = pd.to_datetime(df['tick_date'])
+            
+            # Convert grades to numeric codes using GradeService
+            grades = df['route_grade'].tolist()  # Use route_grade instead of grade
+            # Determine if these are boulder or route grades based on the first grade
+            sample_grade = grades[0] if grades else None
+            discipline = ClimbingDiscipline.BOULDER if sample_grade and sample_grade.startswith('V') else ClimbingDiscipline.SPORT
+            grade_codes = await self.grade_service.convert_grades_to_codes(grades, discipline)
+            df['grade_value'] = grade_codes
 
-        # Calculate all-time progression
-        df_sorted = df.sort_values('date')
-        if len(df_sorted) >= 2:
-            days_climbing = (df_sorted['date'].max() - df_sorted['date'].min()).days
-            # Calculate average grade improvement per year
-            grade_change = df_sorted['grade_value'].max() - df_sorted['grade_value'].min()
-            all_time_progression = grade_change * (365 / max(days_climbing, 1))  # Normalize to yearly rate
-        else:
-            all_time_progression = 0.0
+            # Calculate all-time progression
+            df_sorted = df.sort_values('date')
+            if len(df_sorted) >= 2:
+                days_climbing = (df_sorted['date'].max() - df_sorted['date'].min()).days
+                # Calculate average grade improvement per year
+                grade_change = df_sorted['grade_value'].max() - df_sorted['grade_value'].min()
+                all_time_progression = grade_change * (365 / max(days_climbing, 1))  # Normalize to yearly rate
+            else:
+                all_time_progression = 0.0
 
-        # Calculate recent progression if timeframe specified
-        recent_progression = 0.0
-        if timeframe_days:
-            cutoff_date = datetime.now() - timedelta(days=timeframe_days)
-            recent_df = df[df['date'] >= cutoff_date]
-            if len(recent_df) >= 2:
-                recent_sorted = recent_df.sort_values('date')
-                recent_days = (recent_sorted['date'].max() - recent_sorted['date'].min()).days
-                recent_grade_change = recent_sorted['grade_value'].max() - recent_sorted['grade_value'].min()
-                recent_progression = recent_grade_change * (365 / max(recent_days, 1))  # Normalize to yearly rate
+            # Calculate recent progression if timeframe specified
+            recent_progression = 0.0
+            if timeframe_days:
+                cutoff_date = datetime.now() - timedelta(days=timeframe_days)
+                recent_df = df[df['date'] >= cutoff_date]
+                if len(recent_df) >= 2:
+                    recent_sorted = recent_df.sort_values('date')
+                    recent_days = (recent_sorted['date'].max() - recent_sorted['date'].min()).days
+                    recent_grade_change = recent_sorted['grade_value'].max() - recent_sorted['grade_value'].min()
+                    recent_progression = recent_grade_change * (365 / max(recent_days, 1))  # Normalize to yearly rate
 
-        return {
-            'all_time': round(all_time_progression, 2),
-            'recent': round(recent_progression, 2)
-        }
+            return {
+                'all_time': round(all_time_progression, 2),
+                'recent': round(recent_progression, 2)
+            }
+        except Exception as e:
+            logger.error(f"Error calculating grade progression: {str(e)}", extra={
+                "error_type": type(e).__name__,
+                "ticks_count": len(ticks)
+            })
+            return {'all_time': 0.0, 'recent': 0.0}
 
     def calculate_training_consistency(self, ticks: List[Dict], days: int = 180) -> float:
         """
@@ -85,22 +96,29 @@ class ContextEnhancer:
         if not ticks:
             return 0.0
 
-        df = pd.DataFrame(ticks)
-        df['date'] = pd.to_datetime(df['date'])
-        
-        # Focus on recent period
-        cutoff_date = datetime.now() - timedelta(days=days)
-        recent_df = df[df['date'] >= cutoff_date]
-        
-        if len(recent_df) == 0:
-            return 0.0
+        try:
+            df = pd.DataFrame(ticks)
+            df['date'] = pd.to_datetime(df['tick_date'])
+            
+            # Focus on recent period
+            cutoff_date = datetime.now() - timedelta(days=days)
+            recent_df = df[df['date'] >= cutoff_date]
+            
+            if len(recent_df) == 0:
+                return 0.0
 
-        # Calculate unique climbing days and frequency
-        unique_days = recent_df['date'].dt.date.nunique()
-        expected_sessions = days / 7 * 3  # Assuming 3 sessions per week is optimal
-        consistency = min(1.0, unique_days / expected_sessions)
-        
-        return round(consistency, 2)
+            # Calculate unique climbing days and frequency
+            unique_days = recent_df['date'].dt.date.nunique()
+            expected_sessions = days / 7 * 3  # Assuming 3 sessions per week is optimal
+            consistency = min(1.0, unique_days / expected_sessions)
+            
+            return round(consistency, 2)
+        except Exception as e:
+            logger.error(f"Error calculating training consistency: {str(e)}", extra={
+                "error_type": type(e).__name__,
+                "ticks_count": len(ticks)
+            })
+            return 0.0
 
     def calculate_activity_levels(self, ticks: List[Dict]) -> Dict[str, float]:
         """
@@ -115,21 +133,28 @@ class ContextEnhancer:
         if not ticks:
             return {'weekly': 0, 'monthly': 0}
 
-        df = pd.DataFrame(ticks)
-        df['date'] = pd.to_datetime(df['date'])
-        
-        # Calculate weekly and monthly averages
-        now = datetime.now()
-        week_ago = now - timedelta(days=7)
-        month_ago = now - timedelta(days=30)
-        
-        weekly_sessions = len(df[df['date'] >= week_ago])
-        monthly_sessions = len(df[df['date'] >= month_ago]) / 4  # Average per week
+        try:
+            df = pd.DataFrame(ticks)
+            df['date'] = pd.to_datetime(df['tick_date'])
+            
+            # Calculate weekly and monthly averages
+            now = datetime.now()
+            week_ago = now - timedelta(days=7)
+            month_ago = now - timedelta(days=30)
+            
+            weekly_sessions = len(df[df['date'] >= week_ago])
+            monthly_sessions = len(df[df['date'] >= month_ago]) / 4  # Average per week
 
-        return {
-            'weekly': round(weekly_sessions, 1),
-            'monthly': round(monthly_sessions, 1)
-        }
+            return {
+                'weekly': round(weekly_sessions, 1),
+                'monthly': round(monthly_sessions, 1)
+            }
+        except Exception as e:
+            logger.error(f"Error calculating activity levels: {str(e)}", extra={
+                "error_type": type(e).__name__,
+                "ticks_count": len(ticks)
+            })
+            return {'weekly': 0, 'monthly': 0}
 
     async def calculate_goal_progress(
         self, 
@@ -242,42 +267,112 @@ class ContextEnhancer:
     ) -> Dict:
         """
         Main method to enhance raw context data with trends and insights.
-        
-        Args:
-            raw_data: Aggregated raw context data
-            query: Optional user query for relevance scoring
-            
-        Returns:
-            Enhanced context data
         """
-        enhanced_data = raw_data.copy()
-        
-        # Add grade progression trends
-        ticks = raw_data.get('recent_ticks', [])
-        enhanced_data['trends'] = {
-            'grade_progression': await self.calculate_grade_progression(ticks, 180),  # 6 months
-            'training_consistency': self.calculate_training_consistency(ticks),
-            'activity_levels': self.calculate_activity_levels(ticks)
-        }
-        
-        # Add goal progress if available
-        context = raw_data.get('climber_context', {})
-        if 'current_grade' in context and 'goal_grade' in context:
-            enhanced_data['goals'] = {
-                'progress': await self.calculate_goal_progress(
-                    context['current_grade'],
-                    context['goal_grade'],
-                    context.get('goal_deadline')
-                )
+        try:
+            # Initial logging with raw data
+            logger.info("Starting context enhancement", extra={
+                "raw_data_summary": {
+                    "recent_ticks_count": len(raw_data.get('recent_ticks', [])),
+                    "has_climber_context": bool(raw_data.get('climber_context')),
+                    "has_performance_metrics": bool(raw_data.get('performance_metrics')),
+                    "has_chat_history": bool(raw_data.get('chat_history')),
+                    "raw_data_keys": list(raw_data.keys())
+                }
+            })
+            
+            enhanced_data = raw_data.copy()
+            
+            # Process ticks with detailed logging
+            ticks = raw_data.get('recent_ticks', [])
+            if ticks:
+                sample_tick = ticks[0] if ticks else None
+                logger.info("Processing ticks data", extra={
+                    "ticks_info": {
+                        "total_ticks": len(ticks),
+                        "sample_tick": {
+                            "tick_date": str(sample_tick.get('tick_date')) if sample_tick else None,
+                            "route_grade": sample_tick.get('route_grade') if sample_tick else None,
+                            "route_name": sample_tick.get('route_name') if sample_tick else None
+                        } if sample_tick else None
+                    }
+                })
+            
+            # Calculate metrics
+            grade_progression = await self.calculate_grade_progression(ticks, 180)
+            training_consistency = self.calculate_training_consistency(ticks)
+            activity_levels = self.calculate_activity_levels(ticks)
+            
+            logger.info("Calculated metrics", extra={
+                "metrics": {
+                    "grade_progression": grade_progression,
+                    "training_consistency": training_consistency,
+                    "activity_levels": activity_levels
+                }
+            })
+            
+            enhanced_data['trends'] = {
+                'grade_progression': grade_progression,
+                'training_consistency': training_consistency,
+                'activity_levels': activity_levels
             }
             
-        # Add relevance scores only if query is provided and not empty
-        if query and query.strip():
-            enhanced_data['relevance'] = self.add_relevance_scores(query, raw_data)
-        elif 'relevance' in enhanced_data:
-            del enhanced_data['relevance']  # Remove relevance if it exists but no query provided
+            # Process goals
+            context = raw_data.get('climber_context', {})
+            if 'current_grade' in context and 'goal_grade' in context:
+                logger.info("Processing goals", extra={
+                    "goals_data": {
+                        "current_grade": context['current_grade'],
+                        "goal_grade": context['goal_grade'],
+                        "has_deadline": bool(context.get('goal_deadline'))
+                    }
+                })
+                enhanced_data['goals'] = {
+                    'progress': await self.calculate_goal_progress(
+                        context['current_grade'],
+                        context['goal_grade'],
+                        context.get('goal_deadline')
+                    )
+                }
             
-        return enhanced_data
+            # Process relevance scores
+            if query and query.strip():
+                enhanced_data['relevance'] = self.add_relevance_scores(query, raw_data)
+            elif 'relevance' in enhanced_data:
+                del enhanced_data['relevance']
+            
+            # Log final enhanced context
+            logger.info("Context enhancement completed", extra={
+                "enhanced_context": {
+                    "climber_context": {
+                        "years_climbing": enhanced_data.get('climber_context', {}).get('years_climbing'),
+                        "total_climbs": enhanced_data.get('climber_context', {}).get('total_climbs'),
+                        "favorite_discipline": enhanced_data.get('climber_context', {}).get('favorite_discipline'),
+                        "highest_grades": {
+                            "sport": enhanced_data.get('climber_context', {}).get('highest_sport_grade_tried'),
+                            "boulder": enhanced_data.get('climber_context', {}).get('highest_boulder_grade_tried'),
+                            "trad": enhanced_data.get('climber_context', {}).get('highest_trad_grade_tried')
+                        }
+                    },
+                    "trends": enhanced_data.get('trends'),
+                    "goals": enhanced_data.get('goals'),
+                    "metrics": {
+                        "recent_ticks": len(enhanced_data.get('recent_ticks', [])),
+                        "performance_metrics": bool(enhanced_data.get('performance_metrics')),
+                        "chat_history": len(enhanced_data.get('chat_history', [])),
+                        "has_uploads": bool(enhanced_data.get('uploads'))
+                    }
+                }
+            })
+            
+            return enhanced_data
+            
+        except Exception as e:
+            logger.error("Error enhancing context", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "raw_data_keys": list(raw_data.keys()) if raw_data else None
+            })
+            return raw_data
 
     def _format_time_remaining(self, deadline: Optional[datetime]) -> Optional[str]:
         """Format the time remaining until the deadline in a human-readable format."""

@@ -1,10 +1,12 @@
-from typing import Dict, List, Optional, Callable, Union
+from typing import Dict, List, Optional, Callable, Union, Any
 from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.client import Redis
 import asyncio
 from app.core.logging import logger
+import json
+from fastapi import HTTPException
 
 from app.services.chat.context.data_aggregator import DataAggregator
 from app.services.chat.context.context_enhancer import ContextEnhancer
@@ -17,64 +19,171 @@ class ContextOrchestrator:
     Coordinates data aggregation, enhancement, formatting, and caching.
     """
 
-    def __init__(
-        self,
-        db_session: AsyncSession,
-        redis_client: Redis,
-        cache_ttl: int = 3600,
-        cache_prefix: str = "context:"
-    ):
-        """
-        Initialize the context orchestrator with its components.
-        
-        Args:
-            db_session: SQLAlchemy async session
-            redis_client: Redis client instance
-            cache_ttl: Cache TTL in seconds (default 1 hour)
-            cache_prefix: Cache key prefix
-        """
-        self.data_aggregator = DataAggregator(db_session)
-        self.context_enhancer = ContextEnhancer()
+    def __init__(self, db: AsyncSession, redis_client: Redis):
+        self.db = db
+        self.redis_client = redis_client
+        self.cache_ttl = 3600  # 1 hour
+        self.cache_prefix = "context:"
+        self.enhancer = ContextEnhancer()
         self.formatter = UnifiedFormatter()
-        self.cache_manager = CacheManager(
-            redis_client=redis_client,
-            ttl_seconds=cache_ttl,
-            prefix=cache_prefix
-        )
 
     async def get_context(
         self,
-        user_id: int,
+        user_id: str,
         query: Optional[str] = None,
-        conversation_id: Optional[int] = None,
         force_refresh: bool = False
-    ) -> Dict:
-        """
-        Main method to get context for AI responses.
-        
-        Args:
-            user_id: User ID
-            query: Optional user query for relevance scoring
-            conversation_id: Optional conversation ID
-            force_refresh: Whether to force context regeneration
+    ) -> Dict[str, Any]:
+        """Get context for a user, either from cache or freshly generated."""
+        try:
+            logger.debug("Getting context", extra={
+                "user_id": user_id,
+                "force_refresh": force_refresh,
+                "has_query": query is not None
+            })
+
+            # Try to get from cache first unless force refresh
+            if not force_refresh:
+                cached = await self._get_cached_context(user_id)
+                if cached:
+                    logger.debug("Found cached context", extra={"user_id": user_id})
+                    if query:
+                        cached = await self.enhancer.enhance_context(cached, query)
+                    return cached
+
+            logger.debug("Generating fresh context", extra={"user_id": user_id})
+            data_aggregator = await DataAggregator.create()
             
-        Returns:
-            Formatted context data
-        """
-        if force_refresh:
-            await self.cache_manager.invalidate_context(user_id, conversation_id)
+            # Use the existing transaction from middleware
+            raw_data = await data_aggregator.aggregate_all_data(self.db, user_id)
             
-        context = await self.cache_manager.get_or_set_context(
-            user_id,
-            conversation_id,
-            lambda: self._generate_context(user_id, query)
-        )
-        
-        if context and query and 'relevance' not in context:
-            # Update relevance scores for new query
-            context = await self._update_relevance(context, query, user_id, conversation_id)
+            # Enhance and format the context
+            enhanced_data = await self.enhancer.enhance_context(raw_data, query)
+            context = self.formatter.format_context(enhanced_data, query)
             
-        return context
+            # Cache the result
+            await self._cache_context(user_id, context)
+            
+            logger.debug("Context generation completed", extra={"user_id": user_id})
+            return context
+            
+        except Exception as e:
+            logger.error("Context generation error", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "user_id": user_id
+            })
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error generating context: {str(e)}"
+            )
+
+    async def refresh_context(self, user_id: str) -> None:
+        """Force refresh context for a user."""
+        try:
+            logger.debug("Starting context refresh", extra={"user_id": user_id})
+            data_aggregator = await DataAggregator.create()
+            
+            # Use existing transaction from middleware
+            raw_data = await data_aggregator.aggregate_all_data(self.db, user_id)
+            
+            # Enhance and format the context
+            enhanced_data = await self.enhancer.enhance_context(raw_data)
+            context = self.formatter.format_context(enhanced_data)
+            
+            # Cache the result
+            await self._cache_context(user_id, context)
+            logger.debug("Context refresh completed", extra={"user_id": user_id})
+            
+        except Exception as e:
+            logger.error("Context refresh error", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "user_id": user_id
+            })
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error refreshing context: {str(e)}"
+            )
+
+    async def handle_data_update(
+        self,
+        user_id: str,
+        update_type: str,
+        update_data: Dict[str, Any],
+        replace: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Handle updates to context data."""
+        try:
+            logger.debug("Handling data update", extra={
+                "user_id": user_id,
+                "update_type": update_type,
+                "replace": replace
+            })
+            
+            # Get current context using existing transaction
+            data_aggregator = await DataAggregator.create()
+            current_data = await data_aggregator.aggregate_all_data(self.db, user_id)
+            
+            if not current_data:
+                logger.warning("No current data found for update", extra={"user_id": user_id})
+                return None
+                
+            # Update the relevant section
+            if replace:
+                current_data[update_type] = update_data
+            else:
+                current_data[update_type].update(update_data)
+                
+            # Re-enhance and format the context
+            enhanced_data = await self.enhancer.enhance_context(current_data)
+            context = self.formatter.format_context(enhanced_data)
+            
+            # Cache the updated context
+            await self._cache_context(user_id, context)
+            
+            logger.debug("Data update completed", extra={"user_id": user_id})
+            return context
+            
+        except Exception as e:
+            logger.error("Context update error", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "user_id": user_id
+            })
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error updating context: {str(e)}"
+            )
+
+    async def _get_cached_context(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get context from cache if it exists."""
+        try:
+            key = f"{self.cache_prefix}{user_id}"
+            cached = await self.redis_client.get(key)
+            return json.loads(cached) if cached else None
+        except Exception as e:
+            logger.error("Cache retrieval error", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "user_id": user_id
+            })
+            return None
+
+    async def _cache_context(self, user_id: str, context: Dict[str, Any]) -> None:
+        """Cache context data."""
+        try:
+            key = f"{self.cache_prefix}{user_id}"
+            await self.redis_client.setex(
+                key,
+                self.cache_ttl,
+                json.dumps(context)
+            )
+        except Exception as e:
+            logger.error("Cache storage error", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "user_id": user_id
+            })
 
     async def _generate_context(
         self,
@@ -89,19 +198,40 @@ class ContextOrchestrator:
             query: Optional user query
             
         Returns:
-            Generated context data
+            Generated context data with all required fields
         """
         try:
+            # Create DataAggregator instance with current session
+            data_aggregator = await DataAggregator.create()
+            
             # Step 1: Aggregate raw data
-            raw_data = await self.data_aggregator.aggregate_all_data(user_id)
-            if not raw_data or not raw_data.get('climber_context'):
-                return {}  # Return empty context if no data found
+            raw_data = await data_aggregator.aggregate_all_data(self.db, user_id)
             
             # Step 2: Enhance with trends and insights
-            enhanced_data = await self.context_enhancer.enhance_context(raw_data, query)
+            enhanced_data = await self.enhancer.enhance_context(raw_data, query)
             
-            # Step 3: Format into unified structure (synchronous call)
+            # Step 3: Format into unified structure
             formatted_context = self.formatter.format_context(enhanced_data, query)
+            
+            # Step 4: Ensure all required fields are present
+            default_context = {
+                "context_version": "1.0",
+                "summary": "New user with no climbing history.",
+                "profile": {},
+                "performance": {},
+                "trends": {},
+                "relevance": {},
+                "goals": {},
+                "uploads": [],
+                "is_new_user": True
+            }
+            
+            # If we have actual data, update the default context
+            if raw_data and raw_data.get('climber_context'):
+                formatted_context = {**default_context, **formatted_context}
+                formatted_context['is_new_user'] = False
+            else:
+                formatted_context = default_context
             
             return formatted_context
             
@@ -113,7 +243,18 @@ class ContextOrchestrator:
                     "user_id": str(user_id)
                 }
             )
-            return {}
+            # Return default context structure even in error case
+            return {
+                "context_version": "1.0",
+                "summary": "Unable to retrieve user context at this time.",
+                "profile": {},
+                "performance": {},
+                "trends": {},
+                "relevance": {},
+                "goals": {},
+                "uploads": [],
+                "is_new_user": True
+            }
 
     async def _update_relevance(
         self,
@@ -135,17 +276,12 @@ class ContextOrchestrator:
             Updated context data
         """
         # Add relevance scores (async call)
-        enhanced_data = await self.context_enhancer.enhance_context(context, query)
+        enhanced_data = await self.enhancer.enhance_context(context, query)
         # Format context (synchronous call)
         updated_context = self.formatter.format_context(enhanced_data, query)
         
         # Update cache
-        await self.cache_manager.update_context(
-            user_id,
-            updated_context,
-            conversation_id,
-            merge=True
-        )
+        await self._cache_context(str(user_id), updated_context)
         
         return updated_context
 
@@ -170,17 +306,13 @@ class ContextOrchestrator:
         """
         try:
             # Invalidate existing cache
-            await self.cache_manager.invalidate_context(user_id, conversation_id)
+            await self._cache_context(str(user_id), None)
             
             # Generate fresh context
             new_context = await self._generate_context(user_id)
             
             # Cache new context
-            success = await self.cache_manager.set_context(
-                user_id,
-                new_context,
-                conversation_id
-            )
+            success = await self._cache_context(str(user_id), new_context)
             
             return success
             
@@ -190,34 +322,57 @@ class ContextOrchestrator:
 
     async def refresh_context(
         self,
-        user_id: int,
+        user_id: Union[int, str, UUID],
         conversation_id: Optional[int] = None
     ) -> bool:
         """
         Refreshes context data while maintaining cache TTL.
         
         Args:
-            user_id: User ID
+            user_id: User ID as UUID, string, or integer
             conversation_id: Optional conversation ID
             
         Returns:
             Success status
         """
         try:
+            # Invalidate existing cache first
+            await self._cache_context(str(user_id), None)
+            
             # Generate fresh context
             new_context = await self._generate_context(user_id)
             
             # Update cache with fresh data
-            success = await self.cache_manager.set_context(
-                user_id,
-                new_context,
-                conversation_id
-            )
+            success = await self._cache_context(str(user_id), new_context)
+            
+            if success:
+                logger.info(
+                    "Context refreshed successfully",
+                    extra={
+                        "user_id": str(user_id),
+                        "conversation_id": conversation_id
+                    }
+                )
+            else:
+                logger.warning(
+                    "Failed to set refreshed context in cache",
+                    extra={
+                        "user_id": str(user_id),
+                        "conversation_id": conversation_id
+                    }
+                )
             
             return success
             
         except Exception as e:
-            print(f"Error refreshing context: {str(e)}")  # Replace with proper logging
+            logger.error(
+                "Error refreshing context",
+                extra={
+                    "error": str(e),
+                    "user_id": str(user_id),
+                    "conversation_id": conversation_id
+                }
+            )
             return False
 
     async def bulk_refresh_contexts(

@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 import redis
 from redis.client import Redis
 from redis.exceptions import RedisError
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CacheManager:
     """
@@ -79,8 +82,7 @@ class CacheManager:
             return None
             
         except (RedisError, json.JSONDecodeError) as e:
-            # Log error but don't raise - treat as cache miss
-            print(f"Cache retrieval error: {str(e)}")  # Replace with proper logging
+            logger.error(f"Cache retrieval error: {str(e)}")
             return None
 
     async def set_context(
@@ -113,7 +115,7 @@ class CacheManager:
             return bool(result)
             
         except (RedisError, TypeError) as e:
-            print(f"Cache storage error: {str(e)}")  # Replace with proper logging
+            logger.error(f"Cache storage error: {str(e)}")
             return False
 
     async def invalidate_context(
