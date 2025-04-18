@@ -39,7 +39,6 @@ class BinnedCode(BaseModel):
         description="Standardized grade name"
     )
 
-
 class PyramidInput(BaseModel):
     """Schema for manual performance pyramid data input."""
     tick_id: int = Field(..., ge=1, description="ID of the associated tick")
