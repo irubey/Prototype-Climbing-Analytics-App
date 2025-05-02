@@ -583,9 +583,7 @@ class DatabaseService:
                         User.id == user_id
                     ).values(
                         eight_a_nu_last_sync=None,
-                        eight_a_nu_url=None,
-                        eight_a_nu_encrypted_username=None,
-                        eight_a_nu_encrypted_password=None
+                        eight_a_nu_url=None
                     )
                 )
             

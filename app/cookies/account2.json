@@ -1,0 +1,281 @@
+{
+  "cookies": [
+    {
+      "name": "AUTH_SESSION_ID",
+      "value": "06e407eb-1cd0-4250-8538-417497faaae8.keycloak-1-50769",
+      "domain": "vlatka.vertical-life.info",
+      "path": "/auth/realms/Vertical-Life/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "AUTH_SESSION_ID_LEGACY",
+      "value": "06e407eb-1cd0-4250-8538-417497faaae8.keycloak-1-50769",
+      "domain": "vlatka.vertical-life.info",
+      "path": "/auth/realms/Vertical-Life/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "KEYCLOAK_IDENTITY",
+      "value": "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICIyODdmYzQ2Ny1hZmEyLTRhOTItOTM2MS04YTNmMmMyYjgwZGQifQ.eyJleHAiOjE3NzcyNDQzOTUsImlhdCI6MTc0NTcwODM5NSwianRpIjoiNzczMjE3YzQtOGI1Ny00Mjg4LTkzYWEtMDcyZjYyNWI5NTgzIiwiaXNzIjoiaHR0cHM6Ly92bGF0a2EudmVydGljYWwtbGlmZS5pbmZvL2F1dGgvcmVhbG1zL1ZlcnRpY2FsLUxpZmUiLCJzdWIiOiJmOmVhMjNhYzZiLTE4NTItNGI1NC1iYmY2LWRiNmNjZTcxNTVmYzphMDIzMTlhNS02ZTczLTQ3YzAtYTQ1My1kNzFhMWFmMjBiMmQiLCJ0eXAiOiJTZXJpYWxpemVkLUlEIiwic2Vzc2lvbl9zdGF0ZSI6IjA2ZTQwN2ViLTFjZDAtNDI1MC04NTM4LTQxNzQ5N2ZhYWFlOCIsInNpZCI6IjA2ZTQwN2ViLTFjZDAtNDI1MC04NTM4LTQxNzQ5N2ZhYWFlOCIsInN0YXRlX2NoZWNrZXIiOiJLN05qX2VNMnBEYTRmd3AzV2VjY2RUaHBVQ014QW9rblNlWlNQSXpxajUwIn0.9N73ujjpKy9nc2LjBf9G8t9hvOUEWrI_NxO9eywE2XK5TysMaf1bJsrgSod3SVgOmimF3JYR_-SH-nZoPLPhAQ",
+      "domain": "vlatka.vertical-life.info",
+      "path": "/auth/realms/Vertical-Life/",
+      "expires": 1777244395.201872,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "KEYCLOAK_IDENTITY_LEGACY",
+      "value": "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICIyODdmYzQ2Ny1hZmEyLTRhOTItOTM2MS04YTNmMmMyYjgwZGQifQ.eyJleHAiOjE3NzcyNDQzOTUsImlhdCI6MTc0NTcwODM5NSwianRpIjoiNzczMjE3YzQtOGI1Ny00Mjg4LTkzYWEtMDcyZjYyNWI5NTgzIiwiaXNzIjoiaHR0cHM6Ly92bGF0a2EudmVydGljYWwtbGlmZS5pbmZvL2F1dGgvcmVhbG1zL1ZlcnRpY2FsLUxpZmUiLCJzdWIiOiJmOmVhMjNhYzZiLTE4NTItNGI1NC1iYmY2LWRiNmNjZTcxNTVmYzphMDIzMTlhNS02ZTczLTQ3YzAtYTQ1My1kNzFhMWFmMjBiMmQiLCJ0eXAiOiJTZXJpYWxpemVkLUlEIiwic2Vzc2lvbl9zdGF0ZSI6IjA2ZTQwN2ViLTFjZDAtNDI1MC04NTM4LTQxNzQ5N2ZhYWFlOCIsInNpZCI6IjA2ZTQwN2ViLTFjZDAtNDI1MC04NTM4LTQxNzQ5N2ZhYWFlOCIsInN0YXRlX2NoZWNrZXIiOiJLN05qX2VNMnBEYTRmd3AzV2VjY2RUaHBVQ014QW9rblNlWlNQSXpxajUwIn0.9N73ujjpKy9nc2LjBf9G8t9hvOUEWrI_NxO9eywE2XK5TysMaf1bJsrgSod3SVgOmimF3JYR_-SH-nZoPLPhAQ",
+      "domain": "vlatka.vertical-life.info",
+      "path": "/auth/realms/Vertical-Life/",
+      "expires": 1777244395.201897,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "KEYCLOAK_SESSION",
+      "value": "\"Vertical-Life/f%3Aea23ac6b-1852-4b54-bbf6-db6cce7155fc%3Aa02319a5-6e73-47c0-a453-d71a1af20b2d/06e407eb-1cd0-4250-8538-417497faaae8\"",
+      "domain": "vlatka.vertical-life.info",
+      "path": "/auth/realms/Vertical-Life/",
+      "expires": 1777244395.201915,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "KEYCLOAK_SESSION_LEGACY",
+      "value": "\"Vertical-Life/f%3Aea23ac6b-1852-4b54-bbf6-db6cce7155fc%3Aa02319a5-6e73-47c0-a453-d71a1af20b2d/06e407eb-1cd0-4250-8538-417497faaae8\"",
+      "domain": "vlatka.vertical-life.info",
+      "path": "/auth/realms/Vertical-Life/",
+      "expires": 1777244395.201928,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "KEYCLOAK_REMEMBER_ME",
+      "value": "\"username:isaac.rubey%40gmail.com\"",
+      "domain": "vlatka.vertical-life.info",
+      "path": "/auth/realms/Vertical-Life/",
+      "expires": 1777244395.201941,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "connect.sid",
+      "value": "s%3A93IBlC0MTKqtwEEhHg5SuVgRCclM5hpd.2yds9Djqum%2B4y7WPnmPq0BN%2FCO1BinesSzZn0MM1BYE",
+      "domain": "www.8a.nu",
+      "path": "/",
+      "expires": 1748300395.49333,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "i18n_redirected",
+      "value": "en",
+      "domain": "www.8a.nu",
+      "path": "/",
+      "expires": 1777244397,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "color-value",
+      "value": "light",
+      "domain": "www.8a.nu",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "CookieConsent",
+      "value": "{stamp:%27-1%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27implied%27%2Cver:1%2Cutc:1745708398537%2Cregion:%27US-08%27}",
+      "domain": "www.8a.nu",
+      "path": "/",
+      "expires": 1748300398,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga_J0GPW6391N",
+      "value": "GS1.1.1745708397.1.0.1745708397.0.0.0",
+      "domain": ".8a.nu",
+      "path": "/",
+      "expires": 1780268398.54601,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "YSC",
+      "value": "atZ8nmwHcV8",
+      "domain": ".youtube.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "VISITOR_INFO1_LIVE",
+      "value": "uRe1hvP0QCc",
+      "domain": ".youtube.com",
+      "path": "/",
+      "expires": 1761260398.560074,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "VISITOR_PRIVACY_METADATA",
+      "value": "CgJVUxIEGgAgFg%3D%3D",
+      "domain": ".youtube.com",
+      "path": "/",
+      "expires": 1761260398.560111,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__Secure-ROLLOUT_TOKEN",
+      "value": "CIfe59HUiOydrwEQxvHkx-b2jAMYxvHkx-b2jAM%3D",
+      "domain": ".youtube.com",
+      "path": "/",
+      "expires": 1761260398.560152,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_ga",
+      "value": "GA1.2.1526066306.1745708399",
+      "domain": ".8a.nu",
+      "path": "/",
+      "expires": 1780268398.580873,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_gid",
+      "value": "GA1.2.2023724365.1745708399",
+      "domain": ".8a.nu",
+      "path": "/",
+      "expires": 1745794798,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_gat_UA-4594494-1",
+      "value": "1",
+      "domain": ".8a.nu",
+      "path": "/",
+      "expires": 1745708458,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__gads",
+      "value": "ID=1b0d1e7d99d755d9:T=1745708398:RT=1745708398:S=ALNI_MYXGoYriIe10KGuv60u4K0EWDatSg",
+      "domain": ".8a.nu",
+      "path": "/",
+      "expires": 1779404398,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__gpi",
+      "value": "UID=000010a059dd575e:T=1745708398:RT=1745708398:S=ALNI_MaXkkvzc_2y5w8rfqWW1ieTaZ345g",
+      "domain": ".8a.nu",
+      "path": "/",
+      "expires": 1779404398,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__eoi",
+      "value": "ID=a6bdba7bc1c6bd0e:T=1745708398:RT=1745708398:S=AA-AfjYCoFs2R41WEvlmm2wUPiWK",
+      "domain": ".8a.nu",
+      "path": "/",
+      "expires": 1761260398,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "IDE",
+      "value": "AHWqTUkSwffIfXlx-R25iZl1IEYX2n-vq4kUJ3iPKRQi11ReM_LXbbCXJgA1l_XZK9g",
+      "domain": ".doubleclick.net",
+      "path": "/",
+      "expires": 1780268398.723849,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "NID",
+      "value": "523=nmPeTsgBteYjjo8ZCG3q1-4GHDRvysdE4jpyeEpjQOXcCQrrz8iVdfTKxP5umc6DW-w4YL3nt41ZxL0ubRk4xsx8Ji3-3wpKyWFEr1YTBna2-hcdQP90E2-_h3H89yqmPqKNfRlVKOScVhOOKLzrm8daVLFvRSQ_9WWcqQ_ygjX-Py1hc7CfHZs-eElf1mAzeLCMtw",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1761519599.423481,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://www.8a.nu",
+      "localStorage": [
+        {
+          "name": "goog:cached:topics",
+          "value": "[null,1745708399290,3]"
+        }
+      ]
+    },
+    {
+      "origin": "https://www.youtube.com",
+      "localStorage": [
+        {
+          "name": "yt-remote-connected-devices",
+          "value": "{\"data\":\"[]\",\"expiration\":1745794799223,\"creation\":1745708399223}"
+        },
+        {
+          "name": "yt-remote-device-id",
+          "value": "{\"data\":\"114a242a-e773-44eb-9830-072e7204ff5b\",\"expiration\":1777244399220,\"creation\":1745708399220}"
+        },
+        {
+          "name": "ytidb::LAST_RESULT_ENTRY_KEY",
+          "value": "{\"data\":{\"hasSucceededOnce\":true},\"expiration\":1748300399309,\"creation\":1745708399309}"
+        }
+      ]
+    },
+    {
+      "origin": "https://www.google.com",
+      "localStorage": [
+        {
+          "name": "rc::h",
+          "value": "1745708398937"
+        }
+      ]
+    }
+  ]
+}

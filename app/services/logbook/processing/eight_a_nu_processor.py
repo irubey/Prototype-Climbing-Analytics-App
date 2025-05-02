@@ -14,6 +14,8 @@ import traceback
 import numpy as np
 import asyncio
 from typing import Optional
+from datetime import datetime, timezone
+import re
 
 # Third-party imports
 import pandas as pd
@@ -42,6 +44,19 @@ class EightANuProcessor(BaseCSVProcessor):
     async def process_raw_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Process raw 8a.nu JSON data into standardized format matching UserTicks."""
         try:
+            # Log raw data structure in detail
+            if not df.empty:
+                sample_row = df.iloc[0]
+                logger.info("Raw 8a.nu data structure", extra={
+                    "columns": df.columns.tolist(),
+                    "sample_row": sample_row.to_dict(),
+                    "boolean_fields": {
+                        col: df[col].sum() 
+                        for col in df.columns 
+                        if df[col].dtype == bool
+                    }
+                })
+
             logger.info("Starting 8a.nu data processing", extra={
                 "user_id": str(self.user_id),
                 "row_count": len(df),
@@ -52,101 +67,276 @@ class EightANuProcessor(BaseCSVProcessor):
             if df.empty or len(df.columns) == 0:
                 raise DataSourceError("No data found in 8a.nu response")
 
-            # Set logbook type
-            df['logbook_type'] = LogbookType.EIGHT_A_NU
+            # Create standardized DataFrame with all required columns
+            standardized_df = pd.DataFrame(index=df.index)
+            logger.info("Created empty standardized DataFrame", extra={
+                "index_size": len(standardized_df.index)
+            })
 
-            # Process locations
-            logger.debug("Processing locations")
-            df['location'] = df.apply(
-                lambda x: f"{x['cragName']}, {x['areaName']}" if pd.notna(x['areaName']) else x['cragName'],
+            # Required fields from UserTicks model
+            standardized_df['id'] = None  # Will be set by database
+            standardized_df['user_id'] = self.user_id
+            standardized_df['logbook_type'] = LogbookType.EIGHT_A_NU
+            standardized_df['created_at'] = datetime.now(timezone.utc)
+            logger.info("Added basic required fields", extra={
+                "fields_added": ['id', 'user_id', 'logbook_type', 'created_at']
+            })
+
+            # Route information (direct mappings)
+            standardized_df['route_name'] = df['zlaggableName']
+            standardized_df['tick_date'] = pd.to_datetime(df['date'], utc=True)
+            standardized_df['length'] = 0  # 8a.nu doesn't provide length
+            standardized_df['pitches'] = 1  # Default for 8a.nu
+            standardized_df['route_url'] = df['zlaggableSlug'].apply(
+                lambda x: f"https://www.8a.nu/crags/{x}" if pd.notna(x) else None
+            )
+
+            # Copy boolean fields from raw data
+            boolean_fields = [
+                'firstAscent', 'chipped', 'withKneepad', 'badAnchor', 'badBolts',
+                'highFirstBolt', 'looseRock', 'badClippingPosition', 'isHard',
+                'isSoft', 'isBoltedByMe', 'isOverhang', 'isVertical', 'isSlab',
+                'isRoof', 'isAthletic', 'isEndurance', 'isCrimpy', 'isCruxy',
+                'isSloper', 'isTechnical', 'isDanger'
+            ]
+            
+            for field in boolean_fields:
+                if field in df.columns:
+                    standardized_df[field] = df[field]
+                    logger.debug(f"Copied boolean field {field}", extra={
+                        "field": field,
+                        "true_count": df[field].sum() if field in df.columns else 0,
+                        "dtype": str(df[field].dtype)
+                    })
+
+            logger.info("Copied boolean fields", extra={
+                "fields_copied": [f for f in boolean_fields if f in df.columns],
+                "sample_boolean_values": {f: df[f].sum() for f in boolean_fields if f in df.columns},
+                "available_fields": df.columns.tolist()
+            })
+
+            # Location processing
+            def extract_state(area_name):
+                if pd.isna(area_name):
+                    return None
+                # Look for state in parentheses
+                match = re.search(r'\((.*?)\)', area_name)
+                if match:
+                    return match.group(1)
+                return None
+
+            def format_location(row):
+                area_name = row['areaName']
+                crag_name = row['cragName']
+                country_name = row['countryName']
+                state = extract_state(area_name)
+                
+                if pd.notna(area_name):
+                    # Remove state from area name if present
+                    area_name = re.sub(r'\s*\(.*?\)', '', area_name)
+                    if state:
+                        return f"{area_name}, {state}"
+                    else:
+                        return f"{area_name}, {country_name}"
+                return crag_name
+
+            standardized_df['location'] = df.apply(format_location, axis=1)
+            
+            # Format location_raw with state if present
+            standardized_df['location_raw'] = df.apply(
+                lambda x: ' > '.join(filter(None, [
+                    x.get('countryName'),
+                    extract_state(x.get('areaName')) if pd.notna(x.get('areaName')) else None,
+                    re.sub(r'\s*\(.*?\)', '', x.get('areaName')) if pd.notna(x.get('areaName')) else None,
+                    x.get('cragName'),
+                    x.get('sectorName')
+                ])),
                 axis=1
             )
-            df['location_raw'] = None  # 8a.nu doesn't provide full raw location strings
+            logger.info("Processed location information", extra={
+                "location_count": standardized_df['location'].notna().sum(),
+                "location_raw_count": standardized_df['location_raw'].notna().sum(),
+                "sample_location": standardized_df['location'].iloc[0] if len(standardized_df) > 0 else None,
+                "sample_location_raw": standardized_df['location_raw'].iloc[0] if len(standardized_df) > 0 else None
+            })
+
+            # Style and quality fields
+            standardized_df['lead_style'] = df['type'].map({
+                'os': 'Onsight',
+                'fl': 'Flash',  # Sport
+                'f': 'Flash',   # Boulder
+                'rp': 'Redpoint',
+                'tr': None,  # Toprope is a discipline, not a lead style
+                'attempt': 'Fell/Hung',
+                'repeat': 'Fell/Hung'
+            })
+
+            # Set discipline based on lead style
+            standardized_df['discipline'] = df['discipline'].map({
+                'sport': ClimbingDiscipline.SPORT,
+                'boulder': ClimbingDiscipline.BOULDER
+            })
+            standardized_df.loc[df['traditional'], 'discipline'] = ClimbingDiscipline.TRAD
+            # Override discipline to TR if it's a toprope
+            standardized_df.loc[df['type'] == 'tr', 'discipline'] = ClimbingDiscipline.TR
+
+            standardized_df['route_type'] = df.apply(
+                lambda x: 'Trad' if x['traditional'] else (
+                    'Boulder' if x['discipline'] == ClimbingDiscipline.BOULDER else 'Sport'
+                ),
+                axis=1
+            )
+            logger.info("Processed style information", extra={
+                "lead_style_distribution": standardized_df['lead_style'].value_counts().to_dict(),
+                "route_type_distribution": standardized_df['route_type'].value_counts().to_dict(),
+                "discipline_distribution": standardized_df['discipline'].value_counts().to_dict()
+            })
 
             # Process route quality (convert 0-5 rating to 0-1 scale)
-            logger.debug("Processing route quality")
-            df['route_quality'] = df['rating'].apply(
+            standardized_df['route_quality'] = df['rating'].apply(
                 lambda x: float(x) / 5.0 if pd.notna(x) and x > 0 else None
             )
-            df['user_quality'] = df['route_quality']  # 8a.nu uses a single rating
+            standardized_df['user_quality'] = standardized_df['route_quality']  # 8a.nu uses a single rating
+            logger.info("Processed quality ratings", extra={
+                "quality_ratings_count": standardized_df['route_quality'].notna().sum(),
+                "quality_range": {
+                    "min": standardized_df['route_quality'].min(),
+                    "max": standardized_df['route_quality'].max()
+                } if standardized_df['route_quality'].notna().any() else None
+            })
 
-            # Process route name
-            df['route_name'] = df['zlaggableName']
+            # Initialize classification fields
+            standardized_df['send_bool'] = ~(df['project'] | (df['type'] == 'attempt'))
+            standardized_df['length_category'] = None  # Requires length data
+            standardized_df['season_category'] = None  # Requires tick_date analysis downstream
+            logger.info("Initialized classification fields", extra={
+                "discipline_distribution": standardized_df['discipline'].value_counts().to_dict(),
+                "send_rate": f"{(standardized_df['send_bool'].sum() / len(standardized_df)) * 100:.1f}%"
+            })
 
-            # Keep original grades
-            df['route_grade'] = df['difficulty']
-            df['user_grade'] = df['route_grade']  # 8a.nu doesn't distinguish user vs. route grades
+            # Process notes and tags
+            standardized_df['notes'] = df['comment'].fillna('') if 'comment' in df.columns else ''
+            
+            # Generate tags and ensure they're properly assigned
+            tags = standardized_df.apply(self._generate_tags, axis=1)
+            standardized_df['tags'] = tags
+            
+            # Log tag generation results with limited samples
+            logger.info("Processed notes and tags", extra={
+                "notes_count": standardized_df['notes'].notna().sum(),
+                "tags_count": tags.notna().sum(),
+                "sample_notes": standardized_df['notes'].head(10).tolist() if len(standardized_df) > 0 else None,
+                "sample_tags": tags.head(10).tolist() if len(tags) > 0 else None,
+                "tags_distribution": {
+                    "total_rows": len(tags),
+                    "rows_with_tags": tags.notna().sum(),
+                    "sample_tag_values": tags.head(10).tolist()
+                }
+            })
 
-            # Classify disciplines (uses existing 'discipline' from scraper)
-            df = self._classify_disciplines(df)
+            # Initialize grade processing fields
+            standardized_df['binned_grade'] = None
+            standardized_df['binned_code'] = None
+            standardized_df['difficulty_category'] = None
+            standardized_df['cur_max_sport'] = 0
+            standardized_df['cur_max_trad'] = 0
+            standardized_df['cur_max_boulder'] = 0
+            standardized_df['cur_max_tr'] = 0
+            standardized_df['cur_max_alpine'] = 0
+            standardized_df['cur_max_winter_ice'] = 0
+            standardized_df['cur_max_aid'] = 0
+            standardized_df['cur_max_mixed'] = 0
 
             # Convert grades to YDS/V-scale and bin them
-            logger.debug("Converting grades to YDS/V-scale")
+            logger.info("Starting grade conversion process", extra={
+                "total_grades": len(df),
+                "sample_original_grades": df['difficulty'].head().tolist()
+            })
+
             converted_grades = []
             binned_codes = []
             binned_grades = []
-            for idx, row in df.iterrows():
-                source_system = GradingSystem.FONT if row['discipline'] == ClimbingDiscipline.BOULDER else GradingSystem.FRENCH
-                target_system = GradingSystem.V_SCALE if row['discipline'] == ClimbingDiscipline.BOULDER else GradingSystem.YDS
-                converted = await self.grade_service.convert_grade_system(
-                    row['route_grade'],
-                    source_system,
-                    target_system
-                )
-                converted = converted if converted else row['route_grade']
-                converted_grades.append(converted)
+            
+            # Process grades in batches for better performance
+            BATCH_SIZE = 100
+            for i in range(0, len(standardized_df), BATCH_SIZE):
+                batch_df = standardized_df.iloc[i:i + BATCH_SIZE]
+                logger.debug(f"Processing grade batch {i//BATCH_SIZE + 1}", extra={
+                    "batch_start": i,
+                    "batch_end": min(i + BATCH_SIZE, len(standardized_df)),
+                    "batch_size": len(batch_df)
+                })
+                
+                for idx, row in batch_df.iterrows():
+                    source_system = GradingSystem.FONT if row['discipline'] == ClimbingDiscipline.BOULDER else GradingSystem.FRENCH
+                    target_system = GradingSystem.V_SCALE if row['discipline'] == ClimbingDiscipline.BOULDER else GradingSystem.YDS
+                    
+                    # Get original grade from input data
+                    original_grade = df.loc[idx, 'difficulty']
+                    
+                    # Convert grade system
+                    converted = await self.grade_service.convert_grade_system(
+                        original_grade,
+                        source_system,
+                        target_system
+                    )
+                    converted = converted if converted else original_grade
+                    converted_grades.append(converted)
 
-                code = await self.grade_service.convert_to_code(
-                    converted,
-                    target_system,
-                    row['discipline']
-                )
-                binned_codes.append(code)
+                    # Convert to code
+                    code = await self.grade_service.convert_to_code(
+                        converted,
+                        target_system,
+                        row['discipline']
+                    )
+                    binned_codes.append(code)
 
-                binned_grade = self.grade_service.get_grade_from_code(code)
-                binned_grades.append(binned_grade)
+                    # Get binned grade
+                    binned_grade = self.grade_service.get_grade_from_code(code)
+                    binned_grades.append(binned_grade)
 
-            df['route_grade'] = converted_grades
-            df['user_grade'] = df['route_grade']
-            df['binned_code'] = binned_codes
-            df['binned_grade'] = binned_grades
+            standardized_df['route_grade'] = converted_grades
+            standardized_df['binned_code'] = binned_codes
+            standardized_df['binned_grade'] = binned_grades
+            logger.info("Completed grade conversion", extra={
+                "converted_grades_count": len(converted_grades),
+                "binned_codes_count": len(binned_codes),
+                "sample_conversions": list(zip(
+                    df['difficulty'].head().tolist(),
+                    converted_grades[:5],
+                    binned_codes[:5],
+                    binned_grades[:5]
+                ))
+            })
 
-            # Process send types and styles
-            df = self._classify_sends(df)
 
-            # Process route characteristics and notes
-            df = await self._process_route_characteristics(df)
+            # Clean the dataframe to handle NaN values for database insertion
+            string_columns = ['route_name', 'route_grade', 'binned_grade', 'location', 
+                            'location_raw', 'lead_style', 'route_type', 
+                            'difficulty_category', 'length_category', 'season_category', 
+                            'route_url', 'notes', 'tags']
+            for col in string_columns:
+                if col in standardized_df.columns:
+                    standardized_df.loc[:, col] = standardized_df[col].astype(object).where(pd.notna(standardized_df[col]), None)
 
-            # Process length and pitches (8a.nu doesn't provide these)
-            df['length'] = 0
-            df['pitches'] = 1
-
-            # Process dates
-            df['tick_date'] = pd.to_datetime(df['date'], utc=True)  # Convert to UTC-aware datetime
-
-            # Calculate difficulty categories
-            logger.debug("Calculating difficulty categories")
-            df['difficulty_category'] = self._calculate_difficulty_category(df)
-
-            # Set defaults for fields not provided by 8a.nu
-            df['route_url'] = df['zlaggableSlug'].apply(
-                lambda x: f"https://www.8a.nu/crags/{x}" if pd.notna(x) else None
-            )
-            df['cur_max_rp_sport'] = None  # Computed later in PyramidBuilder
-            df['cur_max_rp_trad'] = None
-            df['cur_max_boulder'] = None
-            df['length_category'] = None  # Requires length data
-            df['season_category'] = None  # Requires tick_date analysis downstream
+            numeric_columns = ['route_quality', 'user_quality', 'binned_code']
+            for col in numeric_columns:
+                if col in standardized_df.columns:
+                    standardized_df.loc[:, col] = standardized_df[col].where(pd.notna(standardized_df[col]), None)
+            logger.info("Cleaned DataFrame for database insertion", extra={
+                "string_columns_cleaned": string_columns,
+                "numeric_columns_cleaned": numeric_columns
+            })
 
             logger.info("8a.nu data processing completed", extra={
                 "user_id": str(self.user_id),
-                "processed_rows": len(df),
-                "disciplines": df['discipline'].value_counts().to_dict(),
-                "difficulty_categories": df['difficulty_category'].value_counts().to_dict(),
-                "send_types": df['lead_style'].value_counts().to_dict()
+                "processed_rows": len(standardized_df),
+                "disciplines": standardized_df['discipline'].value_counts().to_dict(),
+                "difficulty_categories": standardized_df['difficulty_category'].value_counts().to_dict(),
+                "send_types": standardized_df['lead_style'].value_counts().to_dict()
             })
 
-            return df
+            return standardized_df
 
         except Exception as e:
             logger.error("Error processing 8a.nu data", extra={
@@ -222,11 +412,6 @@ class EightANuProcessor(BaseCSVProcessor):
             # Apply send type mapping
             df['lead_style'] = df['type'].map(send_types).fillna(df['type'])
 
-            # Adjust for traditional routes
-            df.loc[df['traditional'], 'lead_style'] = df.loc[df['traditional'], 'lead_style'].apply(
-                lambda x: f"{x} Trad" if x in ['Onsight', 'Flash', 'Redpoint', 'Toprope'] else x
-            )
-
             logger.info("Send classification completed", extra={
                 "send_count": df['send_bool'].sum(),
                 "project_count": (~df['send_bool']).sum(),
@@ -289,75 +474,124 @@ class EightANuProcessor(BaseCSVProcessor):
 
     def _generate_notes(self, row: pd.Series) -> str:
         """Generate notes from comments and characteristics."""
-        comment = row['comment'].replace('|', '').strip() if pd.notna(row['comment']) else ""
-        characteristics = []
+        try:
+            # Safely get notes
+            notes = ""
+            if 'notes' in row and pd.notna(row['notes']):
+                notes = str(row['notes']).replace('|', '').strip()
+            
+            logger.debug("Processing notes", extra={
+                "has_notes": 'notes' in row,
+                "notes_value": row.get('notes')
+            })
 
-        # Recommended
-        if row.get('recommended', False):
-            characteristics.append('#recommended')
+            characteristics = []
 
-        # Route type
-        if row.get('traditional', False):
-            characteristics.append('#trad')
+            # Map boolean fields to standardized tags
+            tag_mapping = {
+                # Route characteristics
+                'recommended': '#recommended',
+                'traditional': '#trad',
+                'firstAscent': '#fa',
+                'chipped': '#chipped',
+                'withKneepad': '#kneebar',
+                'isHard': '#sandbagged',
+                'isSoft': '#soft',
+                'isBoltedByMe': '#boltedbyme',
+                
+                # Angle characteristics
+                'isRoof': '#roof',
+                'isOverhang': '#overhang',
+                'isVertical': '#vertical',
+                'isSlab': '#slab',
+                
+                # Style characteristics
+                'isAthletic': '#athletic',
+                'isEndurance': '#endurance',
+                'isCrimpy': '#crimpy',
+                'isCruxy': '#cruxy',
+                'isSloper': '#slopers',
+                'isTechnical': '#technical',
+                
+                # Warning tags
+                'looseRock': '#looserock',
+                'highFirstBolt': '#highfirstbolt',
+                'badAnchor': '#badanchor',
+                'badBolts': '#badbolts',
+                'isDanger': '#dangerous',
+                'badClippingPosition': '#badclips'
+            }
 
-        # Angle (single tag based on crux_angle priority)
-        angle_tags = {
-            CruxAngle.ROOF: '#roof',
-            CruxAngle.OVERHANG: '#overhang',
-            CruxAngle.VERTICAL: '#vertical',
-            CruxAngle.SLAB: '#slab'
-        }
-        if pd.notna(row.get('crux_angle')):
-            characteristics.append(angle_tags.get(row['crux_angle']))
+            # Add tags based on boolean fields
+            for field, tag in tag_mapping.items():
+                if field in row and row[field] is True:
+                    characteristics.append(tag)
 
-        # Style characteristics
-        style_fields = {
-            'isCrimpy': '#crimpy',
-            'isSloper': '#slopers',
-            'isTechnical': '#technical',
-            'isAthletic': '#athletic',
-            'isEndurance': '#endurance',
-            'isCruxy': '#cruxy'
-        }
-        for field, tag in style_fields.items():
-            if row.get(field, False):
-                characteristics.append(tag)
+            hashtags = ' '.join(characteristics).strip()
+            return f"{notes} | {hashtags}" if notes and hashtags else (notes or hashtags)
 
-        # Additional characteristics
-        additional_fields = {
-            'withKneepad': '#kneebar',
-            'firstAscent': '#fa',
-            'chipped': '#chipped',
-            'isHard': '#sandbagged',
-            'isSoft': '#soft'
-        }
-        for field, tag in additional_fields.items():
-            if row.get(field, False):
-                characteristics.append(tag)
+        except Exception as e:
+            logger.error("Error generating notes", extra={
+                "error": str(e),
+                "row_keys": list(row.keys()),
+                "row_values": {k: v for k, v in row.items() if pd.notna(v)}
+            })
+            return ""  # Return empty string on error
 
-        # Warning tags
-        warning_fields = {
-            'looseRock': '#looserock',
-            'highFirstBolt': '#highfirstbolt',
-            'badAnchor': '#badanchor',
-            'badBolts': '#badbolts',
-            'isDanger': '#dangerous',
-            'badClippingPosition': '#badclips'
-        }
-        for field, tag in warning_fields.items():
-            if row.get(field, False):
-                characteristics.append(tag)
+    def _generate_tags(self, row: pd.Series) -> Optional[list]:
+        """Generate tags from boolean fields in the ascents data."""
+        try:
+            tags = []
 
-        hashtags = ' '.join(characteristics).strip()
-        return f"{comment} | {hashtags}" if comment and hashtags else (comment or hashtags)
+            # Map boolean fields to standardized tags - these must match STANDARDIZED_TAG_MAPPING in orchestrator.py
+            tag_mapping = {
+                'firstAscent': 'firstAscent',
+                'chipped': 'chipped',
+                'withKneepad': 'withKneepad',
+                'badAnchor': 'badAnchor',
+                'badBolts': 'badBolts',
+                'highFirstBolt': 'highFirstBolt',
+                'looseRock': 'looseRock',
+                'badClippingPosition': 'badClippingPosition',
+                'isHard': 'isHard',
+                'isSoft': 'isSoft',
+                'isBoltedByMe': 'isBoltedByMe',
+                'isOverhang': 'isOverhang',
+                'isVertical': 'isVertical',
+                'isSlab': 'isSlab',
+                'isRoof': 'isRoof',
+                'isAthletic': 'isAthletic',
+                'isEndurance': 'isEndurance',
+                'isCrimpy': 'isCrimpy',
+                'isCruxy': 'isCruxy',
+                'isSloper': 'isSloper',
+                'isTechnical': 'isTechnical',
+                'isDanger': 'isDanger'
+            }
 
-    def _calculate_difficulty_category(self, df: pd.DataFrame) -> pd.Series:
-        """Calculate difficulty categories based on binned_code."""
-        conditions = [
-            (df['binned_code'] <= 20),  # Beginner: up to ~6b+/V3
-            (df['binned_code'] <= 24),  # Intermediate: up to ~7a+/V5
-            (df['binned_code'] <= 28),  # Advanced: up to ~7c/V7
-            (df['binned_code'] > 28)    # Elite: 7c+/V8 and above
-        ]
-        choices = ['Beginner', 'Intermediate', 'Advanced', 'Elite']
-        return pd.Series(np.select(conditions, choices, default='Unknown'), index=df.index)
+
+            # Add tags based on boolean fields
+            for field, tag in tag_mapping.items():
+                if field in row and row[field] is True:
+                    tags.append(tag)
+                    logger.debug(f"Added tag for {field}", extra={
+                        "field": field,
+                        "value": row[field],
+                        "tag": tag
+                    })
+
+            if tags:
+                logger.debug("Generated tags", extra={
+                    "row_fields": {k: v for k, v in row.items() if pd.notna(v)},
+                    "generated_tags": tags
+                })
+
+            return tags if tags else None
+
+        except Exception as e:
+            logger.error("Error generating tags", extra={
+                "error": str(e),
+                "row_keys": list(row.keys()),
+                "row_values": {k: v for k, v in row.items() if pd.notna(v)}
+            })
+            return None  # Return None on error

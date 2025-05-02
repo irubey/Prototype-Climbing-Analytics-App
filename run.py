@@ -2,6 +2,7 @@ import uvicorn
 import os
 import sys
 from app.core.config import settings
+from app.core.logging_config import setup_logging
 
 
 def run_app(reload_mode: bool = False):
@@ -11,6 +12,9 @@ def run_app(reload_mode: bool = False):
     Args:
         reload_mode: Whether to run with auto-reload enabled
     """
+    # Setup logging first
+    setup_logging()
+    
     #build config from settings
     config = {
         "app": settings.APP_IMPORT, # e.g. defined as "app.main:app" in config
@@ -18,7 +22,8 @@ def run_app(reload_mode: bool = False):
         "port": settings.PORT if hasattr(settings, "PORT") else 8000,
         "log_level": "debug",
         "workers": 1,
-        "log_config": None
+        "use_colors": True,
+        "access_log": True
     }
     
     if reload_mode:

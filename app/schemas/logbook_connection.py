@@ -236,9 +236,7 @@ class SyncStatus(BaseModel):
 class LogbookConnectPayload(BaseModel):
     """Schema for logbook connection payload."""
     source: LogbookType = Field(..., description="Source of the logbook connection")
-    profile_url: Optional[HttpUrl] = Field(None, description="URL to external profile")
-    username: Optional[str] = Field(None, description="External username")
-    password: Optional[str] = Field(None, description="External password")
+    profile_url: HttpUrl = Field(..., description="URL to external profile")
 
     @model_validator(mode="before")
     def convert_source_value(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -250,3 +248,14 @@ class LogbookConnectPayload(BaseModel):
             elif source == "eight_a_nu":
                 values["source"] = LogbookType.EIGHT_A_NU
         return values
+
+    @model_validator(mode="after")
+    def validate_profile_url(self) -> "LogbookConnectPayload":
+        """Validate profile URL based on source."""
+        if self.source == LogbookType.EIGHT_A_NU:
+            if not str(self.profile_url).lower().startswith("https://www.8a.nu/user/"):
+                raise ValueError("Invalid 8a.nu profile URL. Must start with 'https://www.8a.nu/user/'")
+        elif self.source == LogbookType.MOUNTAIN_PROJECT:
+            if not str(self.profile_url).lower().startswith("https://www.mountainproject.com/user/"):
+                raise ValueError("Invalid Mountain Project profile URL. Must start with 'https://www.mountainproject.com/user/'")
+        return self

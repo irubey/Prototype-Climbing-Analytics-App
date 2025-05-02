@@ -7,11 +7,13 @@ import asyncio
 from app.core.logging import logger
 import json
 from fastapi import HTTPException
+from sqlalchemy import select
 
 from app.services.chat.context.data_aggregator import DataAggregator
 from app.services.chat.context.context_enhancer import ContextEnhancer
 from app.services.chat.context.unified_formatter import UnifiedFormatter
 from app.services.chat.context.cache_manager import CacheManager
+from app.models import ClimberContext
 
 class ContextOrchestrator:
     """
@@ -230,6 +232,9 @@ class ContextOrchestrator:
             if raw_data and raw_data.get('climber_context'):
                 formatted_context = {**default_context, **formatted_context}
                 formatted_context['is_new_user'] = False
+                
+                # NEW: Save context to ClimberContext model
+                await self._save_context_to_db(user_id, formatted_context)
             else:
                 formatted_context = default_context
             
@@ -255,6 +260,94 @@ class ContextOrchestrator:
                 "uploads": [],
                 "is_new_user": True
             }
+
+    async def _save_context_to_db(
+        self,
+        user_id: Union[int, str, UUID],
+        context: Dict[str, Any]
+    ) -> None:
+        """
+        Saves the generated context to the ClimberContext model.
+        
+        Args:
+            user_id: User ID
+            context: Formatted context data
+        """
+        try:
+            # Get or create ClimberContext record
+            stmt = select(ClimberContext).where(ClimberContext.user_id == user_id)
+            result = await self.db.execute(stmt)
+            climber_context = result.scalar_one_or_none()
+            
+            if not climber_context:
+                climber_context = ClimberContext(user_id=user_id)
+                self.db.add(climber_context)
+            
+            # Update fields from context
+            profile = context.get('profile', {})
+            performance = context.get('performance', {})
+            trends = context.get('trends', {})
+            goals = context.get('goals', {})
+            
+            # Core Context
+            climber_context.years_climbing = profile.get('years_climbing')
+            climber_context.total_climbs = profile.get('total_climbs')
+            climber_context.favorite_discipline = profile.get('favorite_discipline')
+            climber_context.interests = profile.get('interests')
+            climber_context.preferred_crag_last_year = profile.get('preferred_crag_last_year')
+            
+            # Performance Metrics
+            highest_grades = performance.get('highest_grades', {})
+            climber_context.highest_sport_grade_tried = highest_grades.get('sport')
+            climber_context.highest_trad_grade_tried = highest_grades.get('trad')
+            climber_context.highest_boulder_grade_tried = highest_grades.get('boulder')
+            climber_context.highest_grade_sport_sent_clean_on_lead = highest_grades.get('sport')
+            climber_context.highest_grade_trad_sent_clean_on_lead = highest_grades.get('trad')
+            climber_context.highest_grade_boulder_sent_clean = highest_grades.get('boulder')
+            
+            # Onsight and Flash Grades
+            climber_context.onsight_grade_sport = performance.get('onsight_grade_sport')
+            climber_context.onsight_grade_trad = performance.get('onsight_grade_trad')
+            climber_context.flash_grade_boulder = performance.get('flash_grade_boulder')
+            
+            # Grade Pyramids
+            climber_context.grade_pyramid_sport = performance.get('grade_pyramid_sport', [])
+            climber_context.grade_pyramid_trad = performance.get('grade_pyramid_trad', [])
+            climber_context.grade_pyramid_boulder = performance.get('grade_pyramid_boulder', [])
+            
+            # Training Context
+            climber_context.current_training_frequency = profile.get('training_frequency')
+            climber_context.home_equipment = profile.get('home_equipment')
+            
+            # Goals
+            climber_context.climbing_goals = goals.get('current_goals')
+            
+            # Recent Activity
+            activity_levels = trends.get('activity_levels', {})
+            climber_context.activity_last_30_days = activity_levels.get('monthly', 0)
+            
+            # Commit changes
+            await self.db.commit()
+            
+            logger.info(
+                "Saved context to database",
+                extra={
+                    "user_id": str(user_id),
+                    "updated_fields": list(context.keys())
+                }
+            )
+            
+        except Exception as e:
+            logger.error(
+                "Error saving context to database",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "user_id": str(user_id)
+                }
+            )
+            # Don't raise the error - we want to continue even if DB save fails
+            await self.db.rollback()
 
     async def _update_relevance(
         self,

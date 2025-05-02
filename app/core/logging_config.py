@@ -12,6 +12,7 @@ It does NOT:
 """
 import logging
 import sys
+import json
 from typing import Any, Dict
 from pathlib import Path
 
@@ -57,19 +58,13 @@ def setup_logging(log_dir: str = "logs", console_log_level: str = "DEBUG") -> No
         console_log_level: The log level for console output.
     """
 
+    # First, configure the root logger to suppress file change notifications
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.WARNING)
+    root_logger.propagate = False
+
     # Remove default handler
     logger.remove()
-
-    # Add console handler with custom format to stdout
-    logger.add(
-        sys.stdout,  # Use sys.stdout instead of sys.stderr
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message} | {extra}",
-        level=console_log_level,
-        colorize=True,
-        backtrace=True,
-        diagnose=True,
-        serialize=True  # Enable JSON serialization for structured logging
-    )
 
     # Create logs directory
     log_directory = Path(log_dir)
@@ -82,22 +77,40 @@ def setup_logging(log_dir: str = "logs", console_log_level: str = "DEBUG") -> No
         "compression": "zip",
         "backtrace": True,
         "diagnose": True,
-        "serialize": True  # Enable JSON serialization for file logs
+        "serialize": True,  # Keep JSON serialization for file logs
+        "catch": True,
+        "enqueue": True,
+        "format": "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}\n{extra}",
     }
+
+    # Add console handler with custom format to stdout
+    logger.add(
+        sys.stdout,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>\n<yellow>{extra}</yellow>",
+        level=console_log_level,
+        colorize=True,
+        backtrace=True,
+        diagnose=True,
+        serialize=False,  # Disable JSON serialization for console output
+        catch=True,  # Catch exceptions during logging
+        enqueue=True,  # Use queue for thread safety
+    )
 
     # Context-specific log
     logger.add(
         log_directory / "context.log",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message} | {extra}",
         level="DEBUG",
-        filter=lambda record: "context" in record["extra"].get("module", "").lower(),
+        filter=lambda record: (
+            record["extra"].get("module") == "context" or
+            "context" in record["name"].lower() or
+            "context" in str(record["message"]).lower()
+        ),
         **log_config
     )
 
     # Error log with all log levels and details
     logger.add(
         log_directory / "error.log",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message} | {extra}",
         level="DEBUG",
         **log_config
     )
@@ -109,3 +122,11 @@ def setup_logging(log_dir: str = "logs", console_log_level: str = "DEBUG") -> No
     for logger_name in logging.root.manager.loggerDict:
         if logger_name.startswith(("uvicorn", "gunicorn", "sqlalchemy")):
             logging.getLogger(logger_name).handlers = []
+            
+    # Set logging module to WARNING level to reduce internal logging noise
+    logging.getLogger("logging").setLevel(logging.WARNING)
+    logging.getLogger("logging").propagate = False
+    
+    # Disable file watching
+    logging.getLogger("logging.handlers").setLevel(logging.WARNING)
+    logging.getLogger("logging.handlers").propagate = False

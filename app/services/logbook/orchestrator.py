@@ -9,17 +9,19 @@ This module provides functionality for:
 """
 
 # Standard library imports
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 from uuid import UUID
 import traceback
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, date
+import random
 
 # Third-party imports
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from pydantic import HttpUrl
 
 # Application imports
 from app.core.logging import logger
@@ -49,6 +51,7 @@ from app.services.logbook.processing.eight_a_nu_processor import (
 from app.services.logbook.climb_classifier import ClimbClassifier
 from app.services.logbook.pyramid_builder import PyramidBuilder
 from app.services.logbook.database_service import DatabaseService
+from app.services.logbook.gateways.eight_a_nu_scraper import AccountManager, ScrapingError
 
 class LogbookOrchestrator:
     """Orchestrates the flow of climbing logbook data from source to database"""
@@ -132,8 +135,7 @@ class LogbookOrchestrator:
             elif logbook_type == LogbookType.EIGHT_A_NU:
                 return await self.process_eight_a_nu_ticks(
                     user_id=user_id,
-                    username=credentials.get('username'),
-                    password=credentials.get('password')
+                    profile_url=credentials.get('profile_url')
                 )
             else:
                 raise DataSourceError(f"Unsupported logbook type: {logbook_type}")
@@ -336,31 +338,77 @@ class LogbookOrchestrator:
             })
             raise DataSourceError(f"Error processing Mountain Project data: {str(e)}")
 
-    async def process_eight_a_nu_ticks(self, user_id: UUID, username: str, password: str) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
-        """Process 8a.nu ticks using synchronous client in a thread."""
+    async def process_eight_a_nu_ticks(self, user_id: UUID, profile_url: Union[str, HttpUrl]) -> Tuple[List[UserTicks], List[PerformancePyramid], List[Tag]]:
+        """Process 8a.nu ticks using synchronous client in a thread with rotating accounts."""
         try:
-            loop = asyncio.get_running_loop()
-            # Fetch data synchronously and get the slug
-            user_slug, raw_df = await loop.run_in_executor(
-                self.executor,
-                self._fetch_eight_a_nu_data_sync,
-                username,
-                password
-            )
+            # Convert HttpUrl to string if needed
+            profile_url_str = str(profile_url) if isinstance(profile_url, HttpUrl) else profile_url
             
-            # Construct the profile URL
-            profile_url = f"https://www.8a.nu/user/{user_slug}"
-            logger.info(f"Constructed 8a.nu profile URL: {profile_url}", extra={"user_id": str(user_id)})
+            # Extract target_slug from profile_url
+            target_slug = profile_url_str.split('/user/')[-1].split('/')[0]
+            if not target_slug:
+                raise DataSourceError("Invalid 8a.nu profile URL")
+
+            logger.info("Starting 8a.nu processing", extra={
+                "user_id": str(user_id),
+                "profile_url": profile_url_str,
+                "target_slug": target_slug
+            })
+
+            # Initialize account manager
+            account_manager = AccountManager()
+            failed_accounts = set()  # Track failed accounts
             
-            # Save hashed credentials
-            await self.db_service.update_eight_a_nu_credentials(
-                user_id=user_id,
-                username=username,
-                password=password
-            )
-            
-            # Pass the profile_url to _process_ticks
-            return await self._process_ticks(user_id, LogbookType.EIGHT_A_NU, raw_df, profile_url=profile_url)
+            # Try with each account until successful or all accounts exhausted
+            for attempt in range(len(account_manager.accounts)):
+                try:
+                    # Get a random account that hasn't failed yet
+                    available_accounts = [i for i in range(len(account_manager.accounts)) if i not in failed_accounts]
+                    if not available_accounts:
+                        raise DataSourceError("All accounts have failed")
+                        
+                    index = random.choice(available_accounts)
+                    username, password = account_manager.accounts[index]
+                    cookie_file = account_manager.cookie_files[index]
+                    
+                    logger.info("Trying account", extra={
+                        "user_id": str(user_id),
+                        "account_index": index,
+                        "attempt": attempt + 1,
+                        "total_attempts": len(account_manager.accounts)
+                    })
+                    
+                    loop = asyncio.get_running_loop()
+                    # Fetch data synchronously using the selected account
+                    raw_df = await loop.run_in_executor(
+                        self.executor,
+                        self._fetch_eight_a_nu_data_sync,
+                        username,
+                        password,
+                        cookie_file,
+                        target_slug
+                    )
+                    
+                    logger.info(f"Successfully fetched 8a.nu data for {target_slug}", extra={
+                        "user_id": str(user_id),
+                        "account_index": index,
+                        "row_count": len(raw_df)
+                    })
+                    
+                    # Pass the profile_url to _process_ticks
+                    return await self._process_ticks(user_id, LogbookType.EIGHT_A_NU, raw_df, profile_url=profile_url_str)
+                    
+                except ScrapingError as e:
+                    logger.warning(f"Failed to fetch data with account {index}", extra={
+                        "user_id": str(user_id),
+                        "error": str(e),
+                        "attempt": attempt + 1
+                    })
+                    failed_accounts.add(index)
+                    if len(failed_accounts) == len(account_manager.accounts):
+                        raise DataSourceError(f"Failed to fetch 8a.nu data after trying all accounts: {str(e)}")
+                    continue
+                    
         except Exception as e:
             logger.error("8a.nu processing failed", extra={
                 "user_id": str(user_id),
@@ -369,13 +417,28 @@ class LogbookOrchestrator:
             })
             raise DataSourceError(f"Error processing 8a.nu data: {str(e)}")
 
-    def _fetch_eight_a_nu_data_sync(self, username: str, password: str) -> Tuple[str, pd.DataFrame]:
-        """Fetch 8a.nu data using the Playwright CLI client and return the user_slug and DataFrame."""
-        logger.info("Fetching 8a.nu data using Playwright CLI client")
-        with EightANuScraper() as client:
-            user_slug = client.authenticate(username, password)
-            data = client.get_ascents()
-            return user_slug, pd.DataFrame(data.get("ascents", []))
+    def _fetch_eight_a_nu_data_sync(self, username: str, password: str, cookie_file: str, target_slug: str) -> pd.DataFrame:
+        """Fetch 8a.nu data using the Playwright CLI client and return DataFrame."""
+        logger.info("Fetching 8a.nu data using Playwright CLI client", extra={
+            "username": username[:3] + "***",  # Log partial username for security
+            "cookie_file": cookie_file,
+            "target_slug": target_slug
+        })
+        try:
+            with EightANuScraper(cookie_file=cookie_file) as client:
+                # Authenticate with the account
+                client.authenticate(username, password)
+                # Get ascents for the target slug
+                data = client.get_ascents(target_slug)
+                return pd.DataFrame(data.get("ascents", []))
+        except Exception as e:
+            logger.error("Failed to fetch 8a.nu data", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc(),
+                "target_slug": target_slug
+            })
+            raise
 
     async def _fetch_mountain_project_data(self, profile_url: str) -> pd.DataFrame:
         """Fetch Mountain Project data using async client."""
@@ -406,13 +469,18 @@ class LogbookOrchestrator:
             # Process grades first without requiring discipline
             df = await self._process_grades(df)
             
-            # Now process classifications using the processed grades 
-            #length_category is processed first because it is used in the discipline classification
-            #discipline is processed next because it is used in the send classification
-            df['length_category'] = classifier.classify_length(df)
-            df['discipline'] = classifier.classify_discipline(df)
-            df['send_bool'] = classifier.classify_sends(df)
-            df['season_category'] = classifier.classify_season(df)
+            # Check if this is 8a.nu data (has logbook_type column)
+            is_eight_a_nu = 'logbook_type' in df.columns and df['logbook_type'].iloc[0] == LogbookType.EIGHT_A_NU
+            
+            if is_eight_a_nu:
+                # For 8a.nu, only process season category
+                df['season_category'] = classifier.classify_season(df)
+            else:
+                # For other logbook types, process all classifications
+                df['length_category'] = classifier.classify_length(df)
+                df['discipline'] = classifier.classify_discipline(df)
+                df['send_bool'] = classifier.classify_sends(df)
+                df['season_category'] = classifier.classify_season(df)
             
             # Calculate max grades after discipline is set
             df = await self._calculate_max_grades(df)

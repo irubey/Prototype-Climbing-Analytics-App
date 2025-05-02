@@ -5,11 +5,10 @@ import redis.asyncio as redis
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy import select
+from pydantic import HttpUrl
 
 from app.core.auth import (
     get_current_user,
-    encrypt_credential,
-    decrypt_credential
 )
 from app.core.error_handlers import (
     get_error_responses,
@@ -55,19 +54,16 @@ async def connect_logbook(
                         profile_url=payload.profile_url
                     )
                 else:  # eight_a_nu
-                    # Encrypt credentials before saving
-                    encrypted_username = await encrypt_credential(payload.username)
-                    encrypted_password = await encrypt_credential(payload.password)
+                    # Convert HttpUrl to string if needed
+                    profile_url_str = str(payload.profile_url) if isinstance(payload.profile_url, HttpUrl) else payload.profile_url
                     
-                    # Update user with encrypted credentials
-                    current_user.eight_a_nu_encrypted_username = encrypted_username
-                    current_user.eight_a_nu_encrypted_password = encrypted_password
-                    await db.commit()
+                    # Validate 8a.nu profile URL
+                    if not profile_url_str or '/user/' not in profile_url_str:
+                        raise LogbookConnectionError("Invalid 8a.nu profile URL")
                     
                     await orchestrator.process_eight_a_nu_ticks(
                         user_id=current_user.id,
-                        username=payload.username,
-                        password=payload.password
+                        profile_url=profile_url_str
                     )
                 await db.commit()
                 await context_orchestrator.refresh_context(

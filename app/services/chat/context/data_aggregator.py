@@ -248,15 +248,93 @@ class DataAggregator:
             raise DatabaseError(f"Error aggregating data: {str(e)}")
 
     def _calculate_default_context(self, ticks: List[UserTicks], user_id: UUID) -> Dict:
-        # Unchanged from previous version
-        LEAD_STYLES = {"onsight", "flash", "redpoint", "lead"}
+        # Define tag lists
+        ANGLE_TAGS = {"Overhang", "Vertical", "Slab", "Roof"}
+        ENERGY_TAGS = {"Athletic", "Endurance", "Cruxy"}
+        HOLD_TAGS = {"Pinch", "Crimp", "Sloper", "Jug", "Pocket", "Crack"}
+
+        def get_most_common_tag(ticks: List[UserTicks], tag_list: set) -> Optional[str]:
+            """Get the most common tag from a list of ticks that matches the given tag list."""
+            tag_counts = Counter()
+            for tick in ticks:
+                if tick.tags:
+                    for tag in tick.tags:
+                        if tag.name in tag_list:
+                            tag_counts[tag.name] += 1
+            return tag_counts.most_common(1)[0][0] if tag_counts else None
+
+        def get_least_common_tag(ticks: List[UserTicks], tag_list: set) -> Optional[str]:
+            """Get the least common tag from a list of ticks that matches the given tag list."""
+            tag_counts = Counter()
+            for tick in ticks:
+                if tick.tags:
+                    for tag in tick.tags:
+                        if tag.name in tag_list:
+                            tag_counts[tag.name] += 1
+            
+            if not tag_counts:
+                return None
+                
+            # If there's only one tag, return None since we can't determine a weakest
+            if len(tag_counts) == 1:
+                return None
+                
+            # Get all tags except the most common one
+            most_common = tag_counts.most_common(1)[0][0]
+            remaining_tags = {tag: count for tag, count in tag_counts.items() if tag != most_common}
+            
+            # Return the least common among the remaining tags
+            return min(remaining_tags.items(), key=lambda x: x[1])[0] if remaining_tags else None
+
+        def get_strongest_tag(ticks: List[UserTicks], tag_list: set) -> Optional[str]:
+            """Get the most common tag from ticks that have performance pyramid data."""
+            tag_counts = Counter()
+            for tick in ticks:
+                if tick.tags and tick.performance_pyramid:
+                    for tag in tick.tags:
+                        if tag.name in tag_list:
+                            tag_counts[tag.name] += 1
+            return tag_counts.most_common(1)[0][0] if tag_counts else None
+
+        # Calculate angles
+        favorite_angle = get_most_common_tag(ticks, ANGLE_TAGS)
+        weakest_angle = get_least_common_tag(ticks, ANGLE_TAGS)
+        strongest_angle = get_strongest_tag(ticks, ANGLE_TAGS)
+
+        # Calculate energy types
+        favorite_energy_type = get_most_common_tag(ticks, ENERGY_TAGS)
+        weakest_energy_type = get_least_common_tag(ticks, ENERGY_TAGS)
+        strongest_energy_type = get_strongest_tag(ticks, ENERGY_TAGS)
+
+        # Calculate hold types
+        favorite_hold_types = get_most_common_tag(ticks, HOLD_TAGS)
+        weakest_hold_types = get_least_common_tag(ticks, HOLD_TAGS)
+        strongest_hold_types = get_strongest_tag(ticks, HOLD_TAGS)
 
         def get_max_grade(ticks, condition):
             filtered = [t for t in ticks if condition(t)]
             if filtered:
-                max_tick = max(filtered, key=lambda t: t.binned_code)
+                # Sort by binned_code to get true max grade
+                max_tick = max(filtered, key=lambda t: t.binned_code or -1)
                 return max_tick.route_grade
             return None
+
+        def get_favorite_routes(ticks, limit=5):
+            # Filter ticks with quality ratings and sort by date
+            rated_ticks = [t for t in ticks if t.user_quality is not None]
+            sorted_ticks = sorted(rated_ticks, key=lambda t: (t.tick_date or date.min), reverse=True)
+            # Get top 5 highest rated recent routes
+            top_rated = sorted(sorted_ticks[:limit], key=lambda t: t.user_quality or 0, reverse=True)
+            return [
+                {
+                    "route_name": t.route_name,
+                    "grade": t.route_grade,
+                    "location": t.location,
+                    "quality_score": t.user_quality,
+                    "tick_date": t.tick_date.isoformat() if t.tick_date else None
+                }
+                for t in top_rated
+            ]
 
         if not ticks:
             created_at = datetime.utcnow().isoformat()
@@ -266,7 +344,7 @@ class DataAggregator:
                 "climbing_goals": None,
                 "years_climbing": 0,
                 "current_training_description": None,
-                "interests": None,
+                "interests": {},
                 "injury_information": None,
                 "additional_notes": None,
                 "total_climbs": 0,
@@ -282,9 +360,9 @@ class DataAggregator:
                 "onsight_grade_sport": None,
                 "onsight_grade_trad": None,
                 "flash_grade_boulder": None,
-                "grade_pyramid_sport": [],
-                "grade_pyramid_trad": [],
-                "grade_pyramid_boulder": [],
+                "grade_pyramid_sport": {},
+                "grade_pyramid_trad": {},
+                "grade_pyramid_boulder": {},
                 "current_training_frequency": None,
                 "typical_session_length": None,
                 "typical_session_intensity": None,
@@ -296,17 +374,17 @@ class DataAggregator:
                 "sleep_score": None,
                 "nutrition_score": None,
                 "activity_last_30_days": 0,
-                "current_projects": None,
-                "recent_favorite_routes": None,
-                "favorite_angle": None,
-                "weakest_angle": None,
-                "strongest_angle": None,
-                "favorite_energy_type": None,
-                "weakest_energy_type": None,
-                "strongest_energy_type": None,
-                "favorite_hold_types": None,
-                "weakest_hold_types": None,
-                "strongest_hold_types": None,
+                "current_projects": {},
+                "recent_favorite_routes": {},
+                "favorite_angle": favorite_angle,
+                "weakest_angle": weakest_angle,
+                "strongest_angle": strongest_angle,
+                "favorite_energy_type": favorite_energy_type,
+                "weakest_energy_type": weakest_energy_type,
+                "strongest_energy_type": strongest_energy_type,
+                "favorite_hold_types": favorite_hold_types,
+                "weakest_hold_types": weakest_hold_types,
+                "strongest_hold_types": strongest_hold_types,
                 "created_at": created_at,
                 "current_info_as_of": created_at,
             }
@@ -328,39 +406,72 @@ class DataAggregator:
         boulder_ticks = [t for t in ticks if t.discipline == ClimbingDiscipline.BOULDER]
         tr_ticks = [t for t in ticks if t.discipline == ClimbingDiscipline.TR]
 
-        highest_sport_grade_tried = get_max_grade(sport_ticks, lambda t: True)
-        highest_trad_grade_tried = get_max_grade(trad_ticks, lambda t: True)
-        highest_boulder_grade_tried = get_max_grade(boulder_ticks, lambda t: True)
+        # Use binned_code for accurate grade comparisons
+        highest_sport_grade_tried = get_max_grade(sport_ticks, lambda t: t.binned_code is not None)
+        highest_trad_grade_tried = get_max_grade(trad_ticks, lambda t: t.binned_code is not None)
+        highest_boulder_grade_tried = get_max_grade(boulder_ticks, lambda t: t.binned_code is not None)
 
-        highest_grade_sport_sent_clean_on_lead = get_max_grade(sport_ticks, lambda t: t.send_bool and t.lead_style and t.lead_style.lower() in LEAD_STYLES)
-        highest_grade_trad_sent_clean_on_lead = get_max_grade(trad_ticks, lambda t: t.send_bool and t.lead_style and t.lead_style.lower() in LEAD_STYLES)
-        highest_grade_boulder_sent_clean = get_max_grade(boulder_ticks, lambda t: t.send_bool)
-        highest_grade_tr_sent_clean = get_max_grade(tr_ticks, lambda t: t.send_bool)
+        highest_grade_sport_sent_clean_on_lead = get_max_grade(sport_ticks, lambda t: t.send_bool and t.binned_code is not None)
+        highest_grade_trad_sent_clean_on_lead = get_max_grade(trad_ticks, lambda t: t.send_bool and t.binned_code is not None)
+        highest_grade_boulder_sent_clean = get_max_grade(boulder_ticks, lambda t: t.send_bool and t.binned_code is not None)
+        highest_grade_tr_sent_clean = get_max_grade(tr_ticks, lambda t: t.send_bool and t.binned_code is not None)
 
         onsight_grade_sport = get_max_grade(sport_ticks, lambda t: t.send_bool and t.lead_style and t.lead_style.lower() == "onsight")
         onsight_grade_trad = get_max_grade(trad_ticks, lambda t: t.send_bool and t.lead_style and t.lead_style.lower() == "onsight")
         flash_grade_boulder = get_max_grade(boulder_ticks, lambda t: t.send_bool and t.lead_style and t.lead_style.lower() == "flash")
 
         def build_grade_pyramid(discipline_ticks):
+            """
+            Builds a grade pyramid structure organized by grade with nested UserTicks and PerformancePyramid data.
+            
+            Args:
+                discipline_ticks: List of UserTicks objects for a specific discipline
+                
+            Returns:
+                Dictionary with grade as key and list of routes with performance data as value
+            """
+            # Filter ticks with performance pyramid data
             pyramid_ticks = [t for t in discipline_ticks if t.performance_pyramid]
-            if pyramid_ticks:
-                sorted_ticks = sorted(pyramid_ticks, key=lambda t: t.binned_code, reverse=True)
-                return [
-                    {
-                        "grade": tick.route_grade,
-                        "route_name": tick.route_name,
-                        "location": tick.location,
-                        "first_sent": tick.performance_pyramid[0].first_sent.isoformat() if tick.performance_pyramid else None,
-                        "num_sends": tick.performance_pyramid[0].num_sends if tick.performance_pyramid else None,
-                        "num_attempts": tick.performance_pyramid[0].num_attempts if tick.performance_pyramid else None,
-                        "days_attempts": tick.performance_pyramid[0].days_attempts if tick.performance_pyramid else None,
-                        "crux_angle": tick.performance_pyramid[0].crux_angle.value if tick.performance_pyramid and tick.performance_pyramid[0].crux_angle else None,
-                        "crux_energy": tick.performance_pyramid[0].crux_energy.value if tick.performance_pyramid and tick.performance_pyramid[0].crux_energy else None,
-                        "tags": [tag.name for tag in tick.tags] if tick.tags else []
-                    }
-                    for tick in sorted_ticks
-                ]
-            return []
+            if not pyramid_ticks:
+                return {}
+            
+            # Sort ticks by grade (using binned_code for accurate ordering)
+            sorted_ticks = sorted(pyramid_ticks, key=lambda t: t.binned_code or -1, reverse=True)
+
+            # Convert ticks to dictionary format with nested performance pyramid data
+            MAX_RECORDS_PER_BINNED_GRADE = 20
+            pyramid_data = {}
+            for tick in sorted_ticks:
+                grade = tick.route_grade
+                if grade not in pyramid_data:
+                    pyramid_data[grade] = []
+                
+                if len(pyramid_data[grade]) >= MAX_RECORDS_PER_BINNED_GRADE:
+                    continue
+                
+                pyramid_data[grade].append({
+                    "route_name": tick.route_name,
+                    "location": tick.location,
+                    "tick_date": tick.tick_date.isoformat() if tick.tick_date else None,
+                    "lead_style": tick.lead_style,
+                    "send_bool": tick.send_bool,
+                    "route_quality": tick.route_quality,
+                    "user_quality": tick.user_quality,
+                    "notes": tick.notes,
+                    "tags": [tag.name for tag in tick.tags] if tick.tags else [],
+                    "performance_pyramid": [{
+                        "first_sent": pp.first_sent.isoformat() if pp.first_sent else None,
+                        "crux_angle": pp.crux_angle.value if pp.crux_angle else None,
+                        "crux_energy": pp.crux_energy.value if pp.crux_energy else None,
+                        "num_attempts": pp.num_attempts,
+                        "days_attempts": pp.days_attempts,
+                        "num_sends": pp.num_sends,
+                        "description": pp.description,
+                        "agg_notes": pp.agg_notes
+                    } for pp in tick.performance_pyramid]
+                })
+            
+            return pyramid_data
 
         grade_pyramid_sport = build_grade_pyramid(sport_ticks)
         grade_pyramid_trad = build_grade_pyramid(trad_ticks)
@@ -368,6 +479,9 @@ class DataAggregator:
 
         recent_ticks = [t for t in ticks if (today - t.tick_date).days <= 30]
         activity_last_30_days = len(recent_ticks)
+
+        # Get recent favorite routes based on user quality scores
+        recent_favorite_routes = get_favorite_routes(ticks)
 
         created_at = datetime.utcnow().isoformat()
 
@@ -377,7 +491,7 @@ class DataAggregator:
             "climbing_goals": None,
             "years_climbing": int(years_climbing),
             "current_training_description": None,
-            "interests": None,
+            "interests": {},
             "injury_information": None,
             "additional_notes": None,
             "total_climbs": total_climbs,
@@ -407,17 +521,17 @@ class DataAggregator:
             "sleep_score": None,
             "nutrition_score": None,
             "activity_last_30_days": activity_last_30_days,
-            "current_projects": None,
-            "recent_favorite_routes": None,
-            "favorite_angle": None,
-            "weakest_angle": None,
-            "strongest_angle": None,
-            "favorite_energy_type": None,
-            "weakest_energy_type": None,
-            "strongest_energy_type": None,
-            "favorite_hold_types": None,
-            "weakest_hold_types": None,
-            "strongest_hold_types": None,
+            "current_projects": {},
+            "recent_favorite_routes": recent_favorite_routes,
+            "favorite_angle": favorite_angle,
+            "weakest_angle": weakest_angle,
+            "strongest_angle": strongest_angle,
+            "favorite_energy_type": favorite_energy_type,
+            "weakest_energy_type": weakest_energy_type,
+            "strongest_energy_type": strongest_energy_type,
+            "favorite_hold_types": favorite_hold_types,
+            "weakest_hold_types": weakest_hold_types,
+            "strongest_hold_types": strongest_hold_types,
             "created_at": created_at,
             "current_info_as_of": created_at,
         }

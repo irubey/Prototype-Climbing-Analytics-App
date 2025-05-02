@@ -19,12 +19,31 @@ import traceback
 import secrets
 
 # Application imports (adjust these based on your project structure)
-from logging import getLogger  # Replace with your actual logging setup if different
-logger = getLogger(__name__)
+from app.core.logging import logger
 
 class ScrapingError(Exception):
     """Custom exception for scraping-related errors."""
     pass
+
+class AccountManager:
+    """Manages a pool of 8a.nu accounts and their session cookies."""
+    def __init__(self):
+        self.accounts = [
+            (os.getenv(f"ACCOUNT{i}_USERNAME"), os.getenv(f"ACCOUNT{i}_PASSWORD"))
+            for i in range(1, int(os.getenv("NUM_ACCOUNTS", "3")) + 1)
+            if os.getenv(f"ACCOUNT{i}_USERNAME") and os.getenv(f"ACCOUNT{i}_PASSWORD")
+        ]
+        if not self.accounts:
+            raise ValueError("No accounts configured in environment variables")
+        self.project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        self.cookie_dir = os.path.join(self.project_root, "cookies")
+        os.makedirs(self.cookie_dir, exist_ok=True)
+        self.cookie_files = [os.path.join(self.cookie_dir, f"account{i}.json") for i in range(len(self.accounts))]
+
+    def get_random_account(self) -> tuple[int, tuple[str, str], str]:
+        """Select a random account and return its index, credentials, and cookie file."""
+        index = random.randint(0, len(self.accounts) - 1)
+        return index, self.accounts[index], self.cookie_files[index]
 
 class EightANuScraper:
     """CLI-based client for 8a.nu that handles authentication and data retrieval without asyncio."""
@@ -32,54 +51,179 @@ class EightANuScraper:
     BASE_URL = "https://www.8a.nu"
     LOGIN_URL = f"{BASE_URL}/login"
     ASCENTS_API_ENDPOINT = f"{BASE_URL}/unificationAPI/ascent/v1/web/users"
-    TIMEOUT_SECONDS = 90  # Increased subprocess timeout
-    RETRY_ATTEMPTS = 1    # Retry on transient failures
-    MIN_DELAY = 2         # Minimum delay between requests (seconds)
-    NODE_PATH = "node"    # Can be overridden with absolute path if needed
+    TIMEOUT_SECONDS = 60 * 5
+    RETRY_ATTEMPTS = 3  # Increased retry attempts
+    MIN_DELAY = 2
+    MAX_DELAY = 60  # Maximum delay in seconds
+    NODE_PATH = "node"
     
-    def __init__(self, proxy_list: Optional[List[str]] = None):
-        """Initialize the scraper with optional proxy list."""
+    def __init__(self, cookie_file: str, proxy_list: Optional[List[str]] = None):
+        """Initialize the scraper with a specific cookie file and optional proxy list."""
+        self.cookie_file = cookie_file
         self.proxy_list = proxy_list or []
-        self._user_slug = None
-        self._cookie_file = None
         self.project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         self.scripts_dir = os.path.join(self.project_root, "scripts")
         os.makedirs(self.scripts_dir, exist_ok=True)
+        self._current_credentials = None  # Store current credentials for re-authentication
+        self._auth_retries = 0  # Track authentication retries
+        self._rate_limit_retries = 0  # Track rate limit retries
+        self._current_delay = self.MIN_DELAY  # Current delay for exponential backoff
+        
+        # Ensure cookie directory exists
+        cookie_dir = os.path.dirname(self.cookie_file)
+        if cookie_dir:
+            os.makedirs(cookie_dir, exist_ok=True)
+            
+        logger.info("Initialized EightANuScraper", extra={
+            "cookie_file": self.cookie_file,
+            "proxy_count": len(self.proxy_list),
+            "scripts_dir": self.scripts_dir,
+            "min_delay": self.MIN_DELAY,
+            "max_delay": self.MAX_DELAY
+        })
+    
+    def _calculate_backoff_delay(self) -> float:
+        """Calculate exponential backoff delay with jitter."""
+        # Exponential backoff: delay = min_delay * (2 ^ retries)
+        delay = min(self.MIN_DELAY * (2 ** self._rate_limit_retries), self.MAX_DELAY)
+        # Add jitter: random value between 0 and 1 second
+        jitter = random.uniform(0, 1)
+        return delay + jitter
+    
+    def _handle_rate_limit(self) -> None:
+        """Handle rate limiting by implementing exponential backoff."""
+        self._rate_limit_retries += 1
+        self._current_delay = self._calculate_backoff_delay()
+        
+        logger.warning("Rate limit encountered", extra={
+            "retry_count": self._rate_limit_retries,
+            "current_delay": self._current_delay,
+            "max_delay": self.MAX_DELAY
+        })
+        
+        time.sleep(self._current_delay)
+    
+    def _reset_rate_limit(self) -> None:
+        """Reset rate limit tracking."""
+        self._rate_limit_retries = 0
+        self._current_delay = self.MIN_DELAY
+    
+    def _validate_cookie_file(self) -> bool:
+        """Validate that the cookie file exists and contains valid cookies."""
+        try:
+            if not os.path.exists(self.cookie_file):
+                logger.info(f"Cookie file {self.cookie_file} does not exist")
+                return False
+                
+            # Check if file is readable and contains valid JSON
+            with open(self.cookie_file, 'r') as f:
+                cookies = json.load(f)
+                
+            # Basic validation of cookie structure
+            if not isinstance(cookies, dict):
+                logger.warning(f"Invalid cookie file format in {self.cookie_file}")
+                return False
+                
+            # Check for required cookie fields
+            required_fields = {'cookies', 'origins'}
+            if not all(field in cookies for field in required_fields):
+                logger.warning(f"Missing required fields in cookie file {self.cookie_file}")
+                return False
+                
+            # Check if cookies list exists and is not empty
+            cookie_count = len(cookies.get('cookies', []))
+            if cookie_count == 0:
+                logger.warning(f"No cookies found in {self.cookie_file}")
+                return False
+                
+            logger.info(f"Validated cookie file", extra={
+                "cookie_file": self.cookie_file,
+                "cookie_count": cookie_count,
+                "has_origins": bool(cookies.get('origins'))
+            })
+            return True
+            
+        except json.JSONDecodeError:
+            logger.warning(f"Invalid JSON in cookie file {self.cookie_file}")
+            return False
+        except Exception as e:
+            logger.warning(f"Error validating cookie file {self.cookie_file}: {str(e)}")
+            return False
+    
+    def _initialize_cookie_file(self, username: str, password: str) -> None:
+        """Initialize a new cookie file with authentication."""
+        try:
+            logger.info("Initializing new cookie file", extra={
+                "cookie_file": self.cookie_file,
+                "username": username[:3] + "***"  # Log partial username for security
+            })
+            
+            # Create empty cookie file structure
+            with open(self.cookie_file, 'w') as f:
+                json.dump({'cookies': [], 'origins': []}, f)
+                
+            # Authenticate to populate cookies
+            self.authenticate(username, password)
+            
+            # Verify cookies were created
+            if not self._validate_cookie_file():
+                raise ScrapingError("Failed to initialize valid cookie file")
+                
+            logger.info(f"Successfully initialized cookie file", extra={
+                "cookie_file": self.cookie_file,
+                "auth_retries": self._auth_retries
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize cookie file", extra={
+                "cookie_file": self.cookie_file,
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+            if os.path.exists(self.cookie_file):
+                os.remove(self.cookie_file)
+            raise ScrapingError(f"Failed to initialize cookie file: {str(e)}")
     
     def _get_random_proxy(self) -> Optional[Dict[str, str]]:
         """Get a random proxy from the proxy list."""
         if not self.proxy_list:
+            logger.debug("No proxies available")
             return None
+            
         proxy_url = random.choice(self.proxy_list)
         try:
             parsed = urllib.parse.urlparse(proxy_url)
-            return {
+            proxy = {
                 "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}",
                 "username": parsed.username,
                 "password": parsed.password
             } if parsed.username and parsed.password else {
                 "server": proxy_url
             }
+            
+            logger.info("Selected proxy", extra={
+                "proxy_server": proxy["server"],
+                "has_credentials": bool(parsed.username and parsed.password)
+            })
+            return proxy
+            
         except Exception as e:
-            logger.warning(f"Failed to parse proxy URL {proxy_url}: {str(e)}")
+            logger.warning(f"Failed to parse proxy URL", extra={
+                "proxy_url": proxy_url,
+                "error": str(e)
+            })
             return None
     
     def __enter__(self):
-        """Initialize cookie file in scripts/ directory."""
-        self._cookie_file = os.path.join(self.scripts_dir, f"cookies_{secrets.token_hex(8)}.json")
+        """Context manager entry."""
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Clean up cookie file."""
-        if self._cookie_file and os.path.exists(self._cookie_file):
-            try:
-                os.remove(self._cookie_file)
-            except Exception as e:
-                logger.warning(f"Failed to remove cookie file {self._cookie_file}: {str(e)}")
-        self._cookie_file = None
+        """Context manager exit; no cleanup of persistent cookie file."""
+        pass
     
     def _extract_json(self, output: str) -> Any:
-        """Extract JSON from potentially noisy CLI output."""
+        """Extract JSON from CLI output."""
         match = re.search(r'\{.*\}', output, re.DOTALL)
         if not match:
             raise ValueError(f"No JSON found in output: {output[:100]}")
@@ -89,18 +233,26 @@ class EightANuScraper:
         """Run a Playwright script with retries and timeout."""
         cmd = [self.NODE_PATH, script_path]
         env = os.environ.copy()
+        
         if proxy:
             env["PLAYWRIGHT_PROXY_SERVER"] = proxy["server"]
             if "username" in proxy and "password" in proxy:
                 env["PLAYWRIGHT_PROXY_USERNAME"] = proxy["username"]
                 env["PLAYWRIGHT_PROXY_PASSWORD"] = proxy["password"]
-        if self._cookie_file:
-            env["PLAYWRIGHT_COOKIES_FILE"] = self._cookie_file
-            
-        # Set up debug screenshot path
+                
+        env["PLAYWRIGHT_COOKIES_FILE"] = self.cookie_file
+        
         debug_dir = os.path.join(self.project_root, "debug")
         os.makedirs(debug_dir, exist_ok=True)
-        env["PLAYWRIGHT_SCREENSHOT_PATH"] = os.path.join(debug_dir, f"8a_debug_{secrets.token_hex(4)}.png")
+        screenshot_path = os.path.join(debug_dir, f"8a_debug_{secrets.token_hex(4)}.png")
+        env["PLAYWRIGHT_SCREENSHOT_PATH"] = screenshot_path
+        
+        logger.info("Running Playwright script", extra={
+            "script_path": script_path,
+            "has_proxy": bool(proxy),
+            "cookie_file": self.cookie_file,
+            "screenshot_path": screenshot_path
+        })
         
         for attempt in range(self.RETRY_ATTEMPTS + 1):
             try:
@@ -115,24 +267,32 @@ class EightANuScraper:
                     encoding="utf-8"
                 )
                 if result.stderr:
-                    logger.debug(f"Script stderr: {result.stderr}")
+                    logger.debug(f"Script stderr", extra={
+                        "stderr": result.stderr,
+                        "attempt": attempt + 1
+                    })
                 return result.stdout
-            except subprocess.TimeoutExpired as e:
-                logger.warning(f"Script timed out after {self.TIMEOUT_SECONDS}s, attempt {attempt + 1}/{self.RETRY_ATTEMPTS + 1}")
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+                logger.warning(f"Script failed", extra={
+                    "attempt": attempt + 1,
+                    "total_attempts": self.RETRY_ATTEMPTS + 1,
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
                 if attempt == self.RETRY_ATTEMPTS:
-                    raise ScrapingError(f"Script timed out after {self.RETRY_ATTEMPTS + 1} attempts: {e.stderr}")
-            except subprocess.CalledProcessError as e:
-                logger.warning(f"Script failed, attempt {attempt + 1}/{self.RETRY_ATTEMPTS + 1}: {e.stderr}")
-                if attempt == self.RETRY_ATTEMPTS:
-                    raise ScrapingError(f"Script failed after {self.RETRY_ATTEMPTS + 1} attempts: {e.stderr}")
-            time.sleep(self.MIN_DELAY * (attempt + 1))  # Exponential backoff
+                    raise ScrapingError(f"Script failed after {self.RETRY_ATTEMPTS + 1} attempts: {str(e)}")
+            time.sleep(self.MIN_DELAY * (attempt + 1))
         return ""
     
-    def authenticate(self, username: str, password: str) -> str:
-        """Authenticate with 8a.nu using provided credentials and return the user slug."""
-        if self._user_slug and os.path.exists(self._cookie_file):
-            logger.info(f"Using existing session for slug: {self._user_slug}")
-            return self._user_slug
+    def authenticate(self, username: str, password: str):
+        """Authenticate with 8a.nu using provided credentials."""
+        self._current_credentials = (username, password)  # Store credentials for potential re-authentication
+        self._auth_retries = 0  # Reset auth retries counter
+        
+        logger.info("Starting authentication", extra={
+            "username": username[:3] + "***",  # Log partial username for security
+            "cookie_file": self.cookie_file
+        })
         
         script_path = os.path.join(self.scripts_dir, f"auth_{secrets.token_hex(8)}.js")
         try:
@@ -147,296 +307,295 @@ chromium.use(stealth);
     const context = await browser.newContext({{
         storageState: {{cookies: [], origins: []}},
         viewport: {{width: 1920 + Math.floor(Math.random() * 100 - 50), height: 1080 + Math.floor(Math.random() * 100 - 50)}},
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0',
-        extraHTTPHeaders: {{
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br, zstd',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1'
-        }}
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0'
     }});
     const page = await context.newPage();
     
-    await page.evaluate(() => {{
-        navigator.webdriver = false;
-        Object.defineProperty(navigator, 'platform', {{value: 'Win32'}});
-    }});
-    
     await page.goto('https://www.8a.nu/login', {{timeout: 60000, waitUntil: 'domcontentloaded'}});
-    console.log('Navigated to:', page.url());
-    
-    try {{
-        await page.waitForURL('https://vlatka.vertical-life.info/auth/**', {{timeout: 60000}});
-        console.log('Redirected to Vertical Life:', page.url());
-    }} catch (e) {{
-        console.log('Failed to redirect to Vertical Life, current URL:', page.url());
-        console.log('Page content:', await page.content().catch(() => 'Unable to get content'));
-        throw e;
-    }}
-    
-    try {{
-        await page.waitForSelector('input#username', {{timeout: 60000}});
-        console.log('Found login form at:', page.url());
-    }} catch (e) {{
-        console.log('Login form not found, current URL:', page.url());
-        console.log('Page content:', await page.content().catch(() => 'Unable to get content'));
-        throw e;
-    }}
+    await page.waitForURL('https://vlatka.vertical-life.info/auth/**', {{timeout: 60000}});
+    await page.waitForSelector('input#username', {{timeout: 60000}});
     
     await page.fill('input#username', "{username.replace('"', '\\"')}");
     await page.fill('input#password', "{password.replace('"', '\\"')}");
     await page.click('input#kc-login');
     
     await page.waitForURL('https://www.8a.nu/**', {{timeout: 60000}});
-    console.log('Redirected back to 8a.nu:', page.url());
-    
     await page.waitForLoadState('domcontentloaded', {{timeout: 30000}});
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    const slug = await page.evaluate(() => {{
-        const profileMenu = document.querySelector('div.profile-menu');
-        if (!profileMenu) {{
-            const fallbackLink = document.querySelector('div.user-name a[href^="/user/"]') ||
-                                document.querySelector('.profile-img-wrapper a[href^="/user/"]') ||
-                                document.querySelector('a[href^="/user/"]');
-            if (!fallbackLink) return null;
-            return fallbackLink.href.split('/user/')[1].split('/')[0];
-        }}
-        const link = profileMenu.querySelector('a[href^="/user/"]') || profileMenu.querySelector('a');
-        if (!link || !link.href.includes('/user/')) return null;
-        return link.href.split('/user/')[1].split('/')[0];
-    }});
-    
-    if (!slug) {{
-        console.log('Debug: Could not find user slug. Page URL:', page.url());
-        await page.screenshot({{ path: process.env.PLAYWRIGHT_SCREENSHOT_PATH || '/tmp/8a_debug.png' }});
-        throw new Error('User slug not found');
-    }}
-    
     await context.storageState({{path: process.env.PLAYWRIGHT_COOKIES_FILE}});
-    console.log(JSON.stringify({{ "slug": slug }}));
+    console.log(JSON.stringify({{ "status": "authenticated" }}));
     await browser.close();
 }})();
 """)
             
             proxy = self._get_random_proxy()
             output = self._run_script(script_path, proxy)
-            logger.debug(f"Script output: {output}")
             result = self._extract_json(output)
-            self._user_slug = result.get("slug")
-            
-            if not self._user_slug:
-                raise ScrapingError("Could not extract user slug")
+            if result.get("status") != "authenticated":
+                raise ScrapingError("Authentication failed")
                 
-            logger.info(f"Authenticated with 8a.nu, slug: {self._user_slug}")
-            return self._user_slug
+            logger.info("Authentication successful", extra={
+                "cookie_file": self.cookie_file,
+                "has_proxy": bool(proxy)
+            })
             
         except Exception as e:
-            logger.error("Authentication failed: %s", str(e), extra={"traceback": traceback.format_exc()})
+            logger.error("Authentication failed", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            })
             raise ScrapingError(f"Failed to authenticate with 8a.nu: {str(e)}")
         finally:
             if os.path.exists(script_path):
                 os.remove(script_path)
     
-    def get_ascents(self) -> Dict[str, Any]:
-        """Retrieve all ascents data from 8a.nu API using Playwright script with session persistence and stealth."""
-        if not self._user_slug:
-            raise ScrapingError("Not authenticated. Call authenticate() first")
+    def get_ascents(self, target_slug: str) -> Dict[str, Any]:
+        """Retrieve ascents data for the target slug using Playwright script."""
+        logger.info(
+            "Starting 8a.nu data fetch",
+            extra={
+                "target_slug": target_slug,
+                "cookie_file": self.cookie_file
+            }
+        )
         
+        if not self._current_credentials:
+            raise ScrapingError("Not authenticated. Call authenticate() first")
+            
+        logger.info("Starting ascent retrieval", extra={
+            "target_slug": target_slug,
+            "cookie_file": self.cookie_file,
+            "auth_retries": self._auth_retries,
+            "current_delay": self._current_delay
+        })
+            
+        # Validate cookie file and re-authenticate if necessary
+        if not self._validate_cookie_file():
+            logger.info(f"Cookie file is invalid or missing, re-authenticating...", extra={
+                "cookie_file": self.cookie_file,
+                "target_slug": target_slug
+            })
+            username, password = self._current_credentials
+            self._initialize_cookie_file(username, password)
+            
         script_path = os.path.join(self.scripts_dir, f"ascents_{secrets.token_hex(8)}.js")
         try:
             with open(script_path, "w") as f:
                 f.write(f"""
-    const {{ chromium }} = require('playwright-extra');
-    const stealth = require('puppeteer-extra-plugin-stealth')();
-    chromium.use(stealth);
+const {{ chromium }} = require('playwright-extra');
+const stealth = require('puppeteer-extra-plugin-stealth')();
+chromium.use(stealth);
 
-    (async () => {{
-        const browser = await chromium.launch({{headless: false}});
-        const context = await browser.newContext({{
-            storageState: process.env.PLAYWRIGHT_COOKIES_FILE,
-            viewport: {{ width: 1920 + Math.floor(Math.random() * 100 - 50), height: 1080 + Math.floor(Math.random() * 100 - 50) }},
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0',
-            extraHTTPHeaders: {{
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br, zstd',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-origin'
-            }}
-        }});
-        const page = await context.newPage();
+(async () => {{
+    const browser = await chromium.launch({{headless: false}});
+    const context = await browser.newContext({{
+        storageState: process.env.PLAYWRIGHT_COOKIES_FILE,
+        viewport: {{ width: 1920 + Math.floor(Math.random() * 100 - 50), height: 1080 + Math.floor(Math.random() * 100 - 50) }},
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0'
+    }});
+    const page = await context.newPage();
+    
+    const allAscents = [];
+    const categories = ['sportclimbing', 'bouldering'];
+    
+    for (const category of categories) {{
+        const categoryUrl = 'https://www.8a.nu/user/{target_slug}/' + category;
+        await page.goto(categoryUrl, {{ timeout: 60000, waitUntil: 'domcontentloaded' }});
+        await new Promise(resolve => setTimeout(resolve, 5000));
         
-        await page.evaluate(() => {{
-            navigator.webdriver = false;
-            Object.defineProperty(navigator, 'platform', {{ value: 'Win32' }});
-        }});
+        let pageIndex = 0;
+        let hasMorePages = true;
         
-        console.error('Loaded cookies:', JSON.stringify(await context.cookies()));
-        console.error('Starting to fetch ascents for user slug:', '{self._user_slug}');
-        const allAscents = [];
-        const categories = ['sportclimbing', 'bouldering'];
-        
-        for (const category of categories) {{
-            console.error('Processing category:', category);
-            const categoryUrl = 'https://www.8a.nu/user/{self._user_slug}/' + category;
-            try {{
-                await page.goto(categoryUrl, {{ timeout: 60000, waitUntil: 'domcontentloaded' }});
-                console.error('Navigated to category page:', page.url());
-                await new Promise(resolve => setTimeout(resolve, 5000));
-            }} catch (error) {{
-                console.error('Error navigating to category', category, ':', error.message);
-                continue;
+        while (hasMorePages) {{
+            await new Promise(resolve => setTimeout(resolve, {self.MIN_DELAY * 1000}));
+            
+            const apiUrl = 'https://www.8a.nu/unificationAPI/ascent/v1/web/users/{target_slug}/ascents' +
+                '?category=' + category +
+                '&pageIndex=' + pageIndex +
+                '&pageSize=50' +
+                '&sortField=date_desc' +
+                '&timeFilter=0' +
+                '&gradeFilter=0' +
+                '&typeFilter=' +
+                '&includeProjects=true' +
+                '&searchQuery=' +
+                '&showRepeats=true' +
+                '&showDuplicates=false';
+            
+            const response = await page.evaluate(async (url) => {{
+                const res = await fetch(url, {{
+                    method: 'GET',
+                    headers: {{
+                        'Accept': 'application/json',
+                        'Referer': window.location.href,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }},
+                    credentials: 'include'
+                }});
+                return {{ status: res.status, body: await res.text() }};
+            }}, apiUrl);
+            
+            if (response.status === 429) {{
+                throw new Error('Rate limit exceeded');
             }}
             
-            page.on('request', request => {{
-                console.error('Request URL:', request.url());
-                console.error('Request Headers:', JSON.stringify(request.headers()));
+            if (response.status === 401 || response.status === 403) {{
+                throw new Error('Authentication failed');
+            }}
+            
+            let data = JSON.parse(response.body);
+            const ascents = data.ascents || [];
+            if (ascents.length === 0) {{
+                hasMorePages = false;
+                break;
+            }}
+            
+            ascents.forEach(ascent => {{
+                ascent.platform = 'eight_a';
+                ascent.discipline = ascent.category === 0 ? 'sport' : 'boulder';
+                delete ascent.category;
+                allAscents.push(ascent);
             }});
             
-            let pageIndex = 0;
-            let hasMorePages = true;
-            
-            while (hasMorePages) {{
-                await new Promise(resolve => setTimeout(resolve, {self.MIN_DELAY * 1000}));
-                
-                const apiUrl = 'https://www.8a.nu/unificationAPI/ascent/v1/web/users/{self._user_slug}/ascents' +
-                    '?category=' + category +
-                    '&pageIndex=' + pageIndex +
-                    '&pageSize=50' +
-                    '&sortField=date_desc' +
-                    '&timeFilter=0' +
-                    '&gradeFilter=0' +
-                    '&typeFilter=' +
-                    '&includeProjects=true' +
-                    '&searchQuery=' +
-                    '&showRepeats=true' +
-                    '&showDuplicates=false';
-                
-                console.error('Requesting:', apiUrl);
-                
-                try {{
-                    console.error('Starting API fetch within page context for:', apiUrl);
-                    const response = await page.evaluate(async (url) => {{
-                        try {{
-                            const res = await fetch(url, {{
-                                method: 'GET',
-                                headers: {{
-                                    'Accept': 'application/json, text/plain, */*',
-                                    'Accept-Language': 'en-US,en;q=0.5',
-                                    'Accept-Encoding': 'gzip, deflate, br, zstd',
-                                    'Referer': window.location.href,
-                                    'Sec-Fetch-Dest': 'empty',
-                                    'Sec-Fetch-Mode': 'cors',
-                                    'Sec-Fetch-Site': 'same-origin',
-                                    'Pragma': 'no-cache',
-                                    'Cache-Control': 'no-cache',
-                                    'X-Requested-With': 'XMLHttpRequest'
-                                }},
-                                credentials: 'include'
-                            }});
-                            const text = await res.text();
-                            console.error('Fetch status:', res.status);
-                            console.error('Fetch response body:', text.substring(0, 500) + (text.length > 500 ? '...' : ''));
-                            return {{ status: res.status, body: text }};
-                        }} catch (error) {{
-                            console.error('Inner fetch error:', error.message);
-                            throw error;
-                        }}
-                    }}, apiUrl);
-                    
-                    console.error('Fetch completed, status:', response.status);
-                    
-                    let data;
-                    try {{
-                        data = JSON.parse(response.body);
-                    }} catch (e) {{
-                        console.error('JSON parse error:', e.message, 'Response body:', response.body);
-                        await page.screenshot({{ path: process.env.PLAYWRIGHT_SCREENSHOT_PATH || '/tmp/8a_api_error.png' }});
-                        break;
-                    }}
-                    
-                    if (response.status !== 200) {{
-                        console.error('Request failed with status', response.status, 'body:', response.body);
-                        break;
-                    }}
-                    
-                    const ascents = data.ascents || [];
-                    if (ascents.length === 0) {{
-                        console.error('No more ascents for', category, 'after page', pageIndex);
-                        hasMorePages = false;
-                        break;
-                    }}
-                    
-                    console.error('Found', ascents.length, 'ascents for', category, 'on page', pageIndex);
-                    
-                    ascents.forEach(ascent => {{
-                        ascent.platform = 'eight_a';
-                        ascent.discipline = ascent.category === 0 ? 'sport' : 'boulder';
-                        delete ascent.category;
-                        allAscents.push(ascent);
-                    }});
-                    
-                    pageIndex++;
-                }} catch (error) {{
-                    console.error('Fetch error:', error.message);
-                    console.error('Fetch error details:', JSON.stringify(error));
-                    await page.screenshot({{ path: process.env.PLAYWRIGHT_SCREENSHOT_PATH || '/tmp/8a_api_error.png' }});
-                    break;
-                }}
-            }}
+            pageIndex++;
         }}
-        
-        console.error('Total ascents found:', allAscents.length);
-        console.log(JSON.stringify({{ 
-            ascents: allAscents,
-            totalItems: allAscents.length,
-            pageIndex: 0
-        }}));
-        
-        await browser.close();
-    }})().catch(error => {{
-        console.error('Unhandled error:', error.message);
-        console.error('Error stack trace:', error.stack || 'No stack trace available');
-        process.exit(1);
-    }});
-    """)
+    }}
+    
+    console.log(JSON.stringify({{ 
+        ascents: allAscents,
+        totalItems: allAscents.length,
+        pageIndex: 0
+    }}));
+    await browser.close();
+}})();
+""")
             
             proxy = self._get_random_proxy()
-            output = self._run_script(script_path, proxy)
-            logger.debug(f"Ascent response output: {output[:500]}...")
-            
             try:
+                output = self._run_script(script_path, proxy)
                 data = self._extract_json(output)
                 all_ascents = data.get("ascents", [])
                 
+                # Add detailed logging of raw data structure
+                if all_ascents:
+                    sample_ascent = all_ascents[0]
+                    logger.info(
+                        "Raw 8a.nu data structure",
+                        extra={
+                            "target_slug": target_slug,
+                            "ascent_count": len(all_ascents),
+                            "sample_ascent_keys": list(sample_ascent.keys()),
+                            "sample_ascent": sample_ascent,
+                            "categories": list(set(a.get('discipline', '') for a in all_ascents))
+                        }
+                    )
+                else:
+                    logger.warning(
+                        "No ascents found in raw data",
+                        extra={
+                            "target_slug": target_slug,
+                            "raw_data": data
+                        }
+                    )
+                
                 if not all_ascents:
-                    logger.warning("No ascents found in the response")
-                    logger.debug(f"Full response: {output}")
-                    raise ScrapingError("Failed to retrieve any ascents from 8a.nu")
+                    raise ScrapingError("Failed to retrieve any ascents")
                     
-                logger.info(f"Fetched {len(all_ascents)} ascents from 8a.nu")
+                # Reset rate limit tracking on success
+                self._reset_rate_limit()
+                    
+                logger.info(f"Successfully retrieved ascents", extra={
+                    "target_slug": target_slug,
+                    "ascent_count": len(all_ascents),
+                    "categories": list(set(a.get('discipline', '') for a in all_ascents))
+                })
                 
                 return {
                     "ascents": all_ascents,
                     "totalItems": len(all_ascents),
                     "pageIndex": 0,
-                    "user_slug": self._user_slug
+                    "user_slug": target_slug
                 }
-            except ValueError as e:
-                logger.error("JSON parsing error: %s", str(e), extra={"traceback": traceback.format_exc()})
-                raise ScrapingError(f"Failed to parse ascent data: {str(e)}")
+            except ScrapingError as e:
+                if "Rate limit exceeded" in str(e):
+                    if self._rate_limit_retries < self.RETRY_ATTEMPTS:
+                        self._handle_rate_limit()
+                        # Retry the request
+                        output = self._run_script(script_path, proxy)
+                        data = self._extract_json(output)
+                        all_ascents = data.get("ascents", [])
+                        
+                        if not all_ascents:
+                            raise ScrapingError("Failed to retrieve any ascents after rate limit backoff")
+                            
+                        logger.info(f"Successfully retrieved ascents after rate limit backoff", extra={
+                            "target_slug": target_slug,
+                            "ascent_count": len(all_ascents),
+                            "rate_limit_retries": self._rate_limit_retries,
+                            "final_delay": self._current_delay
+                        })
+                        
+                        return {
+                            "ascents": all_ascents,
+                            "totalItems": len(all_ascents),
+                            "pageIndex": 0,
+                            "user_slug": target_slug
+                        }
+                    else:
+                        logger.error(f"Max rate limit retries exceeded", extra={
+                            "max_attempts": self.RETRY_ATTEMPTS,
+                            "target_slug": target_slug,
+                            "final_delay": self._current_delay
+                        })
+                        raise ScrapingError(f"Max rate limit retries exceeded after {self.RETRY_ATTEMPTS} attempts")
+                elif "Authentication failed" in str(e):
+                    if self._auth_retries < self.RETRY_ATTEMPTS:
+                        self._auth_retries += 1
+                        logger.info(f"Session expired, re-authenticating", extra={
+                            "attempt": self._auth_retries,
+                            "max_attempts": self.RETRY_ATTEMPTS,
+                            "target_slug": target_slug
+                        })
+                        # Re-authenticate with stored credentials
+                        username, password = self._current_credentials
+                        self._initialize_cookie_file(username, password)  # Re-initialize cookie file
+                        # Retry the request
+                        output = self._run_script(script_path, proxy)
+                        data = self._extract_json(output)
+                        all_ascents = data.get("ascents", [])
+                        
+                        if not all_ascents:
+                            raise ScrapingError("Failed to retrieve any ascents after re-authentication")
+                            
+                        logger.info(f"Successfully retrieved ascents after re-authentication", extra={
+                            "target_slug": target_slug,
+                            "ascent_count": len(all_ascents),
+                            "auth_retries": self._auth_retries
+                        })
+                        
+                        return {
+                            "ascents": all_ascents,
+                            "totalItems": len(all_ascents),
+                            "pageIndex": 0,
+                            "user_slug": target_slug
+                        }
+                    else:
+                        logger.error(f"Max authentication retries exceeded", extra={
+                            "max_attempts": self.RETRY_ATTEMPTS,
+                            "target_slug": target_slug
+                        })
+                        raise ScrapingError(f"Max authentication retries exceeded after {self.RETRY_ATTEMPTS} attempts")
+                raise
             
         except Exception as e:
-            logger.error("Ascent retrieval failed: %s", str(e), extra={"traceback": traceback.format_exc()})
+            logger.error("Ascent retrieval failed", extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc(),
+                "target_slug": target_slug
+            })
             raise ScrapingError(f"Failed to retrieve ascents: {str(e)}")
         finally:
             if os.path.exists(script_path):

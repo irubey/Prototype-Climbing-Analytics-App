@@ -88,7 +88,7 @@ class MountainProjectCSVProcessor(BaseCSVProcessor):
                 standardized_df.loc[mask, 'location_raw'] = df.loc[mask, 'location']
                 standardized_df.loc[mask, 'location'] = standardized_df.loc[mask, 'location'].apply(
                     lambda x: x.split('>')).apply(
-                        lambda x: f"{x[-2].strip()}, {x[0].strip()}" if len(x) >= 2 else x[0].strip()
+                        lambda x: f"{x[2].strip()}, {x[0].strip()}" if len(x) >= 3 else x[0].strip()
                 )
             
             # Style and quality fields

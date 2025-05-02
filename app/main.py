@@ -15,6 +15,9 @@ This module initializes the FastAPI application with all its middleware,
 routers, and lifecycle management.
 """
 
+# Import logging first to ensure it's initialized
+from app.core.logging import logger
+
 import os  # Import the os module
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -40,7 +43,6 @@ from app.core.error_handlers import (
     validation_error_handler,
     general_exception_handler,
     )
-from app.core.logging import logger
 from app.db.init_db import init_db, dispose_db
 from app.db.session import DatabaseSessionManager, sessionmanager, AsyncSession
 
@@ -176,6 +178,7 @@ async def log_requests(request: Request, call_next):
     logger.info(
         "Incoming request",
         extra={
+            "module": "http",
             "method": request.method,
             "url": str(request.url),
             "client_host": request.client.host if request.client else None,
@@ -188,6 +191,7 @@ async def log_requests(request: Request, call_next):
     logger.info(
         "Outgoing response",
         extra={
+            "module": "http",
             "status_code": response.status_code,
             "method": request.method,
             "url": str(request.url)

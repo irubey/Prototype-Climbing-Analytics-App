@@ -63,6 +63,7 @@ async def get_context(
     logger.info(
         "Retrieving user context",
         extra={
+            "module": "context",
             "user_id": target_user_id,
             "current_user_id": str(current_user.id),
             "query": query_params.model_dump()
@@ -76,28 +77,21 @@ async def get_context(
         force_refresh=query_params.force_refresh
     )
 
-    # Log the response data
-    logger.info("Context endpoint response", extra={
+    # Log the complete response data
+    logger.info("Context endpoint complete response", extra={
+        "module": "context",
         "response_data": {
             "context_version": context.get("context_version"),
             "summary": context.get("summary"),
-            "profile_summary": {
-                "years_climbing": context.get("profile", {}).get("years_climbing"),
-                "total_climbs": context.get("profile", {}).get("total_climbs"),
-                "favorite_discipline": context.get("profile", {}).get("favorite_discipline")
+            "profile": context.get("profile", {}),
+            "performance": {
+                k: v for k, v in context.get("performance", {}).items() 
+                if k not in ["grade_pyramids"]
             },
-            "performance_summary": {
-                "highest_grades": {
-                    "sport": context.get("performance", {}).get("highest_sport_grade"),
-                    "boulder": context.get("performance", {}).get("highest_boulder_grade"),
-                    "trad": context.get("performance", {}).get("highest_trad_grade")
-                },
-                "recent_sends": len(context.get("performance", {}).get("recent_sends", [])),
-                "projects": len(context.get("performance", {}).get("current_projects", []))
-            },
-            "trends_summary": context.get("trends"),
-            "goals_summary": context.get("goals"),
-            "has_uploads": bool(context.get("uploads")),
+            "trends": context.get("trends", {}),
+            "relevance": context.get("relevance", {}),
+            "goals": context.get("goals", {}),
+            "uploads": context.get("uploads", []),
             "is_new_user": context.get("is_new_user", False)
         }
     })
@@ -133,6 +127,7 @@ async def refresh_context(
     logger.info(
         "Initiating context refresh",
         extra={
+            "module": "context",
             "user_id": target_user_id,
             "current_user_id": str(current_user.id)
         }
@@ -146,7 +141,7 @@ async def refresh_context(
     
     return {
         "status": "Context refresh initiated successfully"
-    }
+    } 
 
 @router.post(
     "/{user_id}/update",
@@ -161,7 +156,11 @@ async def update_context(
     current_user: User = Depends(get_current_user)
 ) -> Dict[str, Any]:
     target_user_id = _resolve_user_id(user_id, current_user)
-    logger.info("Updating user context", extra={"user_id": target_user_id, "update_sections": list(payload.updates.keys())})
+    logger.info("Updating user context", extra={
+        "module": "context",
+        "user_id": target_user_id, 
+        "update_sections": list(payload.updates.keys())
+    })
 
     # Update SQL
     stmt = select(ClimberContext).where(ClimberContext.user_id == target_user_id)
@@ -217,6 +216,7 @@ async def bulk_refresh_contexts(
     logger.info(
         "Initiating bulk context refresh",
         extra={
+            "module": "context",
             "current_user_id": str(current_user.id),
             "target_user_count": len(target_user_ids) if target_user_ids else "all"
         }

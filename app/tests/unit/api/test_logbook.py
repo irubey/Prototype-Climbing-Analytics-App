@@ -84,8 +84,7 @@ async def test_connect_logbook_eight_a_nu(
         
         payload = LogbookConnectPayload(
             source=IngestionType.EIGHT_A_NU,
-            username="test_user",
-            password="password123"
+            profile_url="https://www.8a.nu/user/test-user"
         )
         
         # Act
@@ -102,8 +101,7 @@ async def test_connect_logbook_eight_a_nu(
         mock_background_tasks.add_task.assert_called_once_with(
             mock_orchestrator.process_eight_a_nu_ticks,
             user_id=test_user.id,
-            username=payload.username,
-            password="[REDACTED]"  # Verify credentials are not logged
+            profile_url=payload.profile_url
         )
 
 @pytest.mark.asyncio

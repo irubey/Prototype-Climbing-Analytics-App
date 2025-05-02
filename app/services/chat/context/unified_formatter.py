@@ -66,14 +66,26 @@ class UnifiedFormatter:
         )
         
         # Current level and progression
-        highest_grade = climber_context.get('highest_boulder_grade', 'V0')
-        grade_progression = trends.get('grade_progression', {})
-        if grade_progression.get('recent', 0) > 0:
+        highest_grades = {
+            'sport': climber_context.get('highest_grade_sport_sent_clean_on_lead'),
+            'trad': climber_context.get('highest_grade_trad_sent_clean_on_lead'),
+            'boulder': climber_context.get('highest_grade_boulder_sent_clean')
+        }
+        
+        # Filter out None values and format the grades
+        valid_grades = {k: v for k, v in highest_grades.items() if v is not None}
+        if valid_grades:
+            grade_parts = []
+            if 'sport' in valid_grades:
+                grade_parts.append(f"sport {valid_grades['sport']}")
+            if 'trad' in valid_grades:
+                grade_parts.append(f"trad {valid_grades['trad']}")
+            if 'boulder' in valid_grades:
+                grade_parts.append(f"boulder {valid_grades['boulder']}")
+            
             summary_parts.append(
-                f"currently climbing {highest_grade} with positive grade progression"
+                f"currently climbing {', '.join(grade_parts)}"
             )
-        else:
-            summary_parts.append(f"currently climbing {highest_grade}")
         
         # Training consistency
         consistency = trends.get('training_consistency', 0)
@@ -83,8 +95,8 @@ class UnifiedFormatter:
             summary_parts.append("training regularly")
         
         # Goals
-        goal_grade = climber_context.get('goal_grade')
-        if goal_grade:
+        climbing_goals = climber_context.get('climbing_goals')
+        if climbing_goals:
             goal_progress = goals.get('progress', {'progress': 0.0, 'status': 'on_track', 'time_remaining': None})
             if not isinstance(goal_progress, dict):
                 # Convert old format to new format
@@ -96,7 +108,7 @@ class UnifiedFormatter:
             status = goal_progress.get('status', 'on_track')
             time_remaining = goal_progress.get('time_remaining')
             
-            goal_text = f"working towards {goal_grade}"
+            goal_text = f"working towards {climbing_goals}"
             if time_remaining:
                 goal_text += f" with {time_remaining} remaining"
                 
@@ -205,9 +217,18 @@ class UnifiedFormatter:
             'years_climbing': climber_context.get('years_climbing', 0),
             'total_climbs': climber_context.get('total_climbs', 0),
             'favorite_discipline': climber_context.get('favorite_discipline'),
-            'interests': climber_context.get('interests', []),
+            'interests': climber_context.get('interests', {}),
             'training_frequency': climber_context.get('current_training_frequency'),
-            'home_equipment': climber_context.get('home_equipment', [])
+            'home_equipment': climber_context.get('home_equipment'),
+            'preferred_crag_last_year': climber_context.get('preferred_crag_last_year'),
+            'typical_session_length': climber_context.get('typical_session_length'),
+            'typical_session_intensity': climber_context.get('typical_session_intensity'),
+            'access_to_commercial_gym': climber_context.get('access_to_commercial_gym', False),
+            'supplemental_training': climber_context.get('supplemental_training'),
+            'training_history': climber_context.get('training_history'),
+            'physical_limitations': climber_context.get('physical_limitations'),
+            'sleep_score': climber_context.get('sleep_score'),
+            'nutrition_score': climber_context.get('nutrition_score')
         }
         
         # Format performance data
@@ -218,8 +239,42 @@ class UnifiedFormatter:
                 'boulder': climber_context.get('highest_grade_boulder_sent_clean'),
                 'tr': climber_context.get('highest_grade_tr_sent_clean')
             },
+            'onsight_grades': {
+                'boulder': climber_context.get('onsight_grade_boulder'),
+                'sport': climber_context.get('onsight_grade_sport'),
+                'trad': climber_context.get('onsight_grade_trad')
+            },
+            'flash_grades': {
+                'boulder': climber_context.get('flash_grade_boulder'),
+                'sport': climber_context.get('flash_grade_sport'),
+                'trad': climber_context.get('flash_grade_trad')
+            },
+            'grade_pyramids': {
+                'sport': climber_context.get('grade_pyramid_sport', {}),
+                'trad': climber_context.get('grade_pyramid_trad', {}),
+                'boulder': climber_context.get('grade_pyramid_boulder', {})
+            },
             'recent_activity': enhanced_data.get('trends', {}).get('activity_levels', {}),
-            'training_consistency': enhanced_data.get('trends', {}).get('training_consistency', 0)
+            'training_consistency': enhanced_data.get('trends', {}).get('training_consistency', 0),
+            'current_projects': climber_context.get('current_projects', {}),
+            'recent_favorite_routes': climber_context.get('recent_favorite_routes', {}),
+            'style_preferences': {
+                'angles': {
+                    'favorite': climber_context.get('favorite_angle'),
+                    'weakest': climber_context.get('weakest_angle'),
+                    'strongest': climber_context.get('strongest_angle')
+                },
+                'energy_types': {
+                    'favorite': climber_context.get('favorite_energy_type'),
+                    'weakest': climber_context.get('weakest_energy_type'),
+                    'strongest': climber_context.get('strongest_energy_type')
+                },
+                'hold_types': {
+                    'favorite': climber_context.get('favorite_hold_types'),
+                    'weakest': climber_context.get('weakest_hold_types'),
+                    'strongest': climber_context.get('strongest_hold_types')
+                }
+            }
         }
         
         # Format trends data
@@ -227,7 +282,7 @@ class UnifiedFormatter:
         
         # Format goals data
         goals = {
-            'current_goals': climber_context.get('climbing_goals', []),
+            'current_goals': climber_context.get('climbing_goals'),
             'progress': enhanced_data.get('goals', {}).get('progress', {
                 'status': 'not_set',
                 'progress': 0.0,
