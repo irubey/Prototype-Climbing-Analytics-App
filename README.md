@@ -75,7 +75,3 @@ Key highlights:
 
 - The database is queried to generate interactive visualizations of relevant data trends.
 - Users can explore various aspects of their climbing performance through engaging and informative charts.
-
-## Try it out!
-
-[Click here to access SendSage](https://prototype-climbing-analytics-app.onrender.com/)
